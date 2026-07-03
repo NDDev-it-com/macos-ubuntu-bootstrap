@@ -1,0 +1,68 @@
+name: bootstrap-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: ubuntu
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Prepare shellcheck
+        run: |
+          if [[ "${{ matrix.os }}" == macos* ]]; then
+            brew update
+            brew install shellcheck
+          else
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+          fi
+
+      - name: Validate bootstrap scripts (syntax + shellcheck + contract + dry-runs)
+        run: |
+          bash scripts/ci/validate.sh
+
+      - name: Verify bootstrap entrypoint for target platform
+        run: |
+          bash scripts/bootstrap.sh --platform "${{ matrix.platform }}" --plan --skip-checks
+
+  bootstrap-dryrun-crosscheck:
+    needs: bootstrap-validate
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Crosscheck other platform installer in plan mode
+        run: |
+          if [[ "${{ matrix.os }}" == macos-latest ]]; then
+            bash scripts/bootstrap.sh --platform ubuntu --plan --skip-system --skip-checks
+          else
+            bash scripts/bootstrap.sh --platform macos --plan --skip-system --skip-checks
+          fi

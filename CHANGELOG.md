@@ -5,6 +5,12 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.1.2] - 2026-07-04
+
+### Fixed
+
+- Synchronize bootstrap contract baseline with released adapter version.
+
 ## [0.1.1] - 2026-07-04
 
 ### Security

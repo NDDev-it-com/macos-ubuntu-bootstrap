@@ -52,7 +52,7 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 
 ## Validation Commands
 - `python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-serena-mcp/local/scripts/serena_memory_state.py`
-- `python3 ../../../scripts/validate_serena_memory_schema.py --scope new-mac-or-ubuntu --strict-mode strict-all`
+- `python3 ../../scripts/validate_serena_memory_schema.py --scope new-mac-or-ubuntu --strict-mode strict-all`
 - `git ls-files .serena`
 
 ## Repair Procedure

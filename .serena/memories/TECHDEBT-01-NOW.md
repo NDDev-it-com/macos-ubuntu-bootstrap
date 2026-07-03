@@ -59,7 +59,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - `git check-ignore -v .serena/.sync_marker`
 - `git check-ignore -q .serena/memories/CORE-01-INDEX.md`
 - `bash scripts/ci/validate.sh`
-- `python3 ../../../scripts/validate_serena_memory_schema.py --scope new-mac-or-ubuntu --strict-mode strict-all`
+- `python3 ../../scripts/validate_serena_memory_schema.py --scope new-mac-or-ubuntu --strict-mode strict-all`
 
 ## Repair Procedure
 - Restore durable memory tracking, keep runtime state ignored, align docs with scripts, then rerun validation commands.

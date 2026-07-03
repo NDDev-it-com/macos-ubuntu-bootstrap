@@ -5,6 +5,12 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.1.1] - 2026-07-04
+
+### Security
+
+- Refresh GitHub Actions and CodeQL pins across the public module CI surface.
+
 ## [0.1.0] - 2026-07-04
 
 ### Added

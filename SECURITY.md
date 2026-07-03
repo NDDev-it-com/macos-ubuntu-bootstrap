@@ -1,17 +1,38 @@
 # Security Policy
 
-If you discover a security vulnerability in this project, do **not** create a public issue.
+## Supported versions
 
-Use the repository's Security Advisories to report privately:
+- `rldyour-new-mac-or-ubuntu` uses versioned bootstrap scripts from `main`.
+- For security issues report with minimum detail:
+  - command (with full output),
+  - OS and platform profile,
+  - module commit SHA,
+  - exact steps to reproduce.
 
-- https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/security
+## Reporting vulnerabilities
 
-Private reports are reviewed by maintainers under responsible disclosure.
+- Open a private issue only for sensitive findings and use a redacted reproduction.
+- Public PRs can be used for non-sensitive hardening updates.
 
-Please include:
-- Affected branch/tag or commit hash
-- Repro steps
-- Logs/output snippets (sanitized)
-- Expected and actual behavior
+## Security tooling
 
-We practice responsible disclosure and will review reports as soon as possible.
+This module is designed as an OSS-first security baseline and includes:
+
+- Secret scanning (GitHub native),
+- Secret scanning push protection,
+- GitHub Dependabot security alerts and security updates,
+- Dependabot security updates for workflows,
+- Dependency review on dependency-relevant PRs,
+- CodeQL (Python),
+- Gitleaks scan in CI,
+- OSSF Scorecard analysis.
+
+Advanced Security features (GitHub Advanced Security subscription) are not enabled because this organization does not currently expose GHAS availability for these repositories (API returns 422).
+
+## Branch protection
+
+- Required pull request reviews: 1
+- Conversation resolution required on PRs
+- No force pushes
+- No branch deletion
+- Status checks required for `bootstrap-gate` (this module) or branch checks configured in module policy.

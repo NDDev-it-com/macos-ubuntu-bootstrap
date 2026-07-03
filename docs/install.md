@@ -142,6 +142,19 @@ CI для модуля:
   - `gh workflow run .github/workflows/ci.yml -f mode=apply -f platform=macos`
 - cross-platform parity:
   - при ручном `mode=plan` и `platform=both` второй job выполняет плановый cross-check целевой ОС.
+- Security hardening workflows:
+  - `.github/workflows/codeql.yml` — GitHub CodeQL
+  - `.github/workflows/secret-scan.yml` — Gitleaks по git history
+  - `.github/workflows/scorecard.yml` — OSSF Scorecard
+  - `.github/workflows/dependency-review.yml` — проверка зависимостей в PR
+- Дополнительно в репозитории включены:
+  - Secret scanning + push protection
+  - Dependabot security alerts + Dependabot security updates
+  - Branch protection на `main` (1 review, запрет force push/delete, conversation resolution)
+
+Ограничение:
+
+- `Advanced Security` через GitHub API для модулей публичных репозиториев сейчас недоступен (422), поэтому включены все разрешённые OSS-фичи и проверки.
 
 ## 4) Проверка после установки
 

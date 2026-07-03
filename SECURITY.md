@@ -27,12 +27,13 @@ This module is designed as an OSS-first security baseline and includes:
 - Gitleaks scan in CI,
 - OSSF Scorecard analysis.
 
-Advanced Security features (GitHub Advanced Security subscription) are not enabled because this organization does not currently expose GHAS availability for these repositories (API returns 422).
+Dependency and security capability coverage is oriented to GitHub public/free + OSS-first controls:
+secret scanning, push protection, Dependabot security alerts/updates, CodeQL, dependency review,
+and OSSF Scorecard.
 
 ## Branch protection
 
 - Required pull request reviews: 1
-- Conversation resolution required on PRs
 - No force pushes
 - No branch deletion
 - Status checks required for `bootstrap-gate` (this module) or branch checks configured in module policy.

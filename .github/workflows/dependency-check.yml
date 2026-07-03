@@ -1,0 +1,104 @@
+name: dependency-check
+
+on:
+  schedule:
+    - cron: "40 6 * * 1"
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-pins:
+    name: Dependency pin checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Validate pinned AI installer manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          files = [
+              Path("scripts/macos/install.sh"),
+              Path("scripts/ubuntu/install.sh"),
+          ]
+
+          variable_matrix = [
+              ("CLAUDE_CODE_VERSION", "@anthropic-ai/claude-code"),
+              ("CODEX_VERSION", "@openai/codex"),
+              ("OPENCODE_VERSION", "opencode-ai"),
+              ("MIMOCODE_VERSION", "@mimo-ai/cli"),
+          ]
+
+          values = {name: [] for name, _ in variable_matrix}
+          for path in files:
+              namespace = {}
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  if "=" not in line:
+                      continue
+                  if not line.split("=", 1)[0].isupper():
+                      continue
+                  key, raw_value = line.split("=", 1)
+                  if key not in values:
+                      continue
+                  try:
+                      namespace[key] = ast.literal_eval(raw_value.strip())
+                  except Exception:
+                      continue
+              for var, _ in variable_matrix:
+                  if var not in namespace:
+                      raise SystemExit(f"{var} missing in {path}")
+                  values[var].append(namespace[var])
+
+          for var, package in variable_matrix:
+              pins = values[var]
+              if len(set(pins)) != 1:
+                  raise SystemExit(f"{package} pin mismatch between install profiles: {pins}")
+
+          marker = "antigravity.google/cli/install.sh"
+          for path in files:
+              data = path.read_text(encoding="utf-8")
+              if marker not in data:
+                  raise SystemExit(f"{marker} missing in {path}")
+
+          print("dependency manifest pins are aligned:")
+          for var, package in variable_matrix:
+              print(f"  {package}: {values[var][0]}")
+          PY
+
+      - name: Validate dependency-check intent
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "scripts/bootstrap.sh"
+            "scripts/ci/validate.sh"
+            "scripts/macos/install.sh"
+            "scripts/ubuntu/install.sh"
+          )
+
+          for script in "${required[@]}"; do
+            if [ ! -r "$script" ]; then
+              echo "Missing required script: $script" >&2
+              exit 1
+            fi
+          done
+          echo "dependency intent verified"

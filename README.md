@@ -96,6 +96,12 @@ bash scripts/bootstrap.sh --platform ubuntu --plan --skip-checks
   - `.github/workflows/secret-scan.yml` — секретный скан Gitleaks (по истории репозитория)
   - `.github/workflows/scorecard.yml` — OSSF Scorecard
   - `.github/workflows/ci.yml` включает `workflow-lint` с actionlint
+  - `.github/workflows/validate.yml` — отдельная проверка скриптов и контракта
+  - `.github/workflows/pytest.yml` — smoke-тесты bootstrap entrypoint
+  - `.github/workflows/actionlint.yml` — lint для всех workflow файлов
+  - `.github/workflows/dependency-check.yml` — контроль pin-совпадений инсталлеров между macOS и Ubuntu
+  - `.github/workflows/cross-platform.yml` — smoke проверка на `ubuntu-latest`, `macos-latest`, `windows-latest`
+  - `.github/workflows/release.yml` — публикация артефактов и attestations
   - `.github/dependabot.yml` — автообновления GitHub Actions зависимостей
 - Для ручного запуска CI:
   - `gh workflow run .github/workflows/ci.yml -f mode=plan -f platform=both`
@@ -121,10 +127,10 @@ bash scripts/bootstrap.sh --platform ubuntu --plan --skip-checks
     - required reviews: 1
     - required status check: `bootstrap-gate`
     - запрет force push и удаления ветки
-    - обязательное разрешение разрешения бесед в PR (conversation resolution)
+    - required code owner review для ревью
   - Security policy: `./SECURITY.md`
 
-Публичные security-фичи уровня OSS в репозитории включены и регулярно верифицируются через GitHub API (включая расширенный Secret scanning).
+Публичные security-фичи уровня OSS в репозитории включены и регулярно верифицируются через GitHub API (включая `secret_scanning`, `secret_scanning_push_protection`, `code scanning`, `dependabot` alerts/updates и branch protection).
 
 ## Версионность и лицензия
 

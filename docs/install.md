@@ -147,12 +147,19 @@ CI для модуля:
   - `.github/workflows/secret-scan.yml` — Gitleaks по git history
   - `.github/workflows/scorecard.yml` — OSSF Scorecard
   - `.github/workflows/dependency-review.yml` — проверка зависимостей в PR
+  - `.github/workflows/dependency-check.yml` — проверка pin-совпадений между macOS и Ubuntu профилями
+  - `.github/workflows/validate.yml` — базовая валидация bootstrap скриптов и контракта
+  - `.github/workflows/pytest.yml` — smoke-тесты bootstrap entrypoint
+  - `.github/workflows/actionlint.yml` — lint GitHub Actions workflow
+  - `.github/workflows/cross-platform.yml` — валидация структуры в Linux/macOS/Windows раннерах
+  - `.github/workflows/release.yml` — release manifest/SBOM/attestations/теги
 - Дополнительно в репозитории включены:
   - Secret scanning + push protection
   - Dependabot security alerts + Dependabot security updates
-  - Branch protection на `main` (1 review, запрет force push/delete, conversation resolution)
+  - Branch protection на `main` (1 review, запрет force push/delete, required code owner review, `bootstrap-gate`)
 
-`Advanced Security`-наборы и расширенный Secret scanning включены в соответствии с публичным режимом GitHub (включая non-provider patterns, AI detection, validity checks и delegated alert dismissal), без привязки к платным возможностям.
+`Advanced Security`/security-oriented capabilities включены в пределах возможностей публичного режима GitHub и требований policy:
+secret scanning, push protection, CodeQL, OSSF Scorecard, Dependabot alerts/updates, secret scanning, dependency review, branch protection и CI-аттестации релизов.
 
 ## 4) Проверка после установки
 

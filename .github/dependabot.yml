@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:00"
+      time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 5
     commit-message:
@@ -13,5 +13,4 @@ updates:
       include: scope
     labels:
       - dependencies
-      - github-actions
-      - bot
+      - ci

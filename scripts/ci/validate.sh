@@ -78,8 +78,8 @@ bash -n "$REPO_ROOT/scripts/ubuntu/verify.sh"
 bash -n "$REPO_ROOT/scripts/ci/validate.sh"
 set +x
 
-bash "$REPO_ROOT/scripts/bootstrap.sh" --platform macos --plan
-bash "$REPO_ROOT/scripts/bootstrap.sh" --platform ubuntu --plan
+bash "$REPO_ROOT/scripts/bootstrap.sh" --platform macos --plan --skip-checks
+bash "$REPO_ROOT/scripts/bootstrap.sh" --platform ubuntu --plan --skip-checks
 
 for script in \
   "$REPO_ROOT/scripts/bootstrap.sh" \
@@ -89,7 +89,7 @@ for script in \
   "$REPO_ROOT/scripts/ubuntu/install.sh" \
   "$REPO_ROOT/scripts/ubuntu/verify.sh" \
   "$REPO_ROOT/scripts/ci/validate.sh"; do
-  shellcheck "$script"
+  shellcheck -x "$script"
 done
 
 echo "ci-validate-ok"

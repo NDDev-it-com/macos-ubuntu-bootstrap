@@ -40,9 +40,9 @@ rldyour::require_cmd() {
 }
 
 rldyour::need_cmd() {
-  local cmd=$1
-  if command -v "$cmd" >/dev/null 2>&1; then
-    printf '%s\n' "$cmd"
+  local command_name=$1
+  if command -v "$command_name" >/dev/null 2>&1; then
+    printf '%s\n' "$command_name"
     return 0
   fi
   return 1
@@ -62,19 +62,19 @@ rldyour::require_file() {
 }
 
 rldyour::require_cmd_min_version() {
-  local cmd=$1
+  local command_name=$1
   local min_version=$2
   local version_cmd=${3:-"--version"}
 
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    rldyour::log "missing" "$cmd not found"
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    rldyour::log "missing" "$command_name not found"
     return 1
   fi
 
   local actual_version
-  actual_version=$("$cmd" $version_cmd 2>/dev/null | head -n 1 | sed 's/^v//; s/^[^0-9]*//')
+  actual_version=$("$command_name" "$version_cmd" 2>/dev/null | head -n 1 | sed 's/^v//; s/^[^0-9]*//')
   if [ -z "$actual_version" ]; then
-    rldyour::log "warn" "could not detect version for $cmd; skipping numeric check"
+    rldyour::log "warn" "could not detect version for $command_name; skipping numeric check"
     return 0
   fi
 
@@ -82,11 +82,11 @@ rldyour::require_cmd_min_version() {
   normalized_actual="$(printf '%s' "$actual_version" | sed 's/[[:space:]].*//')"
 
   if [ "$(printf '%s\n%s\n' "$min_version" "$normalized_actual" | sort -V | head -n 1)" != "$min_version" ]; then
-    rldyour::log "warn" "$cmd version check: $normalized_actual (expected >= $min_version)"
+    rldyour::log "warn" "$command_name version check: $normalized_actual (expected >= $min_version)"
     return 1
   fi
 
-  rldyour::log "ok" "$cmd version OK: $normalized_actual"
+  rldyour::log "ok" "$command_name version OK: $normalized_actual"
   return 0
 }
 

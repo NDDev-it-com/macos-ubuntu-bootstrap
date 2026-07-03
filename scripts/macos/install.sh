@@ -44,6 +44,7 @@ BREW_SYSTEM_PACKAGES=(
   curl
   ca-certificates
   go
+  gopls
   shellcheck
   llvm
   cmake
@@ -51,7 +52,6 @@ BREW_SYSTEM_PACKAGES=(
   vscode-langservers-extracted
   taplo
   marksman
-  qtdeclarative
 )
 
 usage() {

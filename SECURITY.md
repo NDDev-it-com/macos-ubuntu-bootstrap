@@ -1,39 +1,63 @@
 # Security Policy
 
-## Supported versions
+## Supported Versions
 
-- `rldyour-new-mac-or-ubuntu` uses versioned bootstrap scripts from `main`.
-- For security issues report with minimum detail:
-  - command (with full output),
-  - OS and platform profile,
-  - module commit SHA,
-  - exact steps to reproduce.
+Only the current exact numeric product release tag receives security fixes. This repository is a bootstrap adapter, so operational safety relies on explicit release pinning.
 
-## Reporting vulnerabilities
+| Version | Supported |
+| --- | --- |
+| Current exact tag `0.1.0` | yes |
+| The `0.1.x` line label tracks only the latest released patch | no |
+| Older minor / major lines | no |
 
-- Open a private issue only for sensitive findings and use a redacted reproduction.
-- Public PRs can be used for non-sensitive hardening updates.
+## Reporting a Vulnerability
 
-## Security tooling
+Please report vulnerabilities privately through GitHub Security Advisories:
 
-This module is designed as an OSS-first security baseline and includes:
+- https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/security/advisories/new
 
-- Secret scanning (GitHub native),
-- Secret scanning push protection,
-- GitHub Dependabot security alerts and security updates,
-- Dependabot security updates for workflows,
-- Dependency review on dependency-relevant PRs,
-- CodeQL (Python),
-- Gitleaks scan in CI,
-- OSSF Scorecard analysis.
+Public issues are not accepted for confirmed security reports.
 
-Dependency and security capability coverage is oriented to GitHub public/free + OSS-first controls:
-secret scanning, push protection, Dependabot security alerts/updates, CodeQL, dependency review,
-and OSSF Scorecard.
+Include all of the following:
 
-## Branch protection
+- Affected component/command/path
+- OS (macOS/Linux/Ubuntu)
+- Exact module SHA and commit
+- Reproduction steps and expected impact
+- Redacted logs or outputs (no secrets)
 
-- Required pull request reviews: 1
-- No force pushes
-- No branch deletion
-- Status checks required for `bootstrap-gate` (this module) or branch checks configured in module policy.
+## Scope
+
+In-scope:
+
+- Installer scripts under `scripts/**`
+- Runtime and bootstrap checks under `scripts/bootstrap.sh`, `scripts/macos/**`, `scripts/ubuntu/**`
+- CI workflows under `.github/workflows/**`
+- Contract/metadata in `config/rldyour-contract.json`, `README.md`, `docs/**`
+
+Out of scope:
+
+- Third-party AI providers or runtimes themselves (e.g., provider SDK or binary distributors)
+- Forked/modified local copies that change installer behavior without upstream changes
+- Issues introduced by custom OS configuration outside this repository
+
+## Security Controls
+
+This module enables the following baseline OSS security controls:
+
+- Native GitHub secret scanning + push protection
+- Dependabot alerts and security updates
+- CodeQL analysis
+- Dependency Review for supported package ecosystems
+- Secret scanning in CI (`gitleaks`)
+- OpenSSF Scorecard workflow
+- GitHub Action pin and workflow lint checks
+
+## Branch Protection
+
+Branch protection is enabled on `main` with:
+
+- required PR review: 1
+- no force pushes
+- no branch deletions
+- required status checks: `bootstrap-gate`

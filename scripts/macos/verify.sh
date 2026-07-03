@@ -52,7 +52,6 @@ required_cmds=(
   "marksman"
   "taplo"
   "clangd"
-  "claude-code"
   "codex"
   "opencode"
   "vscode-html-language-server"
@@ -69,6 +68,8 @@ optional_cmds=(
 for cmd in "${required_cmds[@]}"; do
   rldyour::require_cmd "$cmd" required
 done
+
+rldyour::require_one_of_cmd required claude-code claude
 
 if [ "$INCLUDE_OPTIONAL" -eq 1 ]; then
   for cmd in "${optional_cmds[@]}"; do

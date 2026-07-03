@@ -39,6 +39,34 @@ rldyour::require_cmd() {
   return 0
 }
 
+rldyour::require_one_of_cmd() {
+  local level=$1
+  shift
+  local names=("$@")
+  local found_name=""
+
+  for name in "${names[@]}"; do
+    if command -v "$name" >/dev/null 2>&1; then
+      rldyour::log "ok" "$name on PATH"
+      found_name="$name"
+      break
+    fi
+  done
+
+  if [ -n "$found_name" ]; then
+    return 0
+  fi
+
+  local alt="one of (${names[*]})"
+  if [ "$level" = "required" ]; then
+    rldyour::log "missing" "required command not found: $alt"
+    return 1
+  fi
+
+  rldyour::log "warn" "optional command not found: $alt"
+  return 0
+}
+
 rldyour::need_cmd() {
   local command_name=$1
   if command -v "$command_name" >/dev/null 2>&1; then

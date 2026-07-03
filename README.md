@@ -84,7 +84,7 @@ Workflows: 10
 OS profiles: 2 (macOS, Ubuntu)
 ```
 
-## Browser / Design / DevTools Providers
+## Browser / Design / DevTools Routing
 
 The bootstrap installs the pinned browser providers that every AI CLI config
 adapter relies on for browser evidence, debugging, and design validation:

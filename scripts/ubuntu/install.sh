@@ -156,10 +156,12 @@ install_ai_runtimes() {
     return 0
   fi
 
-  if ! command -v claude-code >/dev/null 2>&1; then
-    rldyour::run bun add -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
-  else
+  if command -v claude-code >/dev/null 2>&1; then
     rldyour::log "ok" "claude-code already present"
+  elif command -v claude >/dev/null 2>&1; then
+    rldyour::log "ok" "claude already present (treated as claude-code-compatible entrypoint)"
+  else
+    rldyour::run bun add -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
   fi
 
   if ! command -v codex >/dev/null 2>&1; then

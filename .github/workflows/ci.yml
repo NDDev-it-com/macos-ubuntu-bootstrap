@@ -28,7 +28,37 @@ permissions:
   contents: read
 
 jobs:
+  bootstrap-script-lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    name: bootstrap-script-lint-${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Prepare shellcheck
+        run: |
+          if [[ "${{ matrix.os }}" == macos* ]]; then
+            brew update
+            brew install shellcheck
+          else
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+          fi
+
+      - name: Lint bootstrap scripts
+        run: |
+          bash scripts/ci/lint.sh
+
   bootstrap-validate:
+    needs: bootstrap-script-lint
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'both' || inputs.platform == matrix.platform
     strategy:
       fail-fast: false

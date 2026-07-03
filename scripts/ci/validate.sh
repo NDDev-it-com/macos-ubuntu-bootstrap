@@ -55,41 +55,16 @@ require_dir "$REPO_ROOT/docs"
 require_file "$REPO_ROOT/.github/workflows/ci.yml"
 require_file "$REPO_ROOT/scripts/bootstrap.sh"
 require_file "$REPO_ROOT/scripts/ci/validate.sh"
+require_file "$REPO_ROOT/scripts/ci/lint.sh"
 require_file "$REPO_ROOT/scripts/lib/common.sh"
 require_file "$REPO_ROOT/scripts/macos/install.sh"
 require_file "$REPO_ROOT/scripts/macos/verify.sh"
 require_file "$REPO_ROOT/scripts/ubuntu/install.sh"
 require_file "$REPO_ROOT/scripts/ubuntu/verify.sh"
 
-if command -v shellcheck >/dev/null 2>&1; then
-  echo "shellcheck-ok: shellcheck in PATH"
-else
-  echo "shellcheck-missing: CI should provision shellcheck"
-  exit 1
-fi
-
-set -x
-bash -n "$REPO_ROOT/scripts/bootstrap.sh"
-bash -n "$REPO_ROOT/scripts/lib/common.sh"
-bash -n "$REPO_ROOT/scripts/macos/install.sh"
-bash -n "$REPO_ROOT/scripts/macos/verify.sh"
-bash -n "$REPO_ROOT/scripts/ubuntu/install.sh"
-bash -n "$REPO_ROOT/scripts/ubuntu/verify.sh"
-bash -n "$REPO_ROOT/scripts/ci/validate.sh"
-set +x
+bash "$REPO_ROOT/scripts/ci/lint.sh"
 
 bash "$REPO_ROOT/scripts/bootstrap.sh" --platform macos --plan --skip-checks
 bash "$REPO_ROOT/scripts/bootstrap.sh" --platform ubuntu --plan --skip-checks
-
-for script in \
-  "$REPO_ROOT/scripts/bootstrap.sh" \
-  "$REPO_ROOT/scripts/lib/common.sh" \
-  "$REPO_ROOT/scripts/macos/install.sh" \
-  "$REPO_ROOT/scripts/macos/verify.sh" \
-  "$REPO_ROOT/scripts/ubuntu/install.sh" \
-  "$REPO_ROOT/scripts/ubuntu/verify.sh" \
-  "$REPO_ROOT/scripts/ci/validate.sh"; do
-  shellcheck -x "$script"
-done
 
 echo "ci-validate-ok"

@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
 Last verified: 2026-07-04
-Last commit: faeece6a29ab829a7760bd0cb6c32be8540c3bd5 docs: align bootstrap module release and memory surfaces
+Last commit: 5dd9a4f94aa3833b1f002c8b4ecbb4bd00f5c80e chore(release): new-mac-or-ubuntu 0.1.2 (other)
 Scope: README.md, VERSION, CHANGELOG.md, config/rldyour-contract.json, scripts/**, .github/workflows/**
 Area: RELEASE
 -->
@@ -24,8 +24,8 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - `.github/workflows/**`
 
 ## Source of truth
-- `VERSION` and `config/rldyour-contract.json`: product/config version `0.1.0`.
-- `CHANGELOG.md`: release entry for `0.1.0` and empty `[Unreleased]` section.
+- `VERSION` and `config/rldyour-contract.json`: product/config version `0.1.2`.
+- `CHANGELOG.md`: release entries for `0.1.0`, `0.1.1`, and `0.1.2`, with an empty `[Unreleased]` section.
 - `scripts/bootstrap.sh`: platform selector for `macos` and `ubuntu`.
 - `scripts/macos/install.sh` and `scripts/ubuntu/install.sh`: OS-specific installer profiles.
 - `scripts/macos/verify.sh` and `scripts/ubuntu/verify.sh`: per-platform verification gates.
@@ -39,6 +39,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 
 ## Current State
 - Current product/config version is `0.1.2`.
+- Release `0.1.2` synchronizes `VERSION`, README baseline, SECURITY current exact tag, and `config/rldyour-contract.json` after the contract baseline drift fixed by `a3dc4e0`.
 - The module supports macOS and Ubuntu/server bootstrap profiles.
 - Local CI entrypoints are `bash scripts/ci/lint.sh` and `bash scripts/ci/validate.sh`.
 - Strict platform checks are `bash scripts/macos/verify.sh --strict --skip-optional` and `bash scripts/ubuntu/verify.sh --strict --skip-optional`.
@@ -53,7 +54,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - path:scripts/ubuntu/install.sh
 - path:.github/workflows/ci.yml
 - path:.github/workflows/release.yml
-- commit:acea1f0babd9b5b75b6bf3d0d507ae9e3be9f9b1
+- commit:5dd9a4f94aa3833b1f002c8b4ecbb4bd00f5c80e
 
 ## Do Not Infer
 - Do not infer a successful live GitHub Actions run or release publication from local files. Check GitHub Actions and Releases before claiming live release readiness.

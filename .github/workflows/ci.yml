@@ -29,14 +29,14 @@ permissions:
 
 jobs:
   bootstrap-script-lint:
+    runs-on: ${{ matrix.os }}
+    name: bootstrap-script-lint-${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
           - macos-latest
-    runs-on: ${{ matrix.os }}
-    name: bootstrap-script-lint-${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,6 +60,8 @@ jobs:
   bootstrap-validate:
     needs: bootstrap-script-lint
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'both' || inputs.platform == matrix.platform
+    runs-on: ${{ matrix.os }}
+    name: bootstrap-${{ matrix.platform }}-${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'plan' }}
     strategy:
       fail-fast: false
       matrix:
@@ -68,8 +70,6 @@ jobs:
             platform: ubuntu
           - os: macos-latest
             platform: macos
-    runs-on: ${{ matrix.os }}
-    name: bootstrap-${{ matrix.platform }}-${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'plan' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,13 +101,14 @@ jobs:
   bootstrap-dryrun-crosscheck:
     needs: bootstrap-validate
     if: github.event_name != 'workflow_dispatch' || inputs.mode == 'plan'
+    runs-on: ${{ matrix.os }}
+    name: bootstrap-crosscheck-${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
           - macos-latest
-    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -121,3 +122,54 @@ jobs:
           else
             bash scripts/bootstrap.sh --platform macos --plan --skip-system --skip-checks
           fi
+
+  workflow-lint:
+    runs-on: ubuntu-latest
+    name: workflow-lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Lint GitHub workflow YAML files
+        uses: docker://rhysd/actionlint:1
+        with:
+          args: -color .github/workflows/*.yml .github/workflows/*.yaml
+
+  bootstrap-gate:
+    needs: [bootstrap-script-lint, bootstrap-validate, bootstrap-dryrun-crosscheck, workflow-lint]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Bootstrap CI gate
+        run: |
+          mode="plan"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            mode="${{ inputs.mode }}"
+          fi
+
+          echo "Checking required bootstrap workflow jobs"
+          echo "mode=${mode}"
+
+          if [[ "${{ needs.bootstrap-script-lint.result }}" != "success" ]]; then
+            echo "bootstrap-script-lint: ${{ needs.bootstrap-script-lint.result }}" >&2
+            exit 1
+          fi
+
+          if [[ "${{ needs.bootstrap-validate.result }}" != "success" ]]; then
+            echo "bootstrap-validate: ${{ needs.bootstrap-validate.result }}" >&2
+            exit 1
+          fi
+
+          if [[ "${{ needs.workflow-lint.result }}" != "success" ]]; then
+            echo "workflow-lint: ${{ needs.workflow-lint.result }}" >&2
+            exit 1
+          fi
+
+          if [[ "$mode" == "plan" && "${{ needs.bootstrap-dryrun-crosscheck.result }}" != "success" ]]; then
+            echo "bootstrap-dryrun-crosscheck: ${{ needs.bootstrap-dryrun-crosscheck.result }}" >&2
+            exit 1
+          fi
+
+          echo "bootstrap-gate passed"

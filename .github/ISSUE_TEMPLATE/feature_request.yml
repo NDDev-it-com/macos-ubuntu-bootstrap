@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an improvement for bootstrap and setup coverage
+labels: ["enhancement"]
+title: "[Feature] "
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Problem / motivation
+      description: Why is this needed?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should we change?
+    validations:
+      required: true

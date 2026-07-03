@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a problem with bootstrap scripts or dependency setup.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the problem
+      placeholder: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Steps to reproduce
+      placeholder: |
+        1) run command
+        2) expected
+        3) actual
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, command, branch, command output
+      placeholder: |
+        - OS/version:
+        - Command:
+        - Branch:
+        - Output/log:
+  - type: input
+    id: version
+    attributes:
+      label: Module commit
+      placeholder: e.g. 1cf54ad

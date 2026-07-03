@@ -90,12 +90,30 @@ bash scripts/bootstrap.sh --platform ubuntu --plan --skip-checks
 - `bash scripts/macos/verify.sh [--strict] [--skip-optional]`
 - `bash scripts/ubuntu/verify.sh [--strict] [--skip-optional]`
 - GitHub Actions: `.github/workflows/ci.yml` (матрица `macos-latest` + `ubuntu-latest`)
+- Дополнительно:
+  - `.github/workflows/codeql.yml` — CodeQL анализ (python)
+  - `.github/workflows/dependency-review.yml` — проверка зависимостей в PR
+  - `.github/workflows/ci.yml` включает `workflow-lint` с actionlint
+  - `.github/dependabot.yml` — автообновления GitHub Actions зависимостей
 - Для ручного запуска CI:
   - `gh workflow run .github/workflows/ci.yml -f mode=plan -f platform=both`
   - `gh workflow run .github/workflows/ci.yml -f mode=apply -f platform=macos`
 - Inputs:
   - `mode=plan|apply` (по умолчанию `plan`)
   - `platform=both|macos|ubuntu` (по умолчанию `both`)
+
+## Безопасность репозитория
+
+- Включены:
+  - Secret scanning
+  - Secret scanning push protection
+  - Dependabot security alerts
+  - Dependabot security updates
+  - Защита ветки `main`:
+    - required reviews: 1
+    - required status check: `bootstrap-gate`
+    - запрет force push и удаления ветки
+    - обязательное разрешение разрешения бесед в PR (conversation resolution)
 
 ## Версионность и лицензия
 

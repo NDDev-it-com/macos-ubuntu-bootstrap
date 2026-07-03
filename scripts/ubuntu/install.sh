@@ -37,6 +37,7 @@ BUN_LSP_PACKAGES=(
   dockerfile-language-server-nodejs
   vscode-langservers-extracted
   taplo
+  marksman
 )
 
 APT_SYSTEM_PACKAGES=(

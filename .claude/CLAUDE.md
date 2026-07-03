@@ -12,14 +12,14 @@ for dependency and verification parity across workstation classes.
 
 ## Repository Layout
 
-- `scripts/bootstrap.sh` — platform selector and orchestration entrypoint.
-- `scripts/lib/common.sh` — shared shell helpers and command checks.
-- `scripts/macos/install.sh` and `scripts/macos/verify.sh` — macOS baseline setup.
-- `scripts/ubuntu/install.sh` and `scripts/ubuntu/verify.sh` — Ubuntu baseline setup.
-- `scripts/ci/validate.sh` — lint + contract + dry-run matrix preflight.
-- `scripts/ci/lint.sh` — shell syntax + shellcheck for bootstrap scripts.
-- `docs/install.md` — OS dependency matrix and CI notes.
-- `config/rldyour-contract.json` — module contract and adapter metadata.
+- `scripts/bootstrap.sh` - platform selector and orchestration entrypoint.
+- `scripts/lib/common.sh` - shared shell helpers and command checks.
+- `scripts/macos/install.sh` and `scripts/macos/verify.sh` - macOS baseline setup.
+- `scripts/ubuntu/install.sh` and `scripts/ubuntu/verify.sh` - Ubuntu baseline setup.
+- `scripts/ci/validate.sh` - lint + contract + dry-run matrix preflight.
+- `scripts/ci/lint.sh` - shell syntax + shellcheck for bootstrap scripts.
+- `docs/install.md` - OS dependency matrix and CI notes.
+- `config/rldyour-contract.json` - module contract and adapter metadata.
 
 ## Verified Runtime Baseline
 

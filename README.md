@@ -93,6 +93,8 @@ bash scripts/bootstrap.sh --platform ubuntu --plan --skip-checks
 - Дополнительно:
   - `.github/workflows/codeql.yml` — CodeQL анализ (python)
   - `.github/workflows/dependency-review.yml` — проверка зависимостей в PR
+  - `.github/workflows/secret-scan.yml` — секретный скан Gitleaks (по истории репозитория)
+  - `.github/workflows/scorecard.yml` — OSSF Scorecard
   - `.github/workflows/ci.yml` включает `workflow-lint` с actionlint
   - `.github/dependabot.yml` — автообновления GitHub Actions зависимостей
 - Для ручного запуска CI:
@@ -109,11 +111,19 @@ bash scripts/bootstrap.sh --platform ubuntu --plan --skip-checks
   - Secret scanning push protection
   - Dependabot security alerts
   - Dependabot security updates
+  - Dependency review
+  - CodeQL
+  - Gitleaks secret scan
+  - OSSF Scorecard
   - Защита ветки `main`:
     - required reviews: 1
     - required status check: `bootstrap-gate`
     - запрет force push и удаления ветки
     - обязательное разрешение разрешения бесед в PR (conversation resolution)
+  - Security policy: `./SECURITY.md`
+
+- Ограничение:
+  - `Advanced Security` API пока недоступен для этих репозиториев (HTTP 422), включены все доступные OSS-режим возможности.
 
 ## Версионность и лицензия
 

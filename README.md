@@ -1,141 +1,177 @@
 # rldyour New Mac / Ubuntu Bootstrap
 
-Модуль подготавливает всю базу для установки и контроля AI-конфигураций:
-`Claude Code`, `Codex`, `OpenCode`, `Antigravity CLI`, `MiMoCode`.
+rldyour module for macOS and Ubuntu workstation bootstrap, dependency installation, and terminal-first AI-CLI setup.
 
-В репозитории есть две отдельные ОС-ветви с собственной иерархией:
+## Current Baseline
 
-- `scripts/macos/...` — профиль `macos`
-- `scripts/ubuntu/...` — профиль `ubuntu` (для ПК/сервера)
+| Field | Value |
+| --- | --- |
+| Adapter version | `0.1.0` |
+| Runtime baseline | Claude Code `2.1.199`; Codex `0.142.5`; OpenCode `1.17.13`; MiMoCode `0.1.4`; Antigravity `agy` |
+| GitHub release tag | `0.1.0` |
 
-## Быстрый старт
+Runtime pin sources: `scripts/macos/install.sh`, `scripts/ubuntu/install.sh`, and `config/rldyour-contract.json`.
 
-```bash
-cd /path/to/rldyour-new-mac-or-ubuntu
-bash scripts/bootstrap.sh --platform macos --apply
-bash scripts/bootstrap.sh --platform ubuntu --apply
-```
+## What This Repository Provides
 
-По умолчанию режим — план (`--plan`), без изменений в системе.
+This module is a configuration and bootstrap adapter for local terminals on macOS desktops and Ubuntu workstations/servers. It installs and validates terminal prerequisites for the rldyour AI CLI stack: Node/Bun/uv/Python/Go/Rust/Dart runtimes, AI CLI tools, terminal LSP/runtime helpers, and CI policy enforcement for public-repo quality and security.
+
+It is not an upstream AI runtime source. It orchestrates pinned installer flows and validations only.
+
+## Native Boundaries
+
+This repository exposes these native runtime surfaces:
+
+- `scripts/bootstrap.sh` — profile switcher (`--platform macos|ubuntu`).
+- `scripts/macos/install.sh`, `scripts/ubuntu/install.sh` — OS-specific dependency installation profiles.
+- `scripts/macos/verify.sh`, `scripts/ubuntu/verify.sh` — per-platform verification gates.
+- `scripts/ci/*.sh` — shell lint/validation driver scripts.
+- `.github/workflows/**` — CI, security, dependency and release controls.
+
+Source-only (not projected into runtime installers): historical docs, contracts, and local agent context.
+
+## Install / Update / ry-repair
+
+**Install / plan mode (default):**
 
 ```bash
 bash scripts/bootstrap.sh --platform macos
 bash scripts/bootstrap.sh --platform ubuntu
 ```
 
-- `--skip-system` — не трогать Node/bun/uv/rust/dart/system tools
-- `--skip-ai` — не ставить AI CLI-рантаймы
-- `--skip-lsps` — не ставить LSP
-- `--skip-checks` — не запускать `verify`
-- `--strict` — усилить поведение проверок в install/verify
+**Apply mode:**
 
-## Дерево проекта
-
-```text
-.
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── scripts/
-│   ├── bootstrap.sh           # общий entrypoint для обеих ОС
-│   ├── lib/
-│   │   └── common.sh          # общие helpers (лог, run, require, ensure_path)
-│   ├── macos/
-│   │   ├── install.sh
-│   │   └── verify.sh
-│   ├── ubuntu/
-│   │   ├── install.sh
-│   │   └── verify.sh
-│   └── ci/
-│       ├── lint.sh
-│       └── validate.sh
-├── docs/
-│   └── install.md
-└── config/
-    └── rldyour-contract.json
+```bash
+bash scripts/bootstrap.sh --platform macos --apply
+bash scripts/bootstrap.sh --platform ubuntu --apply
 ```
 
-## Что ставится
-
-- Runtime:
-  - Node.js (>=22), `bun`, `python` + `uv`, `go`, `rustup`, `dart`, `git`, `curl`
-- AI CLI:
-  - `@anthropic-ai/claude-code@2.1.199`
-  - `@openai/codex@0.142.5`
-  - `opencode-ai@1.17.13`
-  - `agy` (Antigravity CLI)
-  - `@mimo-ai/cli@0.1.4` (`mimo`)
-- Python tools (через `uv tool`):
-  - `pyright-langserver`, `pyright`, `ruff`, `pytest`
-- LSP:
-  - `typescript`, `typescript-language-server`
-  - `yaml-language-server`, `bash-language-server`
-  - `vscode-langservers-extracted` (HTML/CSS/JSON)
-  - `dockerfile-language-server-nodejs` (команда `docker-language-server`)
-  - `taplo`
-  - `marksman`
-  - `rust-analyzer`, `gopls`, `clangd`
-
-Сборка ориентирована на серверный Ubuntu и desktop/macOS и работает через shared bootstrap API:
+**Targeted plans:**
 
 ```bash
 bash scripts/bootstrap.sh --platform macos --plan --skip-checks
 bash scripts/bootstrap.sh --platform ubuntu --plan --skip-checks
 ```
 
-## Проверки
+**Verification-only:**
 
-- `bash scripts/ci/lint.sh` — shell syntax + `shellcheck` для всех ключевых bootstrap-скриптов
-- `bash scripts/ci/validate.sh` — синтаксис + shellcheck + контракт + плановые dry-run для macOS и Ubuntu
-- `bash scripts/macos/verify.sh [--strict] [--skip-optional]`
-- `bash scripts/ubuntu/verify.sh [--strict] [--skip-optional]`
-- GitHub Actions: `.github/workflows/ci.yml` (матрица `macos-latest` + `ubuntu-latest`)
-- Дополнительно:
-  - `.github/workflows/codeql.yml` — CodeQL анализ (python)
-  - `.github/workflows/dependency-review.yml` — проверка зависимостей в PR
-  - `.github/workflows/secret-scan.yml` — секретный скан Gitleaks (по истории репозитория)
-  - `.github/workflows/scorecard.yml` — OSSF Scorecard
-  - `.github/workflows/ci.yml` включает `workflow-lint` с actionlint
-  - `.github/workflows/validate.yml` — отдельная проверка скриптов и контракта
-  - `.github/workflows/pytest.yml` — smoke-тесты bootstrap entrypoint
-  - `.github/workflows/actionlint.yml` — lint для всех workflow файлов
-  - `.github/workflows/dependency-check.yml` — контроль pin-совпадений инсталлеров между macOS и Ubuntu
-  - `.github/workflows/cross-platform.yml` — smoke проверка на `ubuntu-latest`, `macos-latest`, `windows-latest`
-  - `.github/workflows/release.yml` — публикация артефактов и attestations
-  - `.github/dependabot.yml` — автообновления GitHub Actions зависимостей
-- Для ручного запуска CI:
-  - `gh workflow run .github/workflows/ci.yml -f mode=plan -f platform=both`
-  - `gh workflow run .github/workflows/ci.yml -f mode=apply -f platform=macos`
-- Inputs:
-  - `mode=plan|apply` (по умолчанию `plan`)
-  - `platform=both|macos|ubuntu` (по умолчанию `both`)
+```bash
+bash scripts/macos/verify.sh --strict --skip-optional
+bash scripts/ubuntu/verify.sh --strict --skip-optional
+```
 
-## Безопасность репозитория
+**Skip layers as needed:**
 
-Подключены расширенные публичные возможности GitHub для OSS-проектов, включая Secret scanning, Secret scanning push protection, Dependabot security alerts/updates и защищённую branch-protection.
+- `--skip-system`
+- `--skip-ai`
+- `--skip-lsps`
+- `--skip-browser`
+- `--skip-checks`
 
-- Включены:
-  - Secret scanning
-  - Secret scanning push protection
-  - Dependabot security alerts
-  - Dependabot security updates
-  - Dependency review
-  - CodeQL
-  - Gitleaks secret scan
-  - OSSF Scorecard
-  - Защита ветки `main`:
-    - required reviews: 1
-    - required status check: `bootstrap-gate`
-    - запрет force push и удаления ветки
-    - required code owner review для ревью
-  - Security policy: `./SECURITY.md`
+A local repository-level repair/convergence pass is performed via `scripts/ci/validate.sh` and the control-plane repair workflow before merge.
 
-Публичные security-фичи уровня OSS в репозитории включены и регулярно верифицируются через GitHub API (включая `secret_scanning`, `secret_scanning_push_protection`, `code scanning`, `dependabot` alerts/updates и branch protection).
+## Active Catalog
 
-## Версионность и лицензия
+- `scripts/`: installer and validation entrypoints.
+- `config/rldyour-contract.json`: module contract.
+- `docs/install.md`: dependency matrix and mode documentation.
+- `.github/workflows/`: 10+ security and CI workflows.
+- `AGENTS.md`, `LICENSE`, `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md`.
 
-- CLAUDE: `2.1.199`
-- Codex: `0.142.5`
-- OpenCode: `1.17.13`
-- MiMoCode: `0.1.4`
-- Репозиторий: `AGPL-3.0-or-later` (`LICENSE`, `NOTICE`)
+```text
+Scripts: 7
+Workflows: 10
+OS profiles: 2 (macOS, Ubuntu)
+```
+
+## Browser / Design / DevTools Routing
+
+This adapter does not ship dedicated browser/design/devtools skill surfaces. Workflow and automation for browsers are provided in the super-repo modules (`rldyour-cline`, `rldyour-opencode`, `rldyour-codex`, etc.) and are intentionally kept out of this bootstrap module to keep this module minimal and deterministic.
+
+## Repository Context / Serena Memory
+
+Public metadata and context are tracked in git. Runtime-only artifacts remain ignored (for example, cache, local traces, markers, and diagnostics output).
+
+- Durable AI-context files are validated through root super-repo contracts and policy checks.
+- Branch updates in super-repo should move the submodule pointer only after module validation and CI pass.
+
+Relevant checks:
+
+```bash
+python3 scripts/ci/validate.sh
+python3 scripts/ci/lint.sh
+```
+
+## Security Boundary
+
+No credentials are committed in this module. Only public dependencies and pinned runtime commands are documented.
+
+Security controls included:
+
+- `codeql` + `dependency-review` in CI,
+- secret scanning (`gitleaks`, GitHub secret scanning, push protection),
+- Dependabot alerts + security updates,
+- OSSF Scorecard,
+- branch protection (`main`, required review, required status checks, no force-push/delete,
+  code owners).
+
+The owner executes with explicit terminal risk posture and explicit command boundaries; runtime tools are pinned to explicit versions in install profiles.
+
+## Validation
+
+**Static / local:**
+
+```bash
+bash scripts/ci/lint.sh
+bash scripts/ci/validate.sh
+```
+
+**Per-platform checks:**
+
+```bash
+bash scripts/macos/verify.sh --strict
+bash scripts/ubuntu/verify.sh --strict
+```
+
+**CI lanes:**
+
+- `.github/workflows/ci.yml` (plan/apply)
+- `.github/workflows/validate.yml`
+- `.github/workflows/secret-scan.yml`
+- `.github/workflows/codeql.yml`
+- `.github/workflows/dependency-check.yml`
+- `.github/workflows/dependency-review.yml`
+- `.github/workflows/cross-platform.yml`
+- `.github/workflows/actionlint.yml`
+- `.github/workflows/pytest.yml`
+- `.github/workflows/release.yml`
+- `.github/workflows/scorecard.yml`
+
+## Release / Rollback
+
+Release workflow is tag-driven via `.github/workflows/release.yml`.
+
+- Release version is read from `VERSION` and must match `CHANGELOG.md`.
+- Release artifacts are packaged, checksummed, and attestable.
+
+```bash
+git tag <X.Y.Z>
+git push origin <X.Y.Z>
+```
+
+Rollback is based on git history and prior tags; reinstall the desired release tag from the release page.
+
+## Support / License
+
+**License:** [AGPL-3.0-or-later](LICENSE)
+
+**Author:** Danil Silantyev (github:rldyourmnd), CEO NDDev
+
+**Security:** report via
+https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/security/advisories/new
+
+**Issues:** https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/issues
+
+**Discussions:** https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/discussions
+
+**Releases:** https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/releases

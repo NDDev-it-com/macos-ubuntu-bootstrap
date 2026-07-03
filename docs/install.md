@@ -63,6 +63,12 @@
 - `gopls`
 - `clangd`
 
+#### Браузер-провайдеры
+
+- `chrome-devtools-mcp` -> `chrome-devtools-mcp@1.5.0` (bun global)
+- `playwright-cli` -> `@playwright/cli@0.1.15` (bun global) + `playwright-cli install --skills`
+- Microsoft Webwright -> pinned GitHub checkout (`4a46f282...`, best-effort venv install)
+
 ### Ubuntu / server
 
 #### Системный слой
@@ -117,6 +123,12 @@
 - `rust-analyzer`
 - `gopls`
 - `clangd`
+
+#### Браузер-провайдеры
+
+- `chrome-devtools-mcp` -> `chrome-devtools-mcp@1.5.0` (bun global)
+- `playwright-cli` -> `@playwright/cli@0.1.15` (bun global) + `playwright-cli install --skills`
+- Microsoft Webwright -> pinned GitHub checkout (`4a46f282...`, best-effort venv install)
 
 ## 3) CI/CD
 

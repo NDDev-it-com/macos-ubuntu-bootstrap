@@ -286,7 +286,9 @@ else
   rldyour::log "warn" "LSP layer skipped by --skip-lsps"
 fi
 
-if [ "$SKIP_BROWSER" -eq 1 ]; then
+if [ "$SKIP_BROWSER" -eq 0 ]; then
+  rldyour::install_browser_providers
+else
   rldyour::log "warn" "browser tooling skipped by --skip-browser"
 fi
 

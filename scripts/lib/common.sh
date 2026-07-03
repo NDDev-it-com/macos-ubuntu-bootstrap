@@ -152,3 +152,81 @@ rldyour::ensure_path() {
   done
   export PATH
 }
+
+# Webwright is a pinned GitHub checkout provider. The steps mirror the
+# superproject `scripts/install_webwright.sh` release-grade install and are kept
+# best-effort so a slow clone or Chromium download never breaks the base layer.
+rldyour::_install_webwright() {
+  local repo=$1
+  local pin=$2
+  local home=$3
+  mkdir -p "$(dirname "$home")" || return 1
+  if [ ! -d "$home/.git" ]; then
+    git clone "$repo" "$home" || return 1
+  fi
+  git -C "$home" fetch origin --tags --prune || return 1
+  git -C "$home" checkout "$pin" || return 1
+  python3 -m venv "$home/.venv" || return 1
+  "$home/.venv/bin/pip" install -U pip || return 1
+  "$home/.venv/bin/pip" install -e "$home" || return 1
+  "$home/.venv/bin/python" -m playwright install chromium || return 1
+}
+
+# Install the pinned browser providers used by the AI CLI config adapters:
+# Chrome DevTools MCP and Playwright CLI (deterministic bun globals, required)
+# plus Microsoft Webwright (pinned checkout, best-effort). Shared across macOS
+# and Ubuntu because the browser layer is platform-agnostic. Honors
+# RLDYOUR_DRY_RUN and RLDYOUR_STRICT and pinned version env overrides.
+rldyour::install_browser_providers() {
+  local strict="${RLDYOUR_STRICT:-0}"
+  local dry_run="${RLDYOUR_DRY_RUN:-1}"
+  local chrome_version="${CHROME_DEVTOOLS_MCP_VERSION:-1.5.0}"
+  local playwright_version="${PLAYWRIGHT_CLI_VERSION:-0.1.15}"
+  local webwright_pin="${WEBWRIGHT_PIN:-4a46f282ec37f27d6003cc498a977939d62d9015}"
+  local webwright_repo="${WEBWRIGHT_REPOSITORY:-https://github.com/microsoft/Webwright.git}"
+  local webwright_home="${WEBWRIGHT_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/rldyour/webwright/Microsoft-Webwright}"
+
+  rldyour::section "Install browser providers (pinned)"
+  if ! command -v bun >/dev/null 2>&1; then
+    if [ "$strict" -eq 1 ]; then
+      rldyour::log "error" "bun is required for browser provider install"
+      return 1
+    fi
+    rldyour::log "warn" "skip browser providers until bun is available"
+    return 0
+  fi
+
+  if command -v chrome-devtools-mcp >/dev/null 2>&1; then
+    rldyour::log "ok" "chrome-devtools-mcp already present"
+  else
+    rldyour::run bun add -g "chrome-devtools-mcp@${chrome_version}"
+  fi
+
+  if command -v playwright-cli >/dev/null 2>&1; then
+    rldyour::log "ok" "playwright-cli already present"
+  else
+    rldyour::run bun add -g "@playwright/cli@${playwright_version}"
+  fi
+
+  # Skills install runs from the user home so it never writes runtime artifacts
+  # into this module tree; best-effort because CLI layouts can change.
+  if [ "$dry_run" -eq 0 ] && command -v playwright-cli >/dev/null 2>&1; then
+    if ! (cd "$HOME" && playwright-cli install --skills >/dev/null 2>&1); then
+      rldyour::log "warn" "playwright-cli skills install skipped (best-effort)"
+    fi
+  fi
+
+  if ! command -v git >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    rldyour::log "warn" "git and python3 required for Webwright; skipped"
+    return 0
+  fi
+  if [ "$dry_run" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] webwright pinned checkout ${webwright_pin} -> ${webwright_home}"
+    return 0
+  fi
+  if rldyour::_install_webwright "$webwright_repo" "$webwright_pin" "$webwright_home"; then
+    rldyour::log "ok" "Webwright provider installed (${webwright_pin})"
+  else
+    rldyour::log "warn" "Webwright provider install skipped (best-effort)"
+  fi
+}

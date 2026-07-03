@@ -84,9 +84,21 @@ Workflows: 10
 OS profiles: 2 (macOS, Ubuntu)
 ```
 
-## Browser / Design / DevTools Routing
+## Browser / Design / DevTools Providers
 
-This adapter does not ship dedicated browser/design/devtools skill surfaces. Workflow and automation for browsers are provided in the super-repo modules (`rldyour-cline`, `rldyour-opencode`, `rldyour-codex`, etc.) and are intentionally kept out of this bootstrap module to keep this module minimal and deterministic.
+The bootstrap installs the pinned browser providers that every AI CLI config
+adapter relies on for browser evidence, debugging, and design validation:
+
+- Chrome DevTools MCP (`chrome-devtools-mcp@1.5.0`, bun global)
+- Playwright CLI (`@playwright/cli@0.1.15`, bun global) plus its bundled skills
+- Microsoft Webwright (pinned GitHub checkout, best-effort venv install)
+
+The two bun-global providers are verified by the strict verify scripts; Webwright
+is best-effort so a slow clone or Chromium download never breaks the deterministic
+base layer. Skip the whole layer with `--skip-browser`. Browser/design *workflow
+skills* still live in the adapter repositories (`rldyour-claudecode`,
+`rldyour-opencode`, `rldyour-codex`, etc.); this module provides the runtime
+providers those workflows need.
 
 ## Repository Context / Serena Memory
 

@@ -58,6 +58,8 @@ required_cmds=(
   "vscode-css-language-server"
   "vscode-json-language-server"
   "docker-language-server"
+  "chrome-devtools-mcp"
+  "playwright-cli"
 )
 
 optional_cmds=(

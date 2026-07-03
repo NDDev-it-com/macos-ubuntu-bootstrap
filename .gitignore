@@ -1,4 +1,7 @@
-.serena/
+.serena/*
+!.serena/project.yml
+!.serena/memories/
+!.serena/memories/**
 tests/__pycache__/
 .pytest_cache/
 __pycache__/

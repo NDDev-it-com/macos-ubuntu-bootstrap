@@ -1,2 +1,17 @@
-# Global code owners for pull request review
 * @rldyourmnd
+/.github/** @rldyourmnd
+/.github/workflows/** @rldyourmnd
+/.github/dependabot.yml @rldyourmnd
+/.github/CODEOWNERS @rldyourmnd
+/config/** @rldyourmnd
+/docs/** @rldyourmnd
+/scripts/** @rldyourmnd
+/tests/** @rldyourmnd
+/AGENTS.md @rldyourmnd
+/.claude/CLAUDE.md @rldyourmnd
+/README.md @rldyourmnd
+/VERSION @rldyourmnd
+/NOTICE @rldyourmnd
+/SECURITY.md @rldyourmnd
+/CONTRIBUTING.md @rldyourmnd
+/CODE_OF_CONDUCT.md @rldyourmnd

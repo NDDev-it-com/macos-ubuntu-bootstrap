@@ -22,11 +22,11 @@ It is not an upstream AI runtime source. It orchestrates pinned installer flows 
 
 This repository exposes these native runtime surfaces:
 
-- `scripts/bootstrap.sh` — profile switcher (`--platform macos|ubuntu`).
-- `scripts/macos/install.sh`, `scripts/ubuntu/install.sh` — OS-specific dependency installation profiles.
-- `scripts/macos/verify.sh`, `scripts/ubuntu/verify.sh` — per-platform verification gates.
-- `scripts/ci/*.sh` — shell lint/validation driver scripts.
-- `.github/workflows/**` — CI, security, dependency and release controls.
+- `scripts/bootstrap.sh` - profile switcher (`--platform macos|ubuntu`).
+- `scripts/macos/install.sh`, `scripts/ubuntu/install.sh` - OS-specific dependency installation profiles.
+- `scripts/macos/verify.sh`, `scripts/ubuntu/verify.sh` - per-platform verification gates.
+- `scripts/ci/*.sh` - shell lint/validation driver scripts.
+- `.github/workflows/**` - CI, security, dependency and release controls.
 
 Source-only (not projected into runtime installers): historical docs, contracts, and local agent context.
 

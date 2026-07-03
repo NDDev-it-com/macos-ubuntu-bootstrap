@@ -36,11 +36,11 @@
 
 #### AI CLI рантаймы
 
-- `claude-code` → `@anthropic-ai/claude-code@2.1.199`
-- `codex` → `@openai/codex@0.142.5`
-- `opencode` → `opencode-ai@1.17.13`
-- `agy` → `https://antigravity.google/cli/install.sh`
-- `mimo` → `@mimo-ai/cli@0.1.4`
+- `claude-code` -> `@anthropic-ai/claude-code@2.1.199`
+- `codex` -> `@openai/codex@0.142.5`
+- `opencode` -> `opencode-ai@1.17.13`
+- `agy` -> `https://antigravity.google/cli/install.sh`
+- `mimo` -> `@mimo-ai/cli@0.1.4`
 
 #### Python tooling (через `uv tool`)
 
@@ -91,11 +91,11 @@
 
 #### AI CLI рантаймы
 
-- `claude-code` → `@anthropic-ai/claude-code@2.1.199`
-- `codex` → `@openai/codex@0.142.5`
-- `opencode` → `opencode-ai@1.17.13`
-- `agy` → `https://antigravity.google/cli/install.sh`
-- `mimo` → `@mimo-ai/cli@0.1.4`
+- `claude-code` -> `@anthropic-ai/claude-code@2.1.199`
+- `codex` -> `@openai/codex@0.142.5`
+- `opencode` -> `opencode-ai@1.17.13`
+- `agy` -> `https://antigravity.google/cli/install.sh`
+- `mimo` -> `@mimo-ai/cli@0.1.4`
 
 #### Python tooling (через `uv tool`)
 
@@ -141,16 +141,16 @@ CI для модуля:
 - cross-platform parity:
   - при ручном `mode=plan` и `platform=both` второй job выполняет плановый cross-check целевой ОС.
 - Security hardening workflows:
-  - `.github/workflows/codeql.yml` — GitHub CodeQL
-  - `.github/workflows/secret-scan.yml` — Gitleaks по git history
-  - `.github/workflows/scorecard.yml` — OSSF Scorecard
-  - `.github/workflows/dependency-review.yml` — проверка зависимостей в PR
-  - `.github/workflows/dependency-check.yml` — проверка pin-совпадений между macOS и Ubuntu профилями
-  - `.github/workflows/validate.yml` — базовая валидация bootstrap скриптов и контракта
-  - `.github/workflows/pytest.yml` — smoke-тесты bootstrap entrypoint
-  - `.github/workflows/actionlint.yml` — lint GitHub Actions workflow
-  - `.github/workflows/cross-platform.yml` — валидация структуры в Linux/macOS/Windows раннерах
-  - `.github/workflows/release.yml` — release manifest/SBOM/attestations/теги
+  - `.github/workflows/codeql.yml` - GitHub CodeQL
+  - `.github/workflows/secret-scan.yml` - Gitleaks по git history
+  - `.github/workflows/scorecard.yml` - OSSF Scorecard
+  - `.github/workflows/dependency-review.yml` - проверка зависимостей в PR
+  - `.github/workflows/dependency-check.yml` - проверка pin-совпадений между macOS и Ubuntu профилями
+  - `.github/workflows/validate.yml` - базовая валидация bootstrap скриптов и контракта
+  - `.github/workflows/pytest.yml` - smoke-тесты bootstrap entrypoint
+  - `.github/workflows/actionlint.yml` - lint GitHub Actions workflow
+  - `.github/workflows/cross-platform.yml` - валидация структуры в Linux/macOS/Windows раннерах
+  - `.github/workflows/release.yml` - release manifest/SBOM/attestations/теги
 - Дополнительно в репозитории включены:
   - Secret scanning + push protection
   - Dependabot security alerts + Dependabot security updates

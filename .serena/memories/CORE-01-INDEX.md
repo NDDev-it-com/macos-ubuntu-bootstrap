@@ -1,50 +1,62 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 0e8b8c5 chore(serena): allow durable project memories to be tracked
-Scope: README.md, .gitignore, .serena/project.yml, .serena/memories/**
+Last verified: 2026-07-04
+Last commit: acea1f0babd9b5b75b6bf3d0d507ae9e3be9f9b1 chore(serena): sync project knowledge after 0e8b8c5
+Scope: README.md, AGENTS.md, .claude/CLAUDE.md, .serena/project.yml, .serena/memories/**
 Area: CORE
 -->
 
 # CORE-01-INDEX
 
-## Purpose
+## Scope
+Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module.
 
-Index durable Serena knowledge for the `rldyour-new-mac-or-ubuntu` module.
+## Applies to
+- `README.md`
+- `AGENTS.md`
+- `.claude/CLAUDE.md`
+- `.serena/project.yml`
+- `.serena/memories/**`
 
-## Source Of Truth
-
-- `README.md`: public module overview, baseline table, install/update commands, CI lanes, release/rollback and support surfaces.
-- `AGENTS.md`: Codex-facing project rules and source-of-truth paths.
-- `.claude/CLAUDE.md`: Claude Code-facing project memory for this module.
-- `.serena/project.yml`: Serena project activation metadata for this bash-focused module.
-- `.serena/memories/**`: tracked durable Serena knowledge.
-- `.gitignore`: keeps Serena runtime files ignored while allowing durable project/memory files.
-
-## Entry Points
-
-- `CORE-01-INDEX.md`: start here to choose the relevant memory.
-- `RELEASE-01-VALIDATION.md`: release, CI, validation, baseline, and public README contract.
-- `TECHDEBT-01-NOW.md`: current operational watchpoints and no-secret/no-runtime-artifact boundaries.
-
-## Current Behavior
-
-This module had no pre-existing Serena memory set before commit `9addbd7`; commit `0e8b8c5` made `.serena/project.yml` and `.serena/memories/**` trackable so the sync pass can commit the module's first memory index and topic memories.
-
-## Contracts And Data
-
-Memory files use the `AREA-01-SLUG.md` naming form and the standard metadata block with `Last updated`, `Last commit`, `Scope`, and `Area`.
+## Source of truth
+- `README.md`: public module overview, dependency baseline, CI lanes, and release surfaces.
+- `AGENTS.md`: Codex-facing module instructions.
+- `.claude/CLAUDE.md`: Claude Code-facing module memory.
+- `.serena/project.yml`: Serena activation metadata.
+- `.serena/memories/**`: tracked durable memory files.
 
 ## Invariants
+- `.serena/project.yml` and `.serena/memories/**` are source-tracked durable context.
+- `.serena/cache/`, `.serena/project.local.yml`, runtime markers, diagnostics, and local state remain untracked.
+- Memory names use the `AREA-01-SLUG.md` form.
 
-- `.serena/project.yml` and `.serena/memories/**` are durable project context and should remain trackable.
-- Runtime-local Serena files such as `.serena/cache/`, `.serena/project.local.yml`, `.serena/.sync_marker`, and `.serena/.serena_sync_state.json` must remain untracked.
+## Current State
+- This module has three tracked memories: `CORE-01-INDEX.md`, `RELEASE-01-VALIDATION.md`, and `TECHDEBT-01-NOW.md`.
+- The module is a bootstrap adapter for macOS and Ubuntu dependency installation and verification.
+- The module does not own AI CLI runtime configuration surfaces; those remain in the sibling adapter modules.
 
-## Change Rules
+## Evidence
+- path:README.md
+- path:AGENTS.md
+- path:.claude/CLAUDE.md
+- path:.serena/project.yml
+- path:.serena/memories/RELEASE-01-VALIDATION.md
+- path:.serena/memories/TECHDEBT-01-NOW.md
+- commit:acea1f0babd9b5b75b6bf3d0d507ae9e3be9f9b1
 
-- Add a new numbered memory only for durable facts that improve future implementation confidence.
-- Update this index whenever a memory file is added, renamed, split, or removed.
+## Do Not Infer
+- Do not infer current dependency versions, release state, GitHub settings, or CI status from this index; read the source files and live GitHub state.
 
-## Verification
+## Update Triggers
+- Update when memory files are added, renamed, split, deleted, or when module instruction/source-of-truth paths change.
 
-- `git ls-files .serena`: proves which durable Serena files are tracked.
-- `python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-serena-mcp/local/scripts/serena_memory_state.py`: reports whether memory state acknowledges the current HEAD.
+## Validation Commands
+- `python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-serena-mcp/local/scripts/serena_memory_state.py`
+- `python3 ../../../scripts/validate_serena_memory_schema.py --scope new-mac-or-ubuntu --strict-mode strict-all`
+- `git ls-files .serena`
+
+## Repair Procedure
+- Re-read source-of-truth files, update only durable verified facts, keep runtime-local files ignored, then rerun the validation commands.
+
+## Update policy
+Keep this index synchronized with the memory file set and module instruction surfaces.

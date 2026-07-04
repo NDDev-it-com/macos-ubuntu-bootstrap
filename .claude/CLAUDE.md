@@ -27,7 +27,7 @@ for dependency and verification parity across workstation classes.
   - `claude` (current installed binary)  
   - `claude-code` (legacy alias in some environments)
 - AI runtimes installed from pins:
-  - `@anthropic-ai/claude-code@2.1.199`
+  - `@anthropic-ai/claude-code@2.1.201`
   - `@openai/codex@0.142.5`
   - `opencode-ai@1.17.13`
   - `@mimo-ai/cli@0.1.4`

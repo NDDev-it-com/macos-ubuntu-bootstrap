@@ -38,7 +38,7 @@ the owner terminal stack:
   - plan (default, dry-run)
   - apply (`--apply`)
 - Pinned AI runtimes:
-  - `@anthropic-ai/claude-code@2.1.199`
+  - `@anthropic-ai/claude-code@2.1.201`
   - `@openai/codex@0.142.5`
   - `opencode-ai@1.17.13`
   - `@mimo-ai/cli@0.1.4`

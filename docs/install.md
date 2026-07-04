@@ -36,7 +36,7 @@
 
 #### AI CLI рантаймы
 
-- `claude-code` -> `@anthropic-ai/claude-code@2.1.199`
+- `claude-code` -> `@anthropic-ai/claude-code@2.1.201`
 - `codex` -> `@openai/codex@0.142.5`
 - `opencode` -> `opencode-ai@1.17.13`
 - `agy` -> `https://antigravity.google/cli/install.sh`
@@ -97,7 +97,7 @@
 
 #### AI CLI рантаймы
 
-- `claude-code` -> `@anthropic-ai/claude-code@2.1.199`
+- `claude-code` -> `@anthropic-ai/claude-code@2.1.201`
 - `codex` -> `@openai/codex@0.142.5`
 - `opencode` -> `opencode-ai@1.17.13`
 - `agy` -> `https://antigravity.google/cli/install.sh`

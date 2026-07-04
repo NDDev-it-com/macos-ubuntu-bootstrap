@@ -6,9 +6,9 @@ rldyour module for macOS and Ubuntu workstation bootstrap, dependency installati
 
 | Field | Value |
 | --- | --- |
-| Adapter version | `0.1.4` |
+| Adapter version | `0.1.5` |
 | Runtime baseline | Claude Code `2.1.199`; Codex `0.142.5`; OpenCode `1.17.13`; MiMoCode `0.1.4`; Antigravity `agy` |
-| GitHub release tag | `0.1.4` |
+| GitHub release tag | `0.1.5` |
 
 Runtime pin sources: `scripts/macos/install.sh`, `scripts/ubuntu/install.sh`, and `config/rldyour-contract.json`.
 

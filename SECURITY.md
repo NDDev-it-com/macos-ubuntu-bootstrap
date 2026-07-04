@@ -6,7 +6,7 @@ Only the current exact numeric product release tag receives security fixes. This
 
 | Version | Supported |
 | --- | --- |
-| Current exact tag `0.1.3` | yes |
+| Current exact tag `0.1.4` | yes |
 | The `0.1.x` line label tracks only the latest released patch | no |
 | Older minor / major lines | no |
 

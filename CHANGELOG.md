@@ -5,6 +5,12 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.1.11] - 2026-07-04
+
+### Fixed
+
+- Adopt nddev-ci-workflows 0.2.3 and fix reusable CI edge cases.
+
 ## [0.1.10] - 2026-07-04
 
 ### Fixed

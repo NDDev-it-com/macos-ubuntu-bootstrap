@@ -24,8 +24,8 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - `.github/workflows/**`
 
 ## Source of truth
-- `VERSION` and `config/rldyour-contract.json`: product/config version `0.1.2`.
-- `CHANGELOG.md`: release entries for `0.1.0`, `0.1.1`, and `0.1.2`, with an empty `[Unreleased]` section.
+- `VERSION` and `config/rldyour-contract.json`: canonical product/config version source of truth (see the Current State section for the live value).
+- `CHANGELOG.md`: dated release entries per version, with an empty `[Unreleased]` section.
 - `scripts/bootstrap.sh`: platform selector for `macos` and `ubuntu`.
 - `scripts/macos/install.sh` and `scripts/ubuntu/install.sh`: OS-specific installer profiles.
 - `scripts/macos/verify.sh` and `scripts/ubuntu/verify.sh`: per-platform verification gates.
@@ -38,8 +38,8 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Public security workflows remain enabled for the public repository posture.
 
 ## Current State
-- Current product/config version is `0.1.6`.
-- Release `0.1.6` synchronizes `VERSION`, README baseline, SECURITY current exact tag, and `config/rldyour-contract.json` after the contract baseline drift fixed by `a3dc4e0`.
+- Current product/config version is `0.1.7`.
+- Release `0.1.7` synchronizes `VERSION`, README baseline, SECURITY current exact tag, and `config/rldyour-contract.json` after the contract baseline drift fixed by `a3dc4e0`.
 - The module supports macOS and Ubuntu/server bootstrap profiles.
 - Local CI entrypoints are `bash scripts/ci/lint.sh` and `bash scripts/ci/validate.sh`.
 - Strict platform checks are `bash scripts/macos/verify.sh --strict --skip-optional` and `bash scripts/ubuntu/verify.sh --strict --skip-optional`.

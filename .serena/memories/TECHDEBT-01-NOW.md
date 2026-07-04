@@ -37,7 +37,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - Durable Serena memory files are tracked; runtime-local Serena state remains ignored.
 - The module is intentionally bootstrap-only and does not expose MCP, browser, design, or native `ry-*` command surfaces.
 - Ubuntu and macOS installers both include `marksman` in the LSP layer.
-- No current bootstrap contract-version drift is known at `0.1.2`: `VERSION`, `config/rldyour-contract.json`, README baseline, and SECURITY current exact tag are synchronized. Future releases must keep these surfaces aligned before root runtime-baseline validation.
+- No current bootstrap contract-version drift: `VERSION`, `config/rldyour-contract.json`, README baseline, installer pins, docs (`README.md`, `AGENTS.md`, `.claude/CLAUDE.md`, `docs/install.md`), and SECURITY current exact tag stay synchronized. `tests/test_bootstrap_smoke.py` now guards installer-pin/doc parity; future releases must keep these surfaces aligned before root runtime-baseline validation.
 
 ## Evidence
 - path:.gitignore

@@ -5,6 +5,37 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.2.0] - 2026-07-06
+
+### Added
+
+- Expand macOS installer with the full multi-language LSP stack and quality
+  gates: basedpyright, ruff, ty, jdtls, kotlin-language-server, gopls,
+  postgres-language-server (Supabase), sqls (via `go install`), R languageserver,
+  markdown-oxide, terraform-ls, helm-ls, cmake-language-server, oxlint, biome,
+  osv-scanner, gitleaks, semgrep, hadolint, actionlint, yamllint,
+  markdownlint-cli2, shfmt, and the `fd`, `httpie`, `dasel`, `miller`, `git-delta`,
+  `watchexec`, `hyperfine`, `just`, `prettier`, `pandoc`, `kubeconform`, `mise`,
+  `libxml2`, `xmlstarlet` utilities.
+- Add `qt` headers and `openjdk` to the macOS system baseline so clangd can
+  resolve Qt projects and Java/Kotlin LSPs have a runtime.
+- Replace `typescript-language-server` with `@vtsls/language-server` (chosen by
+  Zed and LazyVim) in both macOS and Ubuntu LSP bundles; add
+  `gh-actions-language-server` to both profiles.
+- Add Ubuntu extended LSP/quality surface: `default-jdk` and `r-base` runtimes,
+  bun-global quality CLIs (`biome`, `oxlint`, `markdownlint-cli2`, `prettier`),
+  `sqls` and R `languageserver` (best-effort), and cargo-hosted `gitlab-ci-ls`.
+- Extend macOS and Ubuntu `verify.sh` required/optional command sets to cover
+  the expanded stack (Java/Kotlin/SQL LSPs, quality gates, utilities) and print
+  java/R/clangd runtime versions.
+- Document the full dependency matrix in `docs/install.md` across the new
+  categories (extended LSPs, quality-gate CLIs, base utilities, JDK/Qt/R).
+
+### Changed
+
+- Bump adapter contract and README baseline to `0.2.0`; verified_on
+  `2026-07-06`.
+
 ## [0.1.11] - 2026-07-04
 
 ### Fixed

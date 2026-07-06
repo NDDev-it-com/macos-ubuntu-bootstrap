@@ -45,15 +45,30 @@ the owner terminal stack:
   - `agy` (via `https://antigravity.google/cli/install.sh`)
 - Python tooling via `uv tool`:
   - `pyright-langserver`, `pyright`, `ruff`, `pytest`
-- LSP/runtime binaries:
-  - `typescript`, `typescript-language-server`
-  - `yaml-language-server`
-  - `bash-language-server`
+- Multi-language LSPs (Homebrew on macOS, mixed apt/bun/cargo on Ubuntu):
+  - `basedpyright`, `ruff`, `ty` (Python; `ruff server` is the active LSP)
+  - `clangd` (C/C++/Qt via `llvm` + `qt`)
+  - `rust-analyzer` (via `rustup`)
+  - `gopls` (Go)
+  - `dart` Analysis Server (in Dart SDK)
+  - `jdtls` (Java), `kotlin-language-server` (Kotlin; requires JDK)
+  - `postgres-language-server` (Supabase), `sqls` (multi-DB SQL)
+  - R `languageserver` (requires R runtime)
+- Config / docs LSPs:
+  - `@vtsls/language-server` (TS/JS; replaces `typescript-language-server`)
+  - `yaml-language-server`, `bash-language-server`
   - `dockerfile-language-server-nodejs` (provides `docker-language-server`)
   - `vscode-langservers-extracted`
-  - `taplo`
+  - `taplo`, `marksman`, `markdown-oxide`
+  - `terraform-ls`, `helm-ls`, `cmake-language-server`
+  - `gh-actions-language-server`
+- Quality-gate CLIs (verified by strict verify):
+  - `shellcheck`, `shfmt` (shell)
+  - `oxlint`, `biome` (JS/TS/JSON)
+  - `osv-scanner`, `gitleaks`, `semgrep` (security/SAST)
+  - `hadolint`, `actionlint`, `yamllint`, `markdownlint-cli2`
 - Shared tools verified by installer:
-  - `node`, `bun`, `python3`, `uv`, `go`, `rustup`, `dart`, `git`, `curl`
+  - `node`, `bun`, `python3`, `uv`, `go`, `rustup`, `dart`, `git`, `curl`, `java`, `R`
 
 ## Commands
 

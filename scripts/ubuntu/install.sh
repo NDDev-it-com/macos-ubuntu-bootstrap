@@ -34,14 +34,26 @@ PYTHON_TOOLING_PACKAGES=(
 
 # taplo ships as the npm `@taplo/cli` package (bare `taplo` is unpublished);
 # marksman is not on npm and is installed from its pinned GitHub release below.
+# vtsls replaces typescript-language-server as the recommended TS/JS LSP.
 BUN_LSP_PACKAGES=(
   typescript
-  typescript-language-server
+  "@vtsls/language-server"
   yaml-language-server
   bash-language-server
   dockerfile-language-server-nodejs
   vscode-langservers-extracted
-  @taplo/cli
+  "@taplo/cli"
+  gh-actions-language-server
+)
+
+# Bun-global quality-gate and formatter CLIs that are not well packaged via apt.
+# These extend the LSP/runtime baseline with multi-language linting and SAST.
+BUN_QUALITY_PACKAGES=(
+  biome
+  oxlint
+  markdownlint-cli2
+  prettier
+  "@ansible/language-server"
 )
 
 APT_SYSTEM_PACKAGES=(
@@ -54,14 +66,22 @@ APT_SYSTEM_PACKAGES=(
   python3
   python3-pip
   shellcheck
+  shfmt
   clang
   clangd
+  cmake
   golang-go
   unzip
   wget
   zip
   gnupg
   lsb-release
+  yamllint
+  pandoc
+  httpie
+  fd-find
+  xmlstarlet
+  libxml2-utils
 )
 
 APT_GOPLS_PACKAGE="gopls"
@@ -222,6 +242,86 @@ install_go_lsp() {
   rldyour::run sudo apt-get install -y "$APT_GOPLS_PACKAGE"
 }
 
+# Install the extended Homebrew/Go/R-packaged LSPs that mirror the macOS
+# baseline: Supabase postgres-language-server, sqls (multi-DB), and the R
+# languageserver. Each is best-effort on Ubuntu because the runtime may not yet
+# be present when this runs in plan mode.
+ensure_extended_lsps() {
+  rldyour::section "Install extended SQL / R LSPs (best-effort)"
+
+  if command -v sqls >/dev/null 2>&1; then
+    rldyour::log "ok" "sqls already installed"
+  elif command -v go >/dev/null 2>&1; then
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] go install github.com/sqls-server/sqls@latest"
+    else
+      rldyour::run go install github.com/sqls-server/sqls@latest
+    fi
+  else
+    rldyour::log "warn" "go required for sqls; skipping"
+  fi
+
+  if command -v R >/dev/null 2>&1; then
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] R install.packages('languageserver')"
+    elif R -q -e 'library(languageserver)' >/dev/null 2>&1; then
+      rldyour::log "ok" "R languageserver already installed"
+    else
+      rldyour::run R -e 'install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=parallel::detectCores())'
+    fi
+  else
+    rldyour::log "warn" "R runtime required for languageserver; skipping"
+  fi
+}
+
+# Install bun-global quality-gate CLIs that are not packaged via apt on Ubuntu.
+install_quality_packages() {
+  rldyour::section "Install bun-global quality CLIs"
+  if ! command -v bun >/dev/null 2>&1; then
+    rldyour::log "warn" "bun required for quality CLIs; skipping"
+    return 0
+  fi
+  for pkg in "${BUN_QUALITY_PACKAGES[@]}"; do
+    rldyour::run bun add -g "$pkg"
+  done
+}
+
+# Install the JDK and R runtime baselines required by jdtls/Kotlin LSP and the R
+# language server respectively. Ubuntu has good apt coverage for both.
+ensure_java_and_r() {
+  rldyour::section "Ensure JDK and R runtimes"
+  if command -v java >/dev/null 2>&1; then
+    rldyour::log "ok" "java already available: $(java -version 2>&1 | head -n 1)"
+  else
+    rldyour::run sudo apt-get install -y default-jdk
+  fi
+  if command -v R >/dev/null 2>&1; then
+    rldyour::log "ok" "R already available: $(R --version 2>&1 | head -n 1)"
+  else
+    rldyour::run sudo apt-get install -y r-base
+  fi
+}
+
+# Install rustup-hosted LSP binaries via cargo that have no apt/bun equivalent:
+# gitlab-ci-ls and postgres-language-server (Supabase) on Ubuntu are best-effort
+# because Supabase ships a brew formula and a manual-install tarball but no apt.
+ensure_cargo_lsps() {
+  rldyour::section "Install cargo-hosted LSPs (best-effort)"
+  if ! command -v cargo >/dev/null 2>&1; then
+    rldyour::log "warn" "cargo required for cargo-hosted LSPs; skipping"
+    return 0
+  fi
+  if command -v gitlab-ci-ls >/dev/null 2>&1; then
+    rldyour::log "ok" "gitlab-ci-ls already installed"
+  else
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] cargo install gitlab-ci-ls"
+    else
+      rldyour::run cargo install gitlab-ci-ls
+    fi
+  fi
+}
+
 ensure_marksman() {
   rldyour::section "Install marksman markdown LSP (pinned GitHub release)"
   if command -v marksman >/dev/null 2>&1; then
@@ -300,6 +400,7 @@ if [ "$SKIP_SYSTEM" -eq 0 ]; then
   ensure_dart
   install_go_lsp
   ensure_marksman
+  ensure_java_and_r
 else
   rldyour::log "warn" "system layer skipped by --skip-system"
 fi
@@ -312,6 +413,9 @@ fi
 
 if [ "$SKIP_LSPS" -eq 0 ]; then
   install_lsp
+  install_quality_packages
+  ensure_extended_lsps
+  ensure_cargo_lsps
 else
   rldyour::log "warn" "LSP layer skipped by --skip-lsps"
 fi

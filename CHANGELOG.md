@@ -5,6 +5,67 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.2.0] - 2026-07-06
+
+### Added
+
+- Expand macOS installer with the full multi-language LSP stack and quality
+  gates: basedpyright, ruff, ty, jdtls, kotlin-language-server, gopls,
+  postgres-language-server (Supabase), sqls (via `go install`), R languageserver,
+  markdown-oxide, terraform-ls, helm-ls, cmake-language-server, oxlint, biome,
+  osv-scanner, gitleaks, semgrep, hadolint, actionlint, yamllint,
+  markdownlint-cli2, shfmt, and the `fd`, `httpie`, `dasel`, `miller`, `git-delta`,
+  `watchexec`, `hyperfine`, `just`, `prettier`, `pandoc`, `kubeconform`, `mise`,
+  `libxml2`, `xmlstarlet` utilities.
+- Add `qt` headers and `openjdk` to the macOS system baseline so clangd can
+  resolve Qt projects and Java/Kotlin LSPs have a runtime.
+- Replace `typescript-language-server` with `@vtsls/language-server` (chosen by
+  Zed and LazyVim) in both macOS and Ubuntu LSP bundles; add
+  `gh-actions-language-server` to both profiles.
+- Add Ubuntu extended LSP/quality surface: `default-jdk` and `r-base` runtimes,
+  bun-global quality CLIs (`biome`, `oxlint`, `markdownlint-cli2`, `prettier`),
+  `sqls` and R `languageserver` (best-effort), and cargo-hosted `gitlab-ci-ls`.
+- Add Ubuntu `install_security_scanners()` installing the verify-required
+  scanners via their official channels: `basedpyright` (uv tool), `osv-scanner`
+  and `gitleaks` (binary install scripts), `semgrep` (pip3), `hadolint` (GitHub
+  release binary), and `actionlint` (rhysd download script).
+- Extend macOS and Ubuntu `verify.sh` required/optional command sets to cover
+  the expanded stack (Java/Kotlin/SQL LSPs, quality gates, utilities) and print
+  java/R/clangd runtime versions.
+- Document the full dependency matrix in `docs/install.md` across the new
+  categories (extended LSPs, quality-gate CLIs, base utilities, JDK/Qt/R,
+  Ubuntu security scanners).
+
+### Changed
+
+- Bump adapter contract and README baseline to `0.2.0`; verified_on
+  `2026-07-06`.
+
+### Fixed
+
+- Close the macOS/Ubuntu `verify.sh` ↔ `install.sh` contract gaps so strict
+  post-checks never fail on a fresh machine: Ubuntu now installs every
+  verify-required scanner, and both platforms moved `chrome-devtools-mcp` /
+  `playwright-cli` to `optional_cmds` because the browser layer is gated behind
+  `--skip-browser`.
+- Guard `R --version` in macOS `verify.sh` behind `command -v` so the optional
+  R runtime cannot abort verification under `set -euo pipefail`.
+- Remove duplicate `ruff` (kept the Homebrew formula as the single source of
+  truth, dropped from `PYTHON_TOOLING_PACKAGES`) and duplicate
+  `vscode-langservers-extracted` (kept Homebrew, dropped from
+  `BUN_LSP_PACKAGES`) on macOS.
+- Add `$HOME/go/bin` to `rldyour::ensure_path` so `go install`-built binaries
+  like `sqls` are discoverable during verification.
+- Align `SECURITY.md` supported-version tag (`0.1.11` -> `0.2.0`), README
+  counters (`Scripts: 8`, `Workflows: 11`), and the broken
+  `python3 scripts/ci/*.sh` instructions in README (now `bash`).
+- Refresh the three Serena memory files to the 2026-07-06 / `0.2.0` baseline.
+- Drop the misleading `postgres-language-server` reference from the Ubuntu
+  `ensure_cargo_lsps` comment (it never installed it) and the `markdown-oxide`
+  entry from the Ubuntu LSP docs (macOS-only install channel).
+- shfmt-format `bootstrap.sh` case patterns; ignore `.DS_Store`, `*.swp`,
+  `.idea/`, `.vscode/` in `.gitignore`.
+
 ## [0.1.11] - 2026-07-04
 
 ### Fixed

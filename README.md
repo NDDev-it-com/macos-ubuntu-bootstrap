@@ -6,9 +6,9 @@ rldyour module for macOS and Ubuntu workstation bootstrap, dependency installati
 
 | Field | Value |
 | --- | --- |
-| Adapter version | `0.1.11` |
+| Adapter version | `0.2.0` |
 | Runtime baseline | Claude Code `2.1.201`; Codex `0.142.5`; OpenCode `1.17.13`; MiMoCode `0.1.4`; Antigravity `agy` |
-| GitHub release tag | `0.1.11` |
+| GitHub release tag | `0.2.0` |
 
 Runtime pin sources: `scripts/macos/install.sh`, `scripts/ubuntu/install.sh`, and `config/rldyour-contract.json`.
 
@@ -75,12 +75,12 @@ A local repository-level repair/convergence pass is performed via `scripts/ci/va
 - `scripts/`: installer and validation entrypoints.
 - `config/rldyour-contract.json`: module contract.
 - `docs/install.md`: dependency matrix and mode documentation.
-- `.github/workflows/`: 10+ security and CI workflows.
+- `.github/workflows/`: 11 security and CI workflows.
 - `AGENTS.md`, `LICENSE`, `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md`.
 
 ```text
-Scripts: 7
-Workflows: 10
+Scripts: 8
+Workflows: 11
 OS profiles: 2 (macOS, Ubuntu)
 ```
 
@@ -110,8 +110,8 @@ Public metadata and context are tracked in git. Runtime-only artifacts remain ig
 Relevant checks:
 
 ```bash
-python3 scripts/ci/validate.sh
-python3 scripts/ci/lint.sh
+bash scripts/ci/validate.sh
+bash scripts/ci/lint.sh
 ```
 
 ## Security Boundary

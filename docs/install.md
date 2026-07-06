@@ -21,18 +21,57 @@
 - `brew` (Homebrew)
 - `node` (target >=22)
 - `go`
-- `shellcheck`
+- `shellcheck`, `shfmt`
 - `llvm` (для `clangd`)
-- `cmake`
+- `cmake`, `qt` (заголовки Qt для clangd C++/Qt LSP)
+- `openjdk` (JDK для jdtls/Kotlin LSP; линкуется через `brew link --force`)
 - `vscode-langservers-extracted`
 - `docker-language-server`
-- `taplo`
-- `marksman`
+- `taplo`, `marksman`, `markdown-oxide`
+- `terraform-ls`, `helm-ls`, `cmake-language-server`
+- `libxml2`, `xmlstarlet`
 - `uv`
 - `bun`
 - `python3`
 - `rustup` + `rust-analyzer`
 - `dart`
+- `r` (R runtime для R languageserver)
+
+#### Python tooling (через `uv tool`)
+
+- `pyright` (поставляет оба бинарника: `pyright` и `pyright-langserver`)
+- `pytest`
+
+#### Расширенные языковые LSP (Homebrew)
+
+- `basedpyright` (улучшенный форк pyright, фичи Pylance вне VS Code)
+- `ruff` (LSP-режим встроен; lint + format для Python)
+- `ty` (опционально; beta type-checker от Astral на Rust)
+- `jdtls` (Java LSP, Eclipse JDT-LS)
+- `kotlin-language-server` (Kotlin LSP, требует JDK)
+- `gopls` (Go LSP)
+
+#### Расширенные SQL LSP
+
+- `postgres-language-server` (Supabase; ставится через `brew install postgres-language-server`)
+- `sqls` (multi-DB SQL LSP; ставится через `go install github.com/sqls-server/sqls@latest`)
+
+#### Quality-gate CLI (Homebrew)
+
+- `shfmt`, `shellcheck` (shell lint + format)
+- `oxlint`, `biome` (JS/TS/JSON/CSS lint + format)
+- `osv-scanner` (уязвимости зависимостей, универсально)
+- `gitleaks` (секреты в коде/git)
+- `semgrep` (SAST, мультиязычный)
+- `hadolint` (Dockerfile lint, без Docker daemon)
+- `actionlint` (GitHub Actions workflows)
+- `yamllint`, `markdownlint-cli2` (YAML / Markdown)
+
+#### Базовые утилиты (Homebrew)
+
+- `fd`, `httpie`, `dasel`, `miller` (mlr), `git-delta` (delta)
+- `watchexec`, `hyperfine`, `just`
+- `jq`, `prettier`, `pandoc`, `kubeconform`, `mise`
 
 #### AI CLI рантаймы
 
@@ -42,26 +81,21 @@
 - `agy` -> `https://antigravity.google/cli/install.sh`
 - `mimo` -> `@mimo-ai/cli@0.1.4`
 
-#### Python tooling (через `uv tool`)
-
-- `pyright-langserver`
-- `pyright`
-- `ruff`
-- `pytest`
-
-#### LSP / терминальные language-серверы
+#### LSP / терминальные language-серверы (bun global)
 
 - `typescript`
-- `typescript-language-server`
+- `@vtsls/language-server` (замена `typescript-language-server`; выбран Zed/LazyVim)
 - `yaml-language-server`
 - `bash-language-server`
 - `dockerfile-language-server-nodejs` (команда `docker-langserver`)
 - `vscode-langservers-extracted` (HTML/CSS/JSON servers)
-- `taplo`
-- `marksman`
-- `rust-analyzer`
-- `gopls`
-- `clangd`
+- `gh-actions-language-server`
+- `taplo`, `marksman`, `markdown-oxide`
+- `rust-analyzer`, `gopls`, `clangd`
+
+#### R language server
+
+- `languageserver` (R package; ставится через `R -e install.packages('languageserver')`)
 
 #### Браузер-провайдеры
 
@@ -71,29 +105,27 @@
 
 ### Ubuntu / server
 
-#### Системный слой
+#### Системный слой (apt)
 
 - `ca-certificates`
 - `build-essential`
-- `clang`
-- `clangd`
+- `clang`, `clangd`, `cmake`
 - `curl`
 - `gpg`
 - `git`
-- `jq`
+- `jq`, `yamllint`, `pandoc`, `httpie`, `fd-find`, `xmlstarlet`, `libxml2-utils`
 - `lsb-release`
 - `node` (target >=22 via NodeSource)
-- `python3`
-- `python3-pip`
-- `shellcheck`
-- `unzip`
-- `wget`
-- `zip`
+- `python3`, `python3-pip`
+- `shellcheck`, `shfmt`
+- `unzip`, `wget`, `zip`, `gnupg`
 - `uv`
 - `bun`
 - `rustup` + `rust-analyzer`
 - `dart`
 - `go` (`golang-go`)
+- `default-jdk` (JDK для jdtls/Kotlin LSP)
+- `r-base` (R runtime для R languageserver)
 
 #### AI CLI рантаймы
 
@@ -105,24 +137,49 @@
 
 #### Python tooling (через `uv tool`)
 
-- `pyright-langserver`
-- `pyright`
+- `pyright` (поставляет оба бинарника: `pyright` и `pyright-langserver`)
 - `ruff`
 - `pytest`
 
-#### LSP / терминальные language-серверы
+#### LSP / терминальные language-серверы (bun global)
 
 - `typescript`
-- `typescript-language-server`
+- `@vtsls/language-server` (замена `typescript-language-server`)
 - `yaml-language-server`
 - `bash-language-server`
 - `dockerfile-language-server-nodejs` (команда `docker-langserver`)
 - `vscode-langservers-extracted` (HTML/CSS/JSON servers)
-- `taplo`
-- `marksman`
-- `rust-analyzer`
-- `gopls`
-- `clangd`
+- `@taplo/cli` (taplo для Ubuntu)
+- `gh-actions-language-server`
+- `marksman` (pinned GitHub release)
+- `rust-analyzer` (через `rustup component add`)
+- `gopls` (через apt)
+- `clangd` (через apt)
+
+#### Quality-gate CLI (bun global, где нет apt-пакета)
+
+- `biome`, `oxlint` (JS/TS/JSON lint + format)
+- `markdownlint-cli2`, `prettier`
+- `@ansible/language-server`
+
+#### Security / quality scanners (verify.sh required, ставятся отдельными каналами)
+
+- `basedpyright` (через `uv tool install basedpyright`)
+- `osv-scanner` (binary install script от Google)
+- `gitleaks` (binary install script от GitHub)
+- `semgrep` (через `pip3 install --user semgrep`)
+- `hadolint` (статический binary с GitHub releases)
+- `actionlint` (binary install script от rhysd)
+- `yamllint`, `shellcheck`, `shfmt` (через apt)
+
+#### Расширенные SQL/R LSP (best-effort)
+
+- `sqls` (через `go install github.com/sqls-server/sqls@latest`)
+- R `languageserver` (через `R install.packages`)
+
+#### Cargo-hosted LSPs (best-effort)
+
+- `gitlab-ci-ls` (через `cargo install gitlab-ci-ls`)
 
 #### Браузер-провайдеры
 

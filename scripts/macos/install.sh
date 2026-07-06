@@ -24,23 +24,31 @@ ANTIGRAVITY_INSTALL_SCRIPT="https://antigravity.google/cli/install.sh"
 
 # The `pyright` package ships both `pyright` and `pyright-langserver` console
 # scripts; there is no separate `pyright-langserver` distribution to install.
+# `ruff` is intentionally NOT listed here: it is installed via the Homebrew
+# `ruff` formula (see BREW_SYSTEM_PACKAGES) so its LSP server (`ruff server`) is
+# available system-wide and there is a single source of truth for the version.
 PYTHON_TOOLING_PACKAGES=(
   pyright
-  ruff
   pytest
 )
 
 # taplo is provided by Homebrew (BREW_SYSTEM_PACKAGES); it is not published as a
 # bare npm `taplo` package, so it must not be bun-installed here.
+# vscode-langservers-extracted is also installed via Homebrew (single source of
+# truth for the HTML/CSS/JSON servers), so it is not bun-installed here.
+# vtsls replaces typescript-language-server as the recommended TS/JS LSP (better
+# feature parity with the VS Code TS extension; chosen by Zed and LazyVim).
 BUN_LSP_PACKAGES=(
   typescript
-  typescript-language-server
+  "@vtsls/language-server"
   yaml-language-server
   bash-language-server
   dockerfile-language-server-nodejs
-  vscode-langservers-extracted
+  gh-actions-language-server
 )
 
+# Homebrew baseline: runtimes, LSPs that ship as brew formulas, and the
+# quality-gate / formatter CLIs used by the agent verification layer.
 BREW_SYSTEM_PACKAGES=(
   git
   curl
@@ -48,12 +56,49 @@ BREW_SYSTEM_PACKAGES=(
   go
   gopls
   shellcheck
+  shfmt
   llvm
   cmake
+  qt
+  openjdk
   docker-language-server
   vscode-langservers-extracted
   taplo
   marksman
+  markdown-oxide
+  terraform-ls
+  helm-ls
+  cmake-language-server
+  basedpyright
+  ruff
+  ty
+  jdtls
+  kotlin-language-server
+  oxlint
+  biome
+  osv-scanner
+  gitleaks
+  semgrep
+  hadolint
+  actionlint
+  yamllint
+  markdownlint-cli2
+  fd
+  httpie
+  dasel
+  miller
+  git-delta
+  watchexec
+  hyperfine
+  just
+  jq
+  prettier
+  pandoc
+  kubeconform
+  mise
+  libxml2
+  xmlstarlet
+  r
 )
 
 usage() {
@@ -87,6 +132,26 @@ ensure_node() {
   fi
 
   rldyour::run brew install node
+}
+
+# Link the keg-only `openjdk` formula so `java`/`javac` resolve on PATH without
+# requiring the user to run `brew link` manually. Required by jdtls and the
+# Kotlin language server.
+ensure_java() {
+  rldyour::section "Link keg-only OpenJDK (for Java/Kotlin LSPs)"
+  if command -v java >/dev/null 2>&1; then
+    rldyour::log "ok" "java already on PATH: $(java -version 2>&1 | head -n 1)"
+    return 0
+  fi
+  if ! command -v brew >/dev/null 2>&1; then
+    rldyour::log "warn" "brew unavailable; cannot link openjdk"
+    return 0
+  fi
+  if brew list --formula openjdk >/dev/null 2>&1; then
+    rldyour::run brew link --force --overwrite openjdk
+  else
+    rldyour::log "warn" "openjdk not installed via brew; skipping link"
+  fi
 }
 
 install_brew_packages() {
@@ -173,7 +238,9 @@ ensure_clangd() {
   local keg
   keg="$(brew --prefix llvm 2>/dev/null)/bin/clangd"
   if [ -x "$keg" ]; then
-    mkdir -p "$HOME/.local/bin"
+    if [ "$RLDYOUR_DRY_RUN" -eq 0 ]; then
+      mkdir -p "$HOME/.local/bin"
+    fi
     rldyour::run ln -sf "$keg" "$HOME/.local/bin/clangd"
     rldyour::log "ok" "linked keg-only clangd -> ~/.local/bin/clangd"
   elif [ "$STRICT" -eq 1 ]; then
@@ -263,6 +330,68 @@ install_lsp() {
   done
 }
 
+# Supabase's postgres-language-server ships as a Homebrew formula; the
+# `postgres-lsp` crate on crates.io is an unrelated project and must not be
+# used as a substitute.
+ensure_postgres_language_server() {
+  rldyour::section "Ensure Supabase postgres-language-server"
+  if command -v postgres-language-server >/dev/null 2>&1; then
+    rldyour::log "ok" "postgres-language-server already installed"
+    return 0
+  fi
+  if ! command -v brew >/dev/null 2>&1; then
+    rldyour::log "warn" "brew unavailable; cannot install postgres-language-server"
+    return 0
+  fi
+  rldyour::run brew install postgres-language-server
+}
+
+# sqls (multi-DB SQL LSP) is installed via `go install`. Requires the Go
+# toolchain to be on PATH (ensured by the system layer).
+ensure_sqls() {
+  rldyour::section "Ensure sqls (multi-DB SQL LSP)"
+  if command -v sqls >/dev/null 2>&1; then
+    rldyour::log "ok" "sqls already installed"
+    return 0
+  fi
+  if ! command -v go >/dev/null 2>&1; then
+    rldyour::log "warn" "go toolchain required for sqls; skipping"
+    return 0
+  fi
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] go install github.com/sqls-server/sqls@latest"
+    return 0
+  fi
+  if go install github.com/sqls-server/sqls@latest; then
+    rldyour::log "ok" "sqls installed via go install"
+  else
+    rldyour::log "warn" "sqls install failed (best-effort)"
+  fi
+}
+
+# R language server is an R package installed into the local R library; it
+# requires the R runtime (provided by the `r` formula in BREW_SYSTEM_PACKAGES).
+ensure_r_languageserver() {
+  rldyour::section "Ensure R languageserver"
+  if ! command -v R >/dev/null 2>&1; then
+    rldyour::log "warn" "R runtime required for languageserver; skipping"
+    return 0
+  fi
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] R -e install.packages('languageserver')"
+    return 0
+  fi
+  if R -q -e 'library(languageserver)' >/dev/null 2>&1; then
+    rldyour::log "ok" "R languageserver already installed"
+    return 0
+  fi
+  if R -e 'ncpus <- parallel::detectCores(); ncpus <- if (is.na(ncpus) || ncpus < 1) 1 else ncpus; install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=ncpus)'; then
+    rldyour::log "ok" "R languageserver installed"
+  else
+    rldyour::log "warn" "R languageserver install failed (best-effort)"
+  fi
+}
+
 run_post_checks() {
   rldyour::section "Post-checks"
   bash "$SCRIPT_DIR/verify.sh" --strict --skip-optional
@@ -289,6 +418,7 @@ if [ "$SKIP_SYSTEM" -eq 0 ]; then
     exit 1
   fi
   ensure_node
+  ensure_java
 
   ensure_bun
   ensure_uv
@@ -309,6 +439,9 @@ fi
 
 if [ "$SKIP_LSPS" -eq 0 ]; then
   install_lsp
+  ensure_postgres_language_server
+  ensure_sqls
+  ensure_r_languageserver
 else
   rldyour::log "warn" "LSP layer skipped by --skip-lsps"
 fi

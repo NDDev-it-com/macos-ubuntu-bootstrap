@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last verified: 2026-07-03
-Last commit: 5dd9a4f94aa3833b1f002c8b4ecbb4bd00f5c80e chore(release): new-mac-or-ubuntu 0.1.2 (other)
+Last updated: 2026-07-06
+Last verified: 2026-07-06
+Last commit: 7adf2d7 feat(install): expand LSP and quality-gate stack to 0.2.0
 Scope: .gitignore, .serena/project.yml, README.md, AGENTS.md, .claude/CLAUDE.md, scripts/**
 Area: TECHDEBT
 -->
@@ -47,7 +47,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - path:.claude/CLAUDE.md
 - path:scripts/macos/install.sh
 - path:scripts/ubuntu/install.sh
-- commit:5dd9a4f94aa3833b1f002c8b4ecbb4bd00f5c80e
+- commit:7adf2d7
 
 ## Do Not Infer
 - Do not infer full workstation installation success from plan-mode scripts; strict verification and optional runtime checks must run on the target machine.

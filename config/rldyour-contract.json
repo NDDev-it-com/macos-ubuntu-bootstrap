@@ -1,9 +1,8 @@
 {
-  "$schema": "../config/rldyour-contract.schema.json",
   "schema_version": 1,
   "adapter": {
     "id": "new-mac-or-ubuntu",
-    "version": "0.1.11"
+    "version": "0.2.0"
   },
-  "verified_on": "2026-07-04"
+  "verified_on": "2026-07-06"
 }

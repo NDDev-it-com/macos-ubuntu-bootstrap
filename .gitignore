@@ -7,3 +7,7 @@ tests/__pycache__/
 __pycache__/
 *.pyc
 dist/
+.DS_Store
+*.swp
+.idea/
+.vscode/

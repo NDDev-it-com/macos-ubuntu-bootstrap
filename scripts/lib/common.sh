@@ -142,6 +142,7 @@ rldyour::ensure_path() {
     "$HOME/.local/bin"
     "$HOME/.cargo/bin"
     "$HOME/.bun/bin"
+    "$HOME/go/bin"
     "$HOME/.rldyour/bin"
     "$HOME/.mimocode/bin"
   )

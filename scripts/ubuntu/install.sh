@@ -34,14 +34,26 @@ PYTHON_TOOLING_PACKAGES=(
 
 # taplo ships as the npm `@taplo/cli` package (bare `taplo` is unpublished);
 # marksman is not on npm and is installed from its pinned GitHub release below.
+# vtsls replaces typescript-language-server as the recommended TS/JS LSP.
 BUN_LSP_PACKAGES=(
   typescript
-  typescript-language-server
+  "@vtsls/language-server"
   yaml-language-server
   bash-language-server
   dockerfile-language-server-nodejs
   vscode-langservers-extracted
-  @taplo/cli
+  "@taplo/cli"
+  gh-actions-language-server
+)
+
+# Bun-global quality-gate and formatter CLIs that are not well packaged via apt.
+# These extend the LSP/runtime baseline with multi-language linting and SAST.
+BUN_QUALITY_PACKAGES=(
+  biome
+  oxlint
+  markdownlint-cli2
+  prettier
+  "@ansible/language-server"
 )
 
 APT_SYSTEM_PACKAGES=(
@@ -54,14 +66,22 @@ APT_SYSTEM_PACKAGES=(
   python3
   python3-pip
   shellcheck
+  shfmt
   clang
   clangd
+  cmake
   golang-go
   unzip
   wget
   zip
   gnupg
   lsb-release
+  yamllint
+  pandoc
+  httpie
+  fd-find
+  xmlstarlet
+  libxml2-utils
 )
 
 APT_GOPLS_PACKAGE="gopls"
@@ -222,6 +242,186 @@ install_go_lsp() {
   rldyour::run sudo apt-get install -y "$APT_GOPLS_PACKAGE"
 }
 
+# Install the extended Homebrew/Go/R-packaged LSPs that mirror the macOS
+# baseline: Supabase postgres-language-server, sqls (multi-DB), and the R
+# languageserver. Each is best-effort on Ubuntu because the runtime may not yet
+# be present when this runs in plan mode.
+ensure_extended_lsps() {
+  rldyour::section "Install extended SQL / R LSPs (best-effort)"
+
+  if command -v sqls >/dev/null 2>&1; then
+    rldyour::log "ok" "sqls already installed"
+  elif command -v go >/dev/null 2>&1; then
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] go install github.com/sqls-server/sqls@latest"
+    else
+      rldyour::run go install github.com/sqls-server/sqls@latest
+    fi
+  else
+    rldyour::log "warn" "go required for sqls; skipping"
+  fi
+
+  if command -v R >/dev/null 2>&1; then
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] R install.packages('languageserver')"
+    elif R -q -e 'library(languageserver)' >/dev/null 2>&1; then
+      rldyour::log "ok" "R languageserver already installed"
+    else
+      rldyour::run R -e 'ncpus <- parallel::detectCores(); ncpus <- if (is.na(ncpus) || ncpus < 1) 1 else ncpus; install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=ncpus)'
+    fi
+  else
+    rldyour::log "warn" "R runtime required for languageserver; skipping"
+  fi
+}
+
+# Install bun-global quality-gate CLIs that are not packaged via apt on Ubuntu.
+install_quality_packages() {
+  rldyour::section "Install bun-global quality CLIs"
+  if ! command -v bun >/dev/null 2>&1; then
+    rldyour::log "warn" "bun required for quality CLIs; skipping"
+    return 0
+  fi
+  for pkg in "${BUN_QUALITY_PACKAGES[@]}"; do
+    rldyour::run bun add -g "$pkg"
+  done
+}
+
+# Install the SAST/secret/dependency scanners that verify.sh requires but apt
+# does not ship. Each scanner is installed via the channel its upstream publishes
+# (uv tool, pipx, go install, or the official install script). All best-effort:
+# a missing channel only logs a warning and does not abort the bootstrap.
+install_security_scanners() {
+  rldyour::section "Install security/quality scanners (verify.sh required)"
+
+  # basedpyright ships as a Python wheel; uv tool gives an isolated install.
+  if command -v basedpyright >/dev/null 2>&1; then
+    rldyour::log "ok" "basedpyright already on PATH"
+  elif command -v uv >/dev/null 2>&1; then
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] uv tool install basedpyright"
+    else
+      rldyour::run uv tool install basedpyright
+    fi
+  else
+    rldyour::log "warn" "uv required for basedpyright; skipping"
+  fi
+
+  # osv-scanner ships a binary install script from Google.
+  if command -v osv-scanner >/dev/null 2>&1; then
+    rldyour::log "ok" "osv-scanner already on PATH"
+  else
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] osv-scanner install script"
+    else
+      mkdir -p "$HOME/.local/bin"
+      rldyour::run bash -c "curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/install.sh | bash -s -- -b $HOME/.local/bin"
+    fi
+  fi
+
+  # gitleaks ships a binary install script from GitHub.
+  if command -v gitleaks >/dev/null 2>&1; then
+    rldyour::log "ok" "gitleaks already on PATH"
+  else
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] gitleaks install script"
+    else
+      mkdir -p "$HOME/.local/bin"
+      rldyour::run bash -c "curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | bash -s -- -b $HOME/.local/bin"
+    fi
+  fi
+
+  # semgrep ships as a Python wheel.
+  if command -v semgrep >/dev/null 2>&1; then
+    rldyour::log "ok" "semgrep already on PATH"
+  elif command -v pip3 >/dev/null 2>&1; then
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] pip3 install --user semgrep"
+    else
+      rldyour::run pip3 install --user semgrep
+    fi
+  else
+    rldyour::log "warn" "pip3 required for semgrep; skipping"
+  fi
+
+  # hadolint ships a static binary on GitHub.
+  if command -v hadolint >/dev/null 2>&1; then
+    rldyour::log "ok" "hadolint already on PATH"
+  else
+    local arch asset
+    case "$(uname -m)" in
+      x86_64 | amd64) arch="x86_64" ;;
+      aarch64 | arm64) arch="arm64" ;;
+      *)
+        rldyour::log "warn" "unsupported arch for hadolint; skipping"
+        arch=""
+        ;;
+    esac
+    if [ -n "$arch" ]; then
+      if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+        rldyour::log "info" "[DRY-RUN] hadolint binary -> ~/.local/bin"
+      else
+        asset="hadolint-Linux-${arch}"
+        mkdir -p "$HOME/.local/bin"
+        if curl -fsSL "https://github.com/hadolint/hadolint/releases/latest/download/${asset}" -o "$HOME/.local/bin/hadolint"; then
+          chmod +x "$HOME/.local/bin/hadolint"
+          rldyour::log "ok" "hadolint installed -> ~/.local/bin/hadolint"
+        else
+          rldyour::log "warn" "hadolint download failed (best-effort)"
+        fi
+      fi
+    fi
+  fi
+
+  # actionlint ships a binary install script from rhysd.
+  if command -v actionlint >/dev/null 2>&1; then
+    rldyour::log "ok" "actionlint already on PATH"
+  else
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] actionlint install script"
+    else
+      mkdir -p "$HOME/.local/bin"
+      rldyour::run bash -c "curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- -o $HOME/.local/bin/actionlint"
+    fi
+  fi
+}
+
+# Install the JDK and R runtime baselines required by jdtls/Kotlin LSP and the R
+# language server respectively. Ubuntu has good apt coverage for both.
+ensure_java_and_r() {
+  rldyour::section "Ensure JDK and R runtimes"
+  if command -v java >/dev/null 2>&1; then
+    rldyour::log "ok" "java already available: $(java -version 2>&1 | head -n 1)"
+  else
+    rldyour::run sudo apt-get install -y default-jdk
+  fi
+  if command -v R >/dev/null 2>&1; then
+    rldyour::log "ok" "R already available: $(R --version 2>&1 | head -n 1)"
+  else
+    rldyour::run sudo apt-get install -y r-base
+  fi
+}
+
+# Install cargo-hosted LSPs that have no apt/bun equivalent. gitlab-ci-ls is a
+# static Rust binary distributed via crates.io. Supabase postgres-language-server
+# is intentionally NOT installed here: on Ubuntu there is no apt/crate channel,
+# and verify.sh treats it as optional on this platform.
+ensure_cargo_lsps() {
+  rldyour::section "Install cargo-hosted LSPs (best-effort)"
+  if ! command -v cargo >/dev/null 2>&1; then
+    rldyour::log "warn" "cargo required for cargo-hosted LSPs; skipping"
+    return 0
+  fi
+  if command -v gitlab-ci-ls >/dev/null 2>&1; then
+    rldyour::log "ok" "gitlab-ci-ls already installed"
+  else
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] cargo install gitlab-ci-ls"
+    else
+      rldyour::run cargo install gitlab-ci-ls
+    fi
+  fi
+}
+
 ensure_marksman() {
   rldyour::section "Install marksman markdown LSP (pinned GitHub release)"
   if command -v marksman >/dev/null 2>&1; then
@@ -300,6 +500,7 @@ if [ "$SKIP_SYSTEM" -eq 0 ]; then
   ensure_dart
   install_go_lsp
   ensure_marksman
+  ensure_java_and_r
 else
   rldyour::log "warn" "system layer skipped by --skip-system"
 fi
@@ -312,6 +513,10 @@ fi
 
 if [ "$SKIP_LSPS" -eq 0 ]; then
   install_lsp
+  install_quality_packages
+  install_security_scanners
+  ensure_extended_lsps
+  ensure_cargo_lsps
 else
   rldyour::log "warn" "LSP layer skipped by --skip-lsps"
 fi

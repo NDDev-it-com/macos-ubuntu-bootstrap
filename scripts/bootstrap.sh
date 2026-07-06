@@ -36,7 +36,7 @@ while [ "$#" -gt 0 ]; do
       APPLY=1
       shift
       ;;
-    --plan|--dry-run)
+    --plan | --dry-run)
       APPLY=0
       shift
       ;;
@@ -64,7 +64,7 @@ while [ "$#" -gt 0 ]; do
       STRICT=1
       shift
       ;;
-    -h|--help)
+    -h | --help)
       usage
       exit 0
       ;;

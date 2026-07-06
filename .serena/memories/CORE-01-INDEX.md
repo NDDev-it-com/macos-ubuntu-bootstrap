@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last verified: 2026-07-03
-Last commit: faeece6a29ab829a7760bd0cb6c32be8540c3bd5 docs: align bootstrap module release and memory surfaces
+Last updated: 2026-07-06
+Last verified: 2026-07-06
+Last commit: 7adf2d7 feat(install): expand LSP and quality-gate stack to 0.2.0
 Scope: README.md, AGENTS.md, .claude/CLAUDE.md, .serena/project.yml, .serena/memories/**
 Area: CORE
 -->
@@ -42,7 +42,7 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 - path:.serena/project.yml
 - path:.serena/memories/RELEASE-01-VALIDATION.md
 - path:.serena/memories/TECHDEBT-01-NOW.md
-- commit:acea1f0babd9b5b75b6bf3d0d507ae9e3be9f9b1
+- commit:7adf2d7
 
 ## Do Not Infer
 - Do not infer current dependency versions, release state, GitHub settings, or CI status from this index; read the source files and live GitHub state.

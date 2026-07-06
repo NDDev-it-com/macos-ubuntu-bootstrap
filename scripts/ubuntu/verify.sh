@@ -40,11 +40,15 @@ required_cmds=(
   "go"
   "rustup"
   "dart"
+  "java"
   "shellcheck"
+  "shfmt"
   "pyright-langserver"
   "pyright"
   "ruff"
-  "typescript-language-server"
+  "basedpyright"
+  "typescript"
+  "vtsls"
   "yaml-language-server"
   "bash-language-server"
   "rust-analyzer"
@@ -52,18 +56,56 @@ required_cmds=(
   "marksman"
   "taplo"
   "clangd"
+  "oxlint"
+  "biome"
+  "osv-scanner"
+  "gitleaks"
+  "semgrep"
+  "hadolint"
+  "actionlint"
+  "yamllint"
+  "markdownlint-cli2"
+  "jq"
+  "httpie"
+  "prettier"
+  "pandoc"
   "codex"
   "opencode"
   "vscode-html-language-server"
   "vscode-css-language-server"
   "vscode-json-language-server"
-  "chrome-devtools-mcp"
-  "playwright-cli"
 )
 
+# Browser providers (chrome-devtools-mcp, playwright-cli) are intentionally
+# optional: they are installed by the --skip-browser-gated
+# rldyour::install_browser_providers layer and must not fail strict verification
+# on server-only profiles where the browser layer is skipped.
 optional_cmds=(
   "mimo"
   "agy"
+  "ty"
+  "tsgo"
+  "sqls"
+  "R"
+  "jdtls"
+  "kotlin-language-server"
+  "terraform-ls"
+  "helm_ls"
+  "cmake-language-server"
+  "markdown-oxide"
+  "kubeconform"
+  "mise"
+  "dasel"
+  "mlr"
+  "delta"
+  "watchexec"
+  "hyperfine"
+  "just"
+  "gh-actions-language-server"
+  "gitlab-ci-ls"
+  "postgres-language-server"
+  "chrome-devtools-mcp"
+  "playwright-cli"
 )
 
 for cmd in "${required_cmds[@]}"; do
@@ -75,6 +117,10 @@ rldyour::require_one_of_cmd required claude-code claude
 # `docker-langserver` (dockerfile-language-server-nodejs). Either satisfies the
 # Dockerfile LSP requirement.
 rldyour::require_one_of_cmd required docker-language-server docker-langserver
+# Ubuntu's `fd-find` apt package installs the binary as `fdfind` (Debian naming
+# divergence); Homebrew `fd` installs it as `fd`. Either satisfies the optional
+# fd requirement.
+rldyour::require_one_of_cmd optional fd fdfind
 
 if [ "$INCLUDE_OPTIONAL" -eq 1 ]; then
   for cmd in "${optional_cmds[@]}"; do
@@ -91,6 +137,8 @@ printf 'go:       %s\n' "$(go version | awk '{print $3}')"
 printf 'rustup:   %s\n' "$(rustup --version | head -n 1)"
 printf 'dart:     %s\n' "$(dart --version 2>&1 | head -n 1)"
 printf 'python:   %s\n' "$(python3 --version)"
+printf 'java:     %s\n' "$(java -version 2>&1 | head -n 1)"
+printf 'clangd:   %s\n' "$(clangd --version 2>&1 | head -n 1)"
 
 if [ "$STRICT" -eq 1 ] || [ "$INCLUDE_OPTIONAL" -eq 0 ]; then
   rldyour::log "info" "verification finished in strict-like mode"

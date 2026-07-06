@@ -156,3 +156,100 @@ def test_ai_runtime_pins_match_documentation_surfaces() -> None:
                 f"{surface} is missing {name}={version}; align the doc surface "
                 f"with the installer pin"
             )
+
+
+def test_vtsls_replaces_typescript_language_server() -> None:
+    """@vtsls/language-server must replace typescript-language-server.
+
+    vtsls was chosen as the TS/JS LSP (better feature parity with the VS Code
+    TS extension; selected by Zed and LazyVim). A future PR must not silently
+    restore typescript-language-server or drop the vtsls entry.
+    """
+    for profile in ("macos", "ubuntu"):
+        body = Path(f"scripts/{profile}/install.sh").read_text(encoding="utf-8")
+        bun_lsp = parse_array(body, BUN_LSP_PATTERN, f"{profile} BUN_LSP_PACKAGES")
+        assert "@vtsls/language-server" in bun_lsp, (
+            f"{profile} BUN_LSP_PACKAGES must include @vtsls/language-server"
+        )
+        assert "typescript-language-server" not in bun_lsp, (
+            f"{profile} BUN_LSP_PACKAGES must not include typescript-language-server"
+        )
+
+
+def test_browser_providers_are_optional_in_verify() -> None:
+    """Browser providers must be optional, not required, in verify.sh.
+
+    chrome-devtools-mcp and playwright-cli are installed by the
+    --skip-browser-gated rldyour::install_browser_providers layer. Listing them
+    as required would fail strict verification on server-only or headless
+    profiles where the browser layer is intentionally skipped.
+    """
+    for profile in ("macos", "ubuntu"):
+        verify = Path(f"scripts/{profile}/verify.sh").read_text(encoding="utf-8")
+        required = parse_array(verify, re.compile(r"^\s*required_cmds=\((.*?)\)", re.MULTILINE | re.DOTALL), f"{profile} required_cmds")
+        optional = parse_array(verify, re.compile(r"^\s*optional_cmds=\((.*?)\)", re.MULTILINE | re.DOTALL), f"{profile} optional_cmds")
+        for cmd in ("chrome-devtools-mcp", "playwright-cli"):
+            assert cmd not in required, (
+                f"{profile} verify.sh must not list {cmd} as required (browser layer is opt-in)"
+            )
+            assert cmd in optional, (
+                f"{profile} verify.sh must list {cmd} as optional"
+            )
+
+
+def test_go_bin_in_ensure_path() -> None:
+    """$HOME/go/bin must be in rldyour::ensure_path candidates.
+
+    go-installed binaries (sqls and any future Go tool) land in ~/go/bin; without
+    it in ensure_path they are not discoverable during verification in the same
+    session.
+    """
+    common = Path("scripts/lib/common.sh").read_text(encoding="utf-8")
+    assert '"$HOME/go/bin"' in common, (
+        "scripts/lib/common.sh rldyour::ensure_path must include $HOME/go/bin"
+    )
+
+
+def test_macos_python_tooling_has_no_duplicate_ruff() -> None:
+    """macOS PYTHON_TOOLING_PACKAGES must not contain ruff.
+
+    ruff is installed via the Homebrew formula (single source of truth for the
+    version and the ruff server LSP). A duplicate uv-tool install would shadow
+    or conflict with the brew one depending on PATH ordering.
+    """
+    macos = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
+    tooling = parse_array(macos, PYTHON_TOOLING_PATTERN, "macOS PYTHON_TOOLING_PACKAGES")
+    assert "ruff" not in tooling, (
+        "macOS PYTHON_TOOLING_PACKAGES must not contain ruff (installed via Homebrew)"
+    )
+
+
+def test_macos_bun_lsp_has_no_duplicate_vscode_ls() -> None:
+    """macOS BUN_LSP_PACKAGES must not contain vscode-langservers-extracted.
+
+    The vscode-* language servers are installed via the Homebrew
+    vscode-langservers-extracted formula (single source of truth); bun-installing
+    the npm package duplicates them.
+    """
+    macos = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
+    bun_lsp = parse_array(macos, BUN_LSP_PATTERN, "macOS BUN_LSP_PACKAGES")
+    assert "vscode-langservers-extracted" not in bun_lsp, (
+        "macOS BUN_LSP_PACKAGES must not contain vscode-langservers-extracted (Homebrew only)"
+    )
+
+
+def test_ubuntu_installs_security_scanners_required_by_verify() -> None:
+    """Ubuntu install.sh must install every scanner verify.sh requires.
+
+    Strict post-checks run verify.sh, so each required scanner must have an
+    install channel in install.sh. This guard prevents a regression where a
+    scanner is added to verify.sh required_cmds without a matching installer.
+    """
+    ubuntu_install = Path("scripts/ubuntu/install.sh").read_text(encoding="utf-8")
+    assert "install_security_scanners" in ubuntu_install, (
+        "ubuntu install.sh must define install_security_scanners()"
+    )
+    for scanner in ("basedpyright", "osv-scanner", "gitleaks", "semgrep", "hadolint", "actionlint"):
+        assert scanner in ubuntu_install, (
+            f"ubuntu install.sh must reference scanner '{scanner}' (required by verify.sh)"
+        )

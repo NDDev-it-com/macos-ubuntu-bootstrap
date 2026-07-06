@@ -80,6 +80,7 @@ APT_SYSTEM_PACKAGES=(
   pandoc
   httpie
   fd-find
+  bat
   xmlstarlet
   libxml2-utils
 )
@@ -108,6 +109,25 @@ ensure_apt_repo_updates() {
 ensure_apt_packages() {
   rldyour::section "Install baseline apt packages"
   apt_with_retries install -y "${APT_SYSTEM_PACKAGES[@]}"
+}
+
+# `eza` is in Debian 13 / Ubuntu 24.10+ archives but not in older LTS ones;
+# treat it as best-effort so the baseline never fails on supported LTS hosts.
+ensure_eza() {
+  rldyour::section "Ensure eza (best-effort on older LTS)"
+  if command -v eza >/dev/null 2>&1; then
+    rldyour::log "ok" "eza already installed"
+    return 0
+  fi
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] apt-get install -y eza"
+    return 0
+  fi
+  if sudo -E DEBIAN_FRONTEND=noninteractive apt-get install -y eza; then
+    rldyour::log "ok" "eza installed via apt"
+  else
+    rldyour::log "warn" "eza not available in this apt archive; skipping (best-effort)"
+  fi
 }
 
 ensure_node() {
@@ -491,6 +511,7 @@ if [ "$SKIP_SYSTEM" -eq 0 ]; then
   apt_with_retries install -y software-properties-common
   apt_with_retries install -y ca-certificates
   ensure_apt_packages
+  ensure_eza
   ensure_node
   ensure_uv
   ensure_bun

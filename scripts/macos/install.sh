@@ -84,6 +84,8 @@ BREW_SYSTEM_PACKAGES=(
   yamllint
   markdownlint-cli2
   fd
+  eza
+  bat
   httpie
   dasel
   miller

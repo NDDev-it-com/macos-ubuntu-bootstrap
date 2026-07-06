@@ -47,7 +47,7 @@ required_cmds=(
   "pyright"
   "ruff"
   "basedpyright"
-  "typescript"
+  "tsc"
   "vtsls"
   "yaml-language-server"
   "bash-language-server"
@@ -98,6 +98,7 @@ optional_cmds=(
   "dasel"
   "mlr"
   "delta"
+  "eza"
   "watchexec"
   "hyperfine"
   "just"
@@ -121,6 +122,9 @@ rldyour::require_one_of_cmd required docker-language-server docker-langserver
 # divergence); Homebrew `fd` installs it as `fd`. Either satisfies the optional
 # fd requirement.
 rldyour::require_one_of_cmd optional fd fdfind
+# Ubuntu's `bat` apt package installs the binary as `batcat` (same Debian naming
+# divergence); Homebrew installs it as `bat`. Either satisfies the requirement.
+rldyour::require_one_of_cmd required bat batcat
 
 if [ "$INCLUDE_OPTIONAL" -eq 1 ]; then
   for cmd in "${optional_cmds[@]}"; do

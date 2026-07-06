@@ -5,6 +5,20 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.2.1] - 2026-07-07
+
+### Added
+
+- Add `eza` and `bat` to the macOS Homebrew baseline and the Ubuntu profile
+  (apt `bat`, exposed as `batcat` on Debian/Ubuntu; `eza` best-effort on older
+  LTS archives), with verification coverage on both platforms.
+
+### Fixed
+
+- Verification probed a nonexistent `typescript` binary; the `typescript`
+  package ships `tsc`/`tsserver`, so both platform gates now check `tsc`.
+  Strict verification could never pass before this fix.
+
 ## [0.2.0] - 2026-07-06
 
 ### Added

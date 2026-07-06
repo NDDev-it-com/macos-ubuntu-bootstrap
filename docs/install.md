@@ -69,7 +69,7 @@
 
 #### Базовые утилиты (Homebrew)
 
-- `fd`, `httpie`, `dasel`, `miller` (mlr), `git-delta` (delta)
+- `fd`, `eza`, `bat`, `httpie`, `dasel`, `miller` (mlr), `git-delta` (delta)
 - `watchexec`, `hyperfine`, `just`
 - `jq`, `prettier`, `pandoc`, `kubeconform`, `mise`
 
@@ -113,7 +113,8 @@
 - `curl`
 - `gpg`
 - `git`
-- `jq`, `yamllint`, `pandoc`, `httpie`, `fd-find`, `xmlstarlet`, `libxml2-utils`
+- `jq`, `yamllint`, `pandoc`, `httpie`, `fd-find`, `bat` (бинарь `batcat`), `xmlstarlet`, `libxml2-utils`
+- `eza` (best-effort: есть в Debian 13 / Ubuntu 24.10+; на старых LTS пропускается с предупреждением)
 - `lsb-release`
 - `node` (target >=22 via NodeSource)
 - `python3`, `python3-pip`

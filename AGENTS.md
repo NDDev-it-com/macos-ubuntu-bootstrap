@@ -44,7 +44,7 @@ the owner terminal stack:
   - `@mimo-ai/cli@0.1.4`
   - `agy` (via `https://antigravity.google/cli/install.sh`)
 - Python tooling via `uv tool`:
-  - `pyright-langserver`, `pyright`, `ruff`, `pytest`
+  - `pyright` (provides both `pyright` and `pyright-langserver`), `ruff`, `pytest`
 - Multi-language LSPs (Homebrew on macOS, mixed apt/bun/cargo on Ubuntu):
   - `basedpyright`, `ruff`, `ty` (Python; `ruff server` is the active LSP)
   - `clangd` (C/C++/Qt via `llvm` + `qt`)

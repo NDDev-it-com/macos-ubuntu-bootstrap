@@ -95,7 +95,6 @@ optional_cmds=(
   "markdown-oxide"
   "kubeconform"
   "mise"
-  "fd"
   "dasel"
   "mlr"
   "delta"
@@ -118,6 +117,10 @@ rldyour::require_one_of_cmd required claude-code claude
 # `docker-langserver` (dockerfile-language-server-nodejs). Either satisfies the
 # Dockerfile LSP requirement.
 rldyour::require_one_of_cmd required docker-language-server docker-langserver
+# Ubuntu's `fd-find` apt package installs the binary as `fdfind` (Debian naming
+# divergence); Homebrew `fd` installs it as `fd`. Either satisfies the optional
+# fd requirement.
+rldyour::require_one_of_cmd optional fd fdfind
 
 if [ "$INCLUDE_OPTIONAL" -eq 1 ]; then
   for cmd in "${optional_cmds[@]}"; do

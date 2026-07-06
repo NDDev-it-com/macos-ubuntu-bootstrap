@@ -267,7 +267,7 @@ ensure_extended_lsps() {
     elif R -q -e 'library(languageserver)' >/dev/null 2>&1; then
       rldyour::log "ok" "R languageserver already installed"
     else
-      rldyour::run R -e 'install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=parallel::detectCores())'
+      rldyour::run R -e 'ncpus <- parallel::detectCores(); ncpus <- if (is.na(ncpus) || ncpus < 1) 1 else ncpus; install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=ncpus)'
     fi
   else
     rldyour::log "warn" "R runtime required for languageserver; skipping"
@@ -313,6 +313,7 @@ install_security_scanners() {
     if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
       rldyour::log "info" "[DRY-RUN] osv-scanner install script"
     else
+      mkdir -p "$HOME/.local/bin"
       rldyour::run bash -c "curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/install.sh | bash -s -- -b $HOME/.local/bin"
     fi
   fi
@@ -324,6 +325,7 @@ install_security_scanners() {
     if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
       rldyour::log "info" "[DRY-RUN] gitleaks install script"
     else
+      mkdir -p "$HOME/.local/bin"
       rldyour::run bash -c "curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | bash -s -- -b $HOME/.local/bin"
     fi
   fi
@@ -377,6 +379,7 @@ install_security_scanners() {
     if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
       rldyour::log "info" "[DRY-RUN] actionlint install script"
     else
+      mkdir -p "$HOME/.local/bin"
       rldyour::run bash -c "curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- -o $HOME/.local/bin/actionlint"
     fi
   fi

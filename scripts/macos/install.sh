@@ -238,7 +238,9 @@ ensure_clangd() {
   local keg
   keg="$(brew --prefix llvm 2>/dev/null)/bin/clangd"
   if [ -x "$keg" ]; then
-    mkdir -p "$HOME/.local/bin"
+    if [ "$RLDYOUR_DRY_RUN" -eq 0 ]; then
+      mkdir -p "$HOME/.local/bin"
+    fi
     rldyour::run ln -sf "$keg" "$HOME/.local/bin/clangd"
     rldyour::log "ok" "linked keg-only clangd -> ~/.local/bin/clangd"
   elif [ "$STRICT" -eq 1 ]; then
@@ -383,7 +385,7 @@ ensure_r_languageserver() {
     rldyour::log "ok" "R languageserver already installed"
     return 0
   fi
-  if R -e 'install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=parallel::detectCores())'; then
+  if R -e 'ncpus <- parallel::detectCores(); ncpus <- if (is.na(ncpus) || ncpus < 1) 1 else ncpus; install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=ncpus)'; then
     rldyour::log "ok" "R languageserver installed"
   else
     rldyour::log "warn" "R languageserver install failed (best-effort)"

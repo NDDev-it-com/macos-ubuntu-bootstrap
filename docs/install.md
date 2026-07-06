@@ -39,9 +39,7 @@
 
 #### Python tooling (через `uv tool`)
 
-- `pyright-langserver`
-- `pyright`
-- `ruff`
+- `pyright` (поставляет оба бинарника: `pyright` и `pyright-langserver`)
 - `pytest`
 
 #### Расширенные языковые LSP (Homebrew)
@@ -139,8 +137,7 @@
 
 #### Python tooling (через `uv tool`)
 
-- `pyright-langserver`
-- `pyright`
+- `pyright` (поставляет оба бинарника: `pyright` и `pyright-langserver`)
 - `ruff`
 - `pytest`
 

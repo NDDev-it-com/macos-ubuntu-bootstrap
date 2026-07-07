@@ -9,3 +9,18 @@ for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbr
   fi
 done
 unset _brew
+
+# macOS /etc/zprofile runs path_helper AFTER ~/.zshenv and demotes the user
+# toolchain dirs below the system directories, so /usr/bin stubs (e.g. Apple
+# clangd) would shadow them in login shells — including `zsh -l -c`, the
+# Codex/OpenCode agent path. Re-assert the ~/.zshenv precedence here; the
+# prepend is deduplicated by typeset -U and is a no-op where path_helper does
+# not exist (Ubuntu).
+typeset -U path PATH
+path=(
+  "$HOME/.local/share/mise/shims"
+  "$HOME/.local/bin"
+  "$HOME/.bun/bin"
+  "$HOME/.cargo/bin"
+  $path
+)

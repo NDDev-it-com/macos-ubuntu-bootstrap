@@ -99,6 +99,7 @@ jobs:
             .github \
             config \
             scripts \
+            templates \
             docs \
             | gzip -n > "dist/rldyour-new-mac-or-ubuntu-${RELEASE_VERSION}.tar.gz"
 

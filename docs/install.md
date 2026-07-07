@@ -83,7 +83,7 @@
 - modern-unix волна: `dust`, `dua-cli`, `duf`, `procs`, `btop`, `doggo`,
   `gping`, `hexyl`, `sd`, `viddy`, `tealdeer`
 - managed zsh-шаблоны из `templates/terminal/`: `~/.zshenv`, `~/.zprofile`,
-  `~/.zshrc`, `~/.zsh_plugins.txt`, `~/.config/starship.toml` — первым идёт
+  `~/.zshrc`, `~/.zsh_plugins.txt`, `~/.config/starship.toml` - первым идёт
   agent-gate (нейтрализация интерактива для AI-агентов); установщик никогда
   не перезаписывает файлы, изменённые пользователем (предупреждает и оставляет)
 - глобальные git-ключи производительности (`core.fsmonitor`,

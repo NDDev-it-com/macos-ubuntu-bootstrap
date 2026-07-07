@@ -356,6 +356,96 @@ UNIT
   fi
 }
 
+# Install rtk (Rust Token Killer, Apache-2.0), the token-economy shell-output
+# compressor the Claude and Codex adapters drive through their PreToolUse hooks
+# / rules file. Pinned to RTK_VERSION. Also writes the machine-global rtk config
+# with the exclude_commands baseline that protects hook-watched git commands and
+# validator/JSON output (control-plane config/token-economy-policy.json, ADR 0004).
+# Best-effort: the adapter hooks degrade to a no-op passthrough when rtk is
+# absent, so a failed install never blocks the workstation. Skip with
+# RLDYOUR_SKIP_RTK=1.
+rldyour::install_rtk() {
+  local strict="${RLDYOUR_STRICT:-0}"
+  local dry_run="${RLDYOUR_DRY_RUN:-1}"
+  local pin="${RTK_VERSION:-0.43.0}"
+  local cfg_home cfg
+  case "$(uname -s)" in
+    Darwin) cfg_home="$HOME/Library/Application Support/rtk" ;;
+    *) cfg_home="${XDG_CONFIG_HOME:-$HOME/.config}/rtk" ;;
+  esac
+  cfg="$cfg_home/config.toml"
+
+  rldyour::section "Install rtk token-economy CLI (pinned ${pin})"
+  if [ "${RLDYOUR_SKIP_RTK:-0}" -ne 0 ]; then
+    rldyour::log "warn" "rtk layer skipped by RLDYOUR_SKIP_RTK"
+    return 0
+  fi
+
+  if [ "$dry_run" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] install rtk ${pin} (brew install rtk from homebrew-core, or rtk-ai/rtk install.sh -> ~/.local/bin)"
+    rldyour::log "info" "[DRY-RUN] write ${cfg} with [hooks] exclude_commands baseline"
+    return 0
+  fi
+
+  # crates.io 'rtk' is a different tool (Rust Type Kit); never `cargo install rtk`.
+  if command -v rtk >/dev/null 2>&1; then
+    rldyour::log "ok" "rtk already present ($(rtk --version 2>/dev/null | head -1))"
+  elif command -v brew >/dev/null 2>&1; then
+    if brew install rtk >/dev/null 2>&1; then
+      rldyour::log "ok" "rtk installed via Homebrew"
+    else
+      rldyour::log "warn" "brew install rtk failed (best-effort; adapter hooks degrade to no-op)"
+    fi
+  elif command -v curl >/dev/null 2>&1; then
+    if curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh >/dev/null 2>&1; then
+      rldyour::log "ok" "rtk installed via install.sh (~/.local/bin)"
+    else
+      rldyour::log "warn" "rtk install.sh failed (best-effort)"
+    fi
+  else
+    if [ "$strict" -eq 1 ]; then
+      rldyour::log "error" "no brew or curl available to install rtk"
+      return 1
+    fi
+    rldyour::log "warn" "no brew or curl available; skipping rtk (best-effort)"
+  fi
+
+  # Idempotent: write the exclude_commands baseline only when absent so an owner's
+  # edits are never clobbered.
+  if [ ! -f "$cfg" ]; then
+    mkdir -p "$cfg_home"
+    cat > "$cfg" <<'RTKCFG'
+# Managed by rldyour-new-mac-or-ubuntu (token-economy standard; control-plane
+# config/token-economy-policy.json / ADR 0004). Safe to edit.
+[hooks]
+# Never rewrite commands whose output other hooks match on or that scripts parse
+# byte-for-byte: git subcommands watched by the rldyour-flow / rldyour-serena-mcp
+# hooks, gh CI/api, and jq pipelines. Control-plane validators
+# (python3 scripts/validate_*) are unknown command families to rtk and pass
+# through unchanged.
+exclude_commands = [
+  "git commit",
+  "git merge",
+  "git rebase",
+  "git cherry-pick",
+  "git am",
+  "git push",
+  "gh workflow",
+  "gh run",
+  "gh actions",
+  "gh api",
+  "jq",
+]
+
+[tee]
+mode = "failures"
+RTKCFG
+    rldyour::log "ok" "wrote rtk config with exclude_commands baseline: ${cfg}"
+  else
+    rldyour::log "info" "rtk config already present (kept): ${cfg}"
+  fi
+}
+
 # Install the pinned browser providers used by the AI CLI config adapters:
 # Chrome DevTools MCP and Playwright CLI (deterministic bun globals, required)
 # plus Microsoft Webwright (pinned checkout, best-effort). Shared across macOS

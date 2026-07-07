@@ -503,6 +503,7 @@ fi
 
 if [ "$SKIP_BROWSER" -eq 0 ]; then
   rldyour::install_browser_providers
+  rldyour::install_rtk
 else
   rldyour::log "warn" "browser tooling skipped by --skip-browser"
 fi

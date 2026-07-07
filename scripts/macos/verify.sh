@@ -134,6 +134,7 @@ optional_cmds=(
   "chrome-devtools-mcp"
   "playwright-cli"
   "cloak-chromium"
+  "rtk"
 )
 
 for cmd in "${required_cmds[@]}"; do

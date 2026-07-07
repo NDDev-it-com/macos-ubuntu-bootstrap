@@ -5,6 +5,40 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.2.3] - 2026-07-07
+
+### Added
+
+- Terminal layer absorbed from the retired `awesome-terminal-for-ai` spec
+  (releases 3.0.0/3.1.0, verdicts of 2026-07-07): shell stack (antidote,
+  zsh-completions, olets/tap zsh-abbr, starship, atuin, fzf, zoxide,
+  carapace), Ghostty cask, TUIs and CLIs (gh, lazygit, yazi, xh, jaq, jnv,
+  duckdb, ast-grep, scc, difftastic, tmux) and the modern-unix introspection
+  wave (dust, dua-cli, duf, procs, btop, doggo, gping, hexyl, sd, viddy,
+  tealdeer). Ubuntu gets the apt-available subset plus official installers
+  for starship/atuin/xh and a git-clone antidote.
+- Managed zsh templates (`templates/terminal/`): `.zshenv`/`.zprofile`/
+  `.zshrc`/`.zsh_plugins.txt`/`starship.toml` with the agent-neutralization
+  gate first; installer never clobbers user-modified files.
+- Global git performance keys (core.fsmonitor, core.untrackedCache,
+  fetch.writeCommitGraph) and a delta pager config guarded on delta presence.
+
+### Changed
+
+- AI runtime pins: Claude Code 2.1.201 -> 2.1.202, OpenCode 1.17.13 ->
+  1.17.14 (npm latest as of 2026-07-07).
+
+### Removed
+
+- `httpie` (dormant upstream; replaced by `xh`), `dasel` and `miller`
+  (superseded by jq/yq/DuckDB) from both platform baselines.
+
+### Fixed
+
+- Release workflow: SHA256SUMS now covers every published asset —
+  release-notes.md is generated before checksums and the checksum step
+  excludes only itself (0.2.2 shipped SHA256SUMS without release-notes.md).
+
 ## [0.2.2] - 2026-07-07
 
 ### Fixed

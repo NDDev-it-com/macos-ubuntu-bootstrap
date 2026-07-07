@@ -6,9 +6,9 @@ rldyour module for macOS and Ubuntu workstation bootstrap, dependency installati
 
 | Field | Value |
 | --- | --- |
-| Adapter version | `0.2.2` |
-| Runtime baseline | Claude Code `2.1.201`; Codex `0.142.5`; OpenCode `1.17.13`; MiMoCode `0.1.4`; Antigravity `agy` |
-| GitHub release tag | `0.2.2` |
+| Adapter version | `0.2.3` |
+| Runtime baseline | Claude Code `2.1.202`; Codex `0.142.5`; OpenCode `1.17.14`; MiMoCode `0.1.4`; Antigravity `agy` |
+| GitHub release tag | `0.2.3` |
 
 Runtime pin sources: `scripts/macos/install.sh`, `scripts/ubuntu/install.sh`, and `config/rldyour-contract.json`.
 
@@ -73,6 +73,7 @@ A local repository-level repair/convergence pass is performed via `scripts/ci/va
 ## Active Catalog
 
 - `scripts/`: installer and validation entrypoints.
+- `templates/terminal/`: managed zsh/starship configs installed by the terminal layer.
 - `config/rldyour-contract.json`: module contract.
 - `docs/install.md`: dependency matrix and mode documentation.
 - `.github/workflows/`: 11 security and CI workflows.

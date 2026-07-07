@@ -69,15 +69,32 @@
 
 #### Базовые утилиты (Homebrew)
 
-- `fd`, `eza`, `bat`, `httpie`, `dasel`, `miller` (mlr), `git-delta` (delta)
+- `fd`, `eza`, `bat`, `xh`, `git-delta` (delta)
 - `watchexec`, `hyperfine`, `just`
 - `jq`, `prettier`, `pandoc`, `kubeconform`, `mise`
 
+#### Терминальный слой (0.2.3)
+
+- shell-стек: `antidote`, `zsh-completions`, `olets/tap/zsh-abbr`, `starship`,
+  `atuin`, `fzf`, `zoxide`, `carapace`
+- Ghostty (Homebrew cask; только macOS)
+- TUI/CLI: `gh`, `lazygit`, `yazi`, `jaq`, `jnv`, `duckdb`, `ast-grep`, `scc`,
+  `difftastic`, `tmux`
+- modern-unix волна: `dust`, `dua-cli`, `duf`, `procs`, `btop`, `doggo`,
+  `gping`, `hexyl`, `sd`, `viddy`, `tealdeer`
+- managed zsh-шаблоны из `templates/terminal/`: `~/.zshenv`, `~/.zprofile`,
+  `~/.zshrc`, `~/.zsh_plugins.txt`, `~/.config/starship.toml` — первым идёт
+  agent-gate (нейтрализация интерактива для AI-агентов); установщик никогда
+  не перезаписывает файлы, изменённые пользователем (предупреждает и оставляет)
+- глобальные git-ключи производительности (`core.fsmonitor`,
+  `core.untrackedCache`, `fetch.writeCommitGraph`) и конфиг пейджера `delta`
+  (ставится только если `delta` присутствует)
+
 #### AI CLI рантаймы
 
-- `claude-code` -> `@anthropic-ai/claude-code@2.1.201`
+- `claude-code` -> `@anthropic-ai/claude-code@2.1.202`
 - `codex` -> `@openai/codex@0.142.5`
-- `opencode` -> `opencode-ai@1.17.13`
+- `opencode` -> `opencode-ai@1.17.14`
 - `agy` -> `https://antigravity.google/cli/install.sh`
 - `mimo` -> `@mimo-ai/cli@0.1.4`
 
@@ -113,7 +130,7 @@
 - `curl`
 - `gpg`
 - `git`
-- `jq`, `yamllint`, `pandoc`, `httpie`, `fd-find`, `bat` (бинарь `batcat`), `xmlstarlet`, `libxml2-utils`
+- `jq`, `yamllint`, `pandoc`, `fd-find`, `bat` (бинарь `batcat`), `xmlstarlet`, `libxml2-utils`
 - `eza` (best-effort: есть в Debian 13 / Ubuntu 24.10+; на старых LTS пропускается с предупреждением)
 - `lsb-release`
 - `node` (target >=22 via NodeSource)
@@ -128,11 +145,20 @@
 - `default-jdk` (JDK для jdtls/Kotlin LSP)
 - `r-base` (R runtime для R languageserver)
 
+#### Терминальный слой (0.2.3)
+
+- apt-подмножество: `fzf`, `zoxide`, `tmux`, `btop`, `duf`, `hexyl`, `gh`
+- официальные установщики: `starship` (starship.rs), `atuin` (setup.atuin.sh),
+  `xh` (ducaale/xh install.sh)
+- `antidote` через `git clone --depth=1` в `~/.antidote`
+- те же managed zsh-шаблоны (`templates/terminal/`) и git-ключи
+  производительности/delta-конфиг, что и на macOS
+
 #### AI CLI рантаймы
 
-- `claude-code` -> `@anthropic-ai/claude-code@2.1.201`
+- `claude-code` -> `@anthropic-ai/claude-code@2.1.202`
 - `codex` -> `@openai/codex@0.142.5`
-- `opencode` -> `opencode-ai@1.17.13`
+- `opencode` -> `opencode-ai@1.17.14`
 - `agy` -> `https://antigravity.google/cli/install.sh`
 - `mimo` -> `@mimo-ai/cli@0.1.4`
 

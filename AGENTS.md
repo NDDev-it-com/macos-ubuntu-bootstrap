@@ -38,9 +38,9 @@ the owner terminal stack:
   - plan (default, dry-run)
   - apply (`--apply`)
 - Pinned AI runtimes:
-  - `@anthropic-ai/claude-code@2.1.201`
+  - `@anthropic-ai/claude-code@2.1.202`
   - `@openai/codex@0.142.5`
-  - `opencode-ai@1.17.13`
+  - `opencode-ai@1.17.14`
   - `@mimo-ai/cli@0.1.4`
   - `agy` (via `https://antigravity.google/cli/install.sh`)
 - Python tooling via `uv tool`:

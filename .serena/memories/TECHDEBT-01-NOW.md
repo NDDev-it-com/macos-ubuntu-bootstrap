@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-06
-Last verified: 2026-07-06
-Last commit: 7adf2d7 feat(install): expand LSP and quality-gate stack to 0.2.0
+Last updated: 2026-07-07
+Last verified: 2026-07-07
+Last commit: 5dbea9b fix(release): use find instead of ls in the checksum pipeline
 Scope: .gitignore, .serena/project.yml, README.md, AGENTS.md, .claude/CLAUDE.md, scripts/**
 Area: TECHDEBT
 -->
@@ -37,6 +37,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - Durable Serena memory files are tracked; runtime-local Serena state remains ignored.
 - The module is intentionally bootstrap-only and does not expose MCP, browser, design, or native `ry-*` command surfaces.
 - Ubuntu and macOS installers both include `marksman` in the LSP layer.
+- Terminal-layer boundaries (0.2.3): managed dotfile templates are never-clobber (a user-modified `~/.zshrc`/`~/.zshenv` is kept with a warning, not overwritten); the zshrc template neutralizes interactive features for AI agents before anything else; Ghostty is macOS-only; the Ubuntu terminal layer is a documented apt/installer subset, not full brew parity.
 - No current bootstrap contract-version drift: `VERSION`, `config/rldyour-contract.json`, README baseline, installer pins, docs (`README.md`, `AGENTS.md`, `.claude/CLAUDE.md`, `docs/install.md`), and SECURITY current exact tag stay synchronized. `tests/test_bootstrap_smoke.py` now guards installer-pin/doc parity; future releases must keep these surfaces aligned before root runtime-baseline validation.
 
 ## Evidence
@@ -47,7 +48,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - path:.claude/CLAUDE.md
 - path:scripts/macos/install.sh
 - path:scripts/ubuntu/install.sh
-- commit:7adf2d7
+- commit:5dbea9b
 
 ## Do Not Infer
 - Do not infer full workstation installation success from plan-mode scripts; strict verification and optional runtime checks must run on the target machine.

@@ -16,9 +16,9 @@ SKIP_LSPS="${RLDYOUR_SKIP_LSPS:-0}"
 SKIP_BROWSER="${RLDYOUR_SKIP_BROWSER:-0}"
 SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
 
-CLAUDE_CODE_VERSION="2.1.201"
+CLAUDE_CODE_VERSION="2.1.202"
 CODEX_VERSION="0.142.5"
-OPENCODE_VERSION="1.17.13"
+OPENCODE_VERSION="1.17.14"
 MIMOCODE_VERSION="0.1.4"
 ANTIGRAVITY_INSTALL_SCRIPT="https://antigravity.google/cli/install.sh"
 
@@ -86,9 +86,6 @@ BREW_SYSTEM_PACKAGES=(
   fd
   eza
   bat
-  httpie
-  dasel
-  miller
   git-delta
   watchexec
   hyperfine
@@ -101,6 +98,36 @@ BREW_SYSTEM_PACKAGES=(
   libxml2
   xmlstarlet
   r
+  # terminal layer (0.2.3): shell stack, TUIs, structured data, introspection
+  starship
+  atuin
+  fzf
+  zoxide
+  carapace
+  antidote
+  zsh-completions
+  gh
+  lazygit
+  yazi
+  xh
+  jaq
+  jnv
+  duckdb
+  ast-grep
+  scc
+  difftastic
+  tmux
+  dust
+  dua-cli
+  duf
+  procs
+  btop
+  doggo
+  gping
+  hexyl
+  sd
+  viddy
+  tealdeer
 )
 
 usage() {
@@ -251,6 +278,27 @@ ensure_clangd() {
   else
     rldyour::log "warn" "clangd not found under llvm keg; ensure llvm is installed"
   fi
+}
+
+
+# zsh-abbr lives in the olets tap; full-name install auto-taps, presence is
+# checked by bare formula name.
+ensure_zsh_abbr() {
+  rldyour::section "Ensure zsh-abbr (olets tap)"
+  if brew list --formula zsh-abbr >/dev/null 2>&1; then
+    rldyour::log "ok" "zsh-abbr already installed"
+    return 0
+  fi
+  rldyour::run brew install olets/tap/zsh-abbr
+}
+
+ensure_ghostty() {
+  rldyour::section "Ensure Ghostty terminal (cask)"
+  if brew list --cask ghostty >/dev/null 2>&1; then
+    rldyour::log "ok" "ghostty already installed"
+    return 0
+  fi
+  rldyour::run brew install --cask ghostty
 }
 
 install_python_tooling() {
@@ -429,6 +477,11 @@ if [ "$SKIP_SYSTEM" -eq 0 ]; then
   ensure_rust
   install_dart
   ensure_clangd
+  ensure_zsh_abbr
+  ensure_ghostty
+  rldyour::ensure_git_perf
+  rldyour::ensure_git_delta_config
+  rldyour::install_terminal_configs "$REPO_ROOT/templates/terminal"
 else
   rldyour::log "warn" "system layer skipped by --skip-system"
 fi

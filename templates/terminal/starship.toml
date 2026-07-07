@@ -1,0 +1,335 @@
+"$schema" = "https://starship.rs/config-schema.json"
+
+# Ultra-max profile:
+# Maximum context and rich visuals inspired by Jetpack, tuned for AI CLI workflows.
+add_newline = true
+scan_timeout = 60
+command_timeout = 1800
+continuation_prompt = "[▸▹ ](dimmed fg:overlay1)"
+
+format = """($nix_shell$container$directory$fill$git_metrics\n)$cmd_duration$status$sudo$jobs$username$hostname$localip$character"""
+
+right_format = """
+$os\
+$git_branch\
+$git_commit\
+$git_state\
+$git_status\
+$package\
+$c\
+$cpp\
+$cmake\
+$golang\
+$java\
+$kotlin\
+$lua\
+$nodejs\
+$php\
+$python\
+$ruby\
+$rust\
+$swift\
+$terraform\
+$buf\
+$nix_shell\
+$conda\
+$pixi\
+$aws\
+$gcloud\
+$azure\
+$memory_usage\
+$battery\
+$shell\
+$shlvl\
+$time"""
+
+palette = "ultra_ai"
+
+[fill]
+symbol = " "
+
+[character]
+format = "$symbol "
+success_symbol = "[◎](bold fg:green)"
+error_symbol = "[○](bold fg:red)"
+vimcmd_symbol = "[■](bold fg:blue)"
+vimcmd_replace_one_symbol = "[◌](bold fg:mauve)"
+vimcmd_replace_symbol = "[□](bold fg:mauve)"
+vimcmd_visual_symbol = "[▼](bold fg:yellow)"
+
+[cmd_duration]
+min_time = 300
+show_milliseconds = true
+show_notifications = true
+min_time_to_notify = 45000
+format = "[◄ $duration ]($style)"
+style = "italic bold fg:text"
+
+[status]
+disabled = false
+map_symbol = true
+recognize_signal_code = true
+format = "[$symbol$status ]($style)"
+style = "bold fg:red"
+symbol = "✖ "
+
+[sudo]
+disabled = false
+format = "[$symbol]($style)"
+style = "bold fg:peach"
+symbol = "󰌾 "
+
+[jobs]
+threshold = 1
+symbol = "[▶](fg:blue)"
+format = "[$symbol$number ]($style)"
+style = "fg:text"
+
+[username]
+show_always = true
+style_user = "bold fg:mauve"
+style_root = "bold fg:red"
+format = "[ $user ]($style)"
+
+[hostname]
+ssh_only = true
+format = "[@$hostname ]($style)"
+style = "bold fg:peach"
+
+[localip]
+disabled = false
+ssh_only = true
+format = "[ $localipv4 ]($style)"
+style = "bold fg:sky"
+
+[os]
+disabled = false
+format = "[$symbol ]($style)"
+style = "bold fg:overlay2"
+
+[os.symbols]
+Ubuntu = ""
+Linux = ""
+Unknown = ""
+
+[directory]
+home_symbol = "~"
+truncate_to_repo = false
+truncation_length = 99
+truncation_symbol = ""
+read_only = " 󰌾"
+use_os_path_sep = true
+style = "italic bold fg:sky"
+format = "[$path]($style)[$read_only]($read_only_style) "
+repo_root_style = "bold fg:mauve"
+repo_root_format = "[$before_root_path]($before_repo_root_style)[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style) [△](bold fg:mauve) "
+
+[git_branch]
+format = "[$symbol$branch(:$remote_branch) ]($style)"
+symbol = " "
+style = "italic bold fg:sky"
+truncation_symbol = "⋯"
+truncation_length = 20
+ignore_branches = ["main", "master"]
+only_attached = true
+
+[git_commit]
+format = "[ $hash$tag ]($style)"
+style = "fg:overlay2"
+only_detached = false
+tag_disabled = false
+
+[git_state]
+format = "[\\($state( $progress_current/$progress_total)\\) ]($style)"
+style = "bold fg:yellow"
+
+[git_status]
+style = "bold italic fg:mauve"
+format = "([⎪$ahead_behind$staged$modified$untracked$renamed$deleted$conflicted$stashed⎥]($style) )"
+conflicted = "◪◦ "
+ahead = "▴${count} "
+behind = "▿${count} "
+diverged = "◇⇡${ahead_count}⇣${behind_count} "
+untracked = "◌◦ "
+stashed = "◃◈ "
+modified = "●◦ "
+staged = "▪${count} "
+renamed = "◎◦ "
+deleted = "✕${count} "
+
+[git_metrics]
+disabled = false
+format = "([▴$added]($added_style))([▿$deleted]($deleted_style)) "
+added_style = "italic bold fg:sky"
+deleted_style = "italic bold fg:red"
+ignore_submodules = true
+
+[memory_usage]
+disabled = false
+threshold = 70
+symbol = "󰍛 "
+format = "[${ram_pct} ]($style)"
+style = "bold fg:orange"
+
+[shell]
+disabled = false
+format = "[󱆃 $indicator ]($style)"
+style = "italic fg:teal"
+
+[shlvl]
+disabled = false
+threshold = 2
+format = "[sh$shlvl ]($style)"
+style = "italic fg:overlay1"
+
+[time]
+disabled = false
+format = "[󱑆 $time ]($style)"
+time_format = "%Y-%m-%d %H:%M"
+utc_time_offset = "local"
+style = "italic fg:overlay1"
+
+[battery]
+disabled = false
+format = "[$percentage $symbol]($style) "
+full_symbol = "█"
+charging_symbol = "↑"
+discharging_symbol = "↓"
+unknown_symbol = "░"
+empty_symbol = "▃"
+
+[[battery.display]]
+threshold = 20
+style = "italic bold fg:red"
+
+[[battery.display]]
+threshold = 60
+style = "italic fg:mauve"
+
+[[battery.display]]
+threshold = 100
+style = "italic fg:green"
+
+[aws]
+disabled = false
+symbol = " "
+format = "[aws $symbol$profile( \\($region\\)) ]($style)"
+style = "bold fg:peach"
+
+[gcloud]
+disabled = false
+symbol = " "
+format = "[gcp $symbol$account ]($style)"
+style = "bold fg:sky"
+
+[azure]
+disabled = false
+symbol = "󰠅 "
+format = "[az $symbol$subscription ]($style)"
+style = "bold fg:blue"
+
+[nix_shell]
+style = "bold italic fg:teal"
+symbol = " "
+format = "[$symbol nix:$state( $name) ]($style)"
+impure_msg = "impure"
+pure_msg = "pure"
+unknown_msg = "?"
+
+[container]
+symbol = "⬢ "
+format = "[$symbol$name ]($style)"
+style = "bold italic fg:peach"
+
+[python]
+format = "[py ${symbol}${version}( \\($virtualenv\\)) ]($style)"
+symbol = " "
+version_format = "${raw}"
+style = "bold fg:yellow"
+
+[nodejs]
+format = "[node ${symbol}($version) ]($style)"
+symbol = " "
+version_format = "${raw}"
+style = "bold fg:green"
+detect_files = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock"]
+detect_folders = ["node_modules"]
+detect_extensions = []
+
+[ruby]
+format = "[rb ${symbol}${version} ]($style)"
+symbol = " "
+version_format = "${raw}"
+style = "bold fg:red"
+
+[rust]
+format = "[rs $symbol$version ]($style)"
+symbol = " "
+version_format = "${raw}"
+style = "bold fg:red"
+
+[package]
+format = "[pkg $symbol$version ]($style)"
+version_format = "${raw}"
+symbol = "󰏗 "
+style = "italic bold fg:yellow"
+
+[golang]
+symbol = " "
+format = "[go $symbol($version) ]($style)"
+style = "bold fg:teal"
+
+[java]
+symbol = " "
+format = "[java ${symbol}${version} ]($style)"
+style = "bold fg:orange"
+
+[kotlin]
+symbol = " "
+format = "[kt $symbol$version ]($style)"
+style = "bold fg:mauve"
+
+[lua]
+symbol = " "
+format = "[lua ${symbol}${version} ]($style)"
+style = "bold fg:blue"
+
+[php]
+symbol = " "
+format = "[php ${symbol}${version} ]($style)"
+style = "bold fg:mauve"
+
+[swift]
+symbol = " "
+format = "[swift ${symbol}${version} ]($style)"
+style = "bold fg:red"
+
+[buf]
+symbol = " "
+format = "[buf $symbol$version ]($style)"
+style = "bold fg:teal"
+
+[conda]
+symbol = " "
+format = "[conda $symbol$environment ]($style)"
+style = "bold fg:green"
+
+[pixi]
+symbol = "󰏗 "
+format = "[pixi $symbol$version($environment )]($style)"
+style = "bold fg:teal"
+
+[palettes.ultra_ai]
+text = "#d7f7ff"
+subtext1 = "#b8c7ff"
+overlay2 = "#7f88bf"
+overlay1 = "#646da1"
+blue = "#00d9ff"
+sky = "#2cf5ff"
+teal = "#00ffd5"
+green = "#3dffb4"
+yellow = "#f6ff4a"
+orange = "#ff9f1c"
+peach = "#ff75d8"
+red = "#ff2d95"
+mauve = "#ff4fd8"

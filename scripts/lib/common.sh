@@ -231,3 +231,63 @@ rldyour::install_browser_providers() {
     rldyour::log "warn" "Webwright provider install skipped (best-effort)"
   fi
 }
+
+# --- Terminal layer (0.2.3) --------------------------------------------------
+
+# Global git performance keys for agent-heavy repositories.
+rldyour::ensure_git_perf() {
+  rldyour::section "Configure git performance keys (global)"
+  rldyour::run git config --global core.fsmonitor true
+  rldyour::run git config --global core.untrackedCache true
+  rldyour::run git config --global fetch.writeCommitGraph true
+}
+
+# git-delta as the human pager. Pagers never fire on pipes, so agents are
+# unaffected; skipped entirely when delta is not on PATH (e.g. minimal server).
+rldyour::ensure_git_delta_config() {
+  rldyour::section "Configure git-delta pager (global)"
+  if ! command -v delta >/dev/null 2>&1; then
+    rldyour::log "warn" "delta not on PATH; skipping pager config"
+    return 0
+  fi
+  rldyour::run git config --global core.pager delta
+  rldyour::run git config --global interactive.diffFilter "delta --color-only"
+  rldyour::run git config --global delta.navigate true
+  rldyour::run git config --global delta.features "side-by-side line-numbers"
+}
+
+# Install one config template. Contract: create when absent; when present and
+# identical -> ok; when present and different -> KEEP the user's file and
+# point at the template. User edits are never clobbered.
+rldyour::install_config_template() {
+  local src="$1" dest="$2"
+  if [ ! -f "$src" ]; then
+    rldyour::log "warn" "template missing: $src"
+    return 0
+  fi
+  if [ -f "$dest" ]; then
+    if cmp -s "$src" "$dest"; then
+      rldyour::log "ok" "$(basename "$dest") already current"
+    else
+      rldyour::log "warn" "$(basename "$dest") exists and differs -- kept as-is; template: $src"
+    fi
+    return 0
+  fi
+  if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] install $src -> $dest"
+    return 0
+  fi
+  mkdir -p "$(dirname "$dest")"
+  cp "$src" "$dest"
+  rldyour::log "ok" "installed $(basename "$dest")"
+}
+
+rldyour::install_terminal_configs() {
+  local tpl_dir="$1"
+  rldyour::section "Install terminal shell configs (zsh-first, agent-gated)"
+  rldyour::install_config_template "$tpl_dir/zshenv"          "$HOME/.zshenv"
+  rldyour::install_config_template "$tpl_dir/zprofile"        "$HOME/.zprofile"
+  rldyour::install_config_template "$tpl_dir/zshrc"           "$HOME/.zshrc"
+  rldyour::install_config_template "$tpl_dir/zsh_plugins.txt" "$HOME/.zsh_plugins.txt"
+  rldyour::install_config_template "$tpl_dir/starship.toml"   "$HOME/.config/starship.toml"
+}

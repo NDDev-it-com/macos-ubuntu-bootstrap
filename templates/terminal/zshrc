@@ -1,0 +1,104 @@
+# ~/.zshrc — interactive shells only. Managed template:
+# rldyour-new-mac-or-ubuntu (templates/terminal/zshrc).
+# Architecture: agent gate first, cached compinit, antidote static plugins,
+# deferred tool inits, syntax highlighting last. Target: <50 ms to prompt.
+
+# ── 1. Agent gate ────────────────────────────────────────────────────────────
+# Harness markers: Claude Code sets CLAUDECODE; Codex sets CODEX_THREAD_ID /
+# CODEX_SANDBOX; Cursor/Gemini legacy markers kept for safety. agy and mimo
+# expose no stable marker — the interactive check catches them and any future
+# harness. Agents get plain pipes: no pagers, no prompt, no history hooks,
+# no frecency pollution.
+_is_agent() {
+  [[ -n $CLAUDECODE || -n $CODEX_THREAD_ID || -n $CODEX_SANDBOX \
+     || -n $CURSOR_AGENT || -n $GEMINI_CLI ]] || [[ ! -o interactive ]]
+}
+if _is_agent; then
+  export PAGER=cat GIT_PAGER=cat GH_PAGER=cat DELTA_PAGER=cat
+  export LESS='-FRX' SYSTEMD_PAGER='' GIT_EDITOR=true
+  return
+fi
+
+# ── 2. History (atuin owns interactive history; these are the fallbacks) ────
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=200000
+SAVEHIST=200000
+setopt SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_REDUCE_BLANKS HIST_VERIFY
+
+# ── 3. Completion: full compinit at most once per 24h, else cached ──────────
+autoload -Uz compinit
+if [[ -n $HOME/.zcompdump(#qNmh-24) ]]; then
+  compinit -C
+else
+  compinit
+fi
+zstyle ':completion:*' use-cache on
+zstyle ':completion:*' cache-path "$HOME/.zcompcache"
+zstyle ':completion:*' menu no            # fzf-tab replaces the menu
+
+# ── 4. Plugins via antidote (static file, see ~/.zsh_plugins.txt) ───────────
+for _anti in \
+  /opt/homebrew/opt/antidote/share/antidote/antidote.zsh \
+  /usr/local/opt/antidote/share/antidote/antidote.zsh \
+  /home/linuxbrew/.linuxbrew/opt/antidote/share/antidote/antidote.zsh \
+  "$HOME/.antidote/antidote.zsh"; do
+  if [[ -r $_anti ]]; then
+    source "$_anti"
+    antidote load "${ZDOTDIR:-$HOME}/.zsh_plugins.txt"
+    break
+  fi
+done
+unset _anti
+
+# ── 5. Tool inits (zsh-defer, loaded via plugins, keeps prompt instant) ─────
+(( $+functions[zsh-defer] )) || zsh-defer() { "$@" }   # fallback: run inline
+command -v zoxide  >/dev/null && zsh-defer eval "$(zoxide init zsh)"
+command -v atuin   >/dev/null && zsh-defer eval "$(atuin init zsh --disable-up-arrow)"
+command -v carapace >/dev/null && zsh-defer eval "$(carapace _carapace zsh)"
+
+# ── 6. Prompt ────────────────────────────────────────────────────────────────
+command -v starship >/dev/null && eval "$(starship init zsh)"
+
+# ── 7. Aliases & abbreviations (zsh-abbr gives fish-style expansion) ────────
+# This section only runs AFTER the section-1 agent gate; zsh never reads
+# .zshrc for non-interactive shells at all. Agents get the tools on PATH
+# under their own names. Shadowing policy (2026-07 verdicts):
+#   alias = view-layer, argument-compatible supersets only (ls, cat, tree).
+#   abbr  = replacements that expand VISIBLY before execution.
+#   never = grep, sed, awk, find, jq (rg is deliberately non-POSIX and skips
+#           ignored/hidden files; sd cannot host sed one-liners).
+alias ls='eza --group-directories-first'
+alias ll='eza -la --git --group-directories-first'
+alias tree='eza --tree'
+alias cat='bat'
+alias lg='lazygit'
+# Harness launchers cl / cx / oc are real executables in ~/.local/bin
+# (installed by rldyour-ai-cli-tools) — not aliases, so agents can exec them.
+if command -v abbr >/dev/null; then
+  abbr -S -qq gs='git status'      2>/dev/null
+  abbr -S -qq gd='git diff'        2>/dev/null
+  abbr -S -qq dft='git dft'        2>/dev/null   # difftastic difftool alias
+  abbr -S -qq jql='jaq'            2>/dev/null   # fast jq sidecar, own name
+  # 2026-07 modern-unix wave — human shells only, visible expansion
+  abbr -S -qq du='dust'            2>/dev/null
+  abbr -S -qq dui='dua i'          2>/dev/null
+  abbr -S -qq df='duf'             2>/dev/null
+  abbr -S -qq ps='procs'           2>/dev/null
+  abbr -S -qq top='btop'           2>/dev/null
+  abbr -S -qq htop='btop'          2>/dev/null
+  abbr -S -qq dig='doggo'          2>/dev/null
+  abbr -S -qq ping='gping'         2>/dev/null
+  abbr -S -qq xxd='hexyl'          2>/dev/null
+  abbr -S -qq watch='viddy'        2>/dev/null
+fi
+
+# ── 8. fzf keybindings (Ctrl-R handled by atuin; keep Ctrl-T / Alt-C) ───────
+for _fzf in \
+  /opt/homebrew/opt/fzf/shell/key-bindings.zsh \
+  /usr/local/opt/fzf/shell/key-bindings.zsh \
+  /usr/share/doc/fzf/examples/key-bindings.zsh; do
+  [[ -r $_fzf ]] && { source "$_fzf"; break; }
+done
+unset _fzf
+export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git'
+export FZF_DEFAULT_OPTS='--height 40% --layout=reverse'

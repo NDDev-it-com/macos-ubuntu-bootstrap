@@ -16,9 +16,9 @@ SKIP_LSPS="${RLDYOUR_SKIP_LSPS:-0}"
 SKIP_BROWSER="${RLDYOUR_SKIP_BROWSER:-0}"
 SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
 
-CLAUDE_CODE_VERSION="2.1.201"
+CLAUDE_CODE_VERSION="2.1.202"
 CODEX_VERSION="0.142.5"
-OPENCODE_VERSION="1.17.13"
+OPENCODE_VERSION="1.17.14"
 MIMOCODE_VERSION="0.1.4"
 ANTIGRAVITY_INSTALL_SCRIPT="https://antigravity.google/cli/install.sh"
 MARKSMAN_VERSION="${MARKSMAN_VERSION:-2026-02-08}"
@@ -78,11 +78,18 @@ APT_SYSTEM_PACKAGES=(
   lsb-release
   yamllint
   pandoc
-  httpie
   fd-find
   bat
   xmlstarlet
   libxml2-utils
+  # terminal layer (0.2.3): apt-available subset
+  fzf
+  zoxide
+  tmux
+  btop
+  duf
+  hexyl
+  gh
 )
 
 APT_GOPLS_PACKAGE="gopls"
@@ -128,6 +135,45 @@ ensure_eza() {
   else
     rldyour::log "warn" "eza not available in this apt archive; skipping (best-effort)"
   fi
+}
+
+
+# Terminal layer (0.2.3): official installers for tools without reliable
+# apt packages on supported LTS; every step is dry-run aware and idempotent.
+ensure_starship() {
+  rldyour::section "Ensure starship prompt"
+  if command -v starship >/dev/null 2>&1; then
+    rldyour::log "ok" "starship already installed"
+    return 0
+  fi
+  rldyour::run bash -c "curl -sS https://starship.rs/install.sh | sh -s -- -y"
+}
+
+ensure_atuin() {
+  rldyour::section "Ensure atuin history"
+  if command -v atuin >/dev/null 2>&1; then
+    rldyour::log "ok" "atuin already installed"
+    return 0
+  fi
+  rldyour::run bash -c "curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh"
+}
+
+ensure_xh() {
+  rldyour::section "Ensure xh HTTP client"
+  if command -v xh >/dev/null 2>&1; then
+    rldyour::log "ok" "xh already installed"
+    return 0
+  fi
+  rldyour::run bash -c "curl -sfL https://raw.githubusercontent.com/ducaale/xh/master/install.sh | sh"
+}
+
+ensure_antidote_clone() {
+  rldyour::section "Ensure antidote plugin manager (git clone)"
+  if [ -d "$HOME/.antidote" ]; then
+    rldyour::log "ok" "antidote already cloned"
+    return 0
+  fi
+  rldyour::run git clone --depth=1 https://github.com/mattmc3/antidote.git "$HOME/.antidote"
 }
 
 ensure_node() {
@@ -512,6 +558,13 @@ if [ "$SKIP_SYSTEM" -eq 0 ]; then
   apt_with_retries install -y ca-certificates
   ensure_apt_packages
   ensure_eza
+  ensure_starship
+  ensure_atuin
+  ensure_xh
+  ensure_antidote_clone
+  rldyour::ensure_git_perf
+  rldyour::ensure_git_delta_config
+  rldyour::install_terminal_configs "$REPO_ROOT/templates/terminal"
   ensure_node
   ensure_uv
   ensure_bun

@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-06
-Last verified: 2026-07-06
-Last commit: 7adf2d7 feat(install): expand LSP and quality-gate stack to 0.2.0
+Last updated: 2026-07-07
+Last verified: 2026-07-07
+Last commit: 5dbea9b fix(release): use find instead of ls in the checksum pipeline
 Scope: README.md, VERSION, CHANGELOG.md, config/rldyour-contract.json, scripts/**, .github/workflows/**
 Area: RELEASE
 -->
@@ -38,9 +38,11 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Public security workflows remain enabled for the public repository posture.
 
 ## Current State
-- Current product/config version is `0.2.0`.
-- Release `0.2.0` expands the macOS and Ubuntu installer profiles with the full multi-language LSP stack (basedpyright, ty, jdtls, kotlin-language-server, postgres-language-server, sqls, R languageserver, markdown-oxide, terraform-ls, helm-ls, cmake-language-server) and the quality-gate CLI set (oxlint, biome, osv-scanner, gitleaks, semgrep, hadolint, actionlint, yamllint, markdownlint-cli2, shfmt), plus the JDK/Qt/R runtimes and base utilities.
-- Release `0.2.0` synchronizes `VERSION`, README baseline, SECURITY current exact tag, and `config/rldyour-contract.json`.
+- Current product/config version is `0.2.3`.
+- Release `0.2.3` absorbs the terminal layer from the retired `awesome-terminal-for-ai` spec: macOS brew wave (antidote, zsh-completions, olets/tap zsh-abbr, Ghostty cask, starship, atuin, fzf, zoxide, carapace, gh, lazygit, yazi, xh, jaq, jnv, duckdb, ast-grep, scc, difftastic, tmux, dust, dua-cli, duf, procs, btop, doggo, gping, hexyl, sd, viddy, tealdeer), the Ubuntu apt subset plus official installers (starship/atuin/xh, git-clone antidote), managed zsh/starship templates in `templates/terminal/` installed never-clobber via `rldyour::install_terminal_configs`, and global git perf keys plus delta pager config in `scripts/lib/common.sh`.
+- Release `0.2.3` pins `@anthropic-ai/claude-code@2.1.202` and `opencode-ai@1.17.14`, removes `httpie`/`dasel`/`miller`, and extends both platform `verify.sh` required sets to the terminal layer.
+- Release `0.2.3` fixes the release workflow: `release-notes.md` is generated before checksums, `SHA256SUMS` is built from a mapfile asset list excluding only itself, `templates/` is included in the release tarball, and `release-notes.md` joined `required_artifacts` (0.2.2 shipped SHA256SUMS without it).
+- Releases `0.2.0`-`0.2.2` expanded the multi-language LSP stack, quality-gate CLI set, eza/bat baseline, tsc verify probe fix, and release-integrity surfaces (SECURITY table, contract version).
 - The module supports macOS and Ubuntu/server bootstrap profiles.
 - Local CI entrypoints are `bash scripts/ci/lint.sh` and `bash scripts/ci/validate.sh`.
 - Strict platform checks are `bash scripts/macos/verify.sh --strict --skip-optional` and `bash scripts/ubuntu/verify.sh --strict --skip-optional`.
@@ -55,7 +57,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - path:scripts/ubuntu/install.sh
 - path:.github/workflows/ci.yml
 - path:.github/workflows/release.yml
-- commit:7adf2d7
+- commit:5dbea9b
 
 ## Do Not Infer
 - Do not infer a successful live GitHub Actions run or release publication from local files. Check GitHub Actions and Releases before claiming live release readiness.

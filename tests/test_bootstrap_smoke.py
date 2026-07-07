@@ -66,9 +66,9 @@ def test_profile_pin_and_lsp_parity() -> None:
 
     assert macos_versions and ubuntu_versions
     assert macos_versions == ubuntu_versions
-    assert "2.1.201" in macos_versions.get("CLAUDE_CODE_VERSION", "")
+    assert "2.1.202" in macos_versions.get("CLAUDE_CODE_VERSION", "")
     assert "0.142.5" in macos_versions.get("CODEX_VERSION", "")
-    assert "1.17.13" in macos_versions.get("OPENCODE_VERSION", "")
+    assert "1.17.14" in macos_versions.get("OPENCODE_VERSION", "")
     assert "0.1.4" in macos_versions.get("MIMOCODE_VERSION", "")
 
     assert "gopls" in macos

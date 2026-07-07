@@ -27,9 +27,9 @@ for dependency and verification parity across workstation classes.
   - `claude` (current installed binary)  
   - `claude-code` (legacy alias in some environments)
 - AI runtimes installed from pins:
-  - `@anthropic-ai/claude-code@2.1.201`
+  - `@anthropic-ai/claude-code@2.1.202`
   - `@openai/codex@0.142.5`
-  - `opencode-ai@1.17.13`
+  - `opencode-ai@1.17.14`
   - `@mimo-ai/cli@0.1.4`
   - `agy` via antigravity installer URL
 - Python tooling is managed through `uv tool`.

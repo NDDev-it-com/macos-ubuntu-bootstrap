@@ -99,6 +99,7 @@ jobs:
             .github \
             config \
             scripts \
+            templates \
             docs \
             | gzip -n > "dist/rldyour-new-mac-or-ubuntu-${RELEASE_VERSION}.tar.gz"
 
@@ -118,6 +119,7 @@ jobs:
                   artifact_name,
                   "sbom.spdx.json",
                   "release-manifest.json",
+                  "release-notes.md",
                   "SHA256SUMS",
               ],
           }
@@ -161,11 +163,27 @@ jobs:
             rm -f dist/github-dependency-graph-sbom.spdx.json
           fi
 
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk -v version="${RELEASE_VERSION}" '
+            $0 ~ "^## \\[" version "\\]" { flag = 1; next }
+            flag && /^## \[/ { exit }
+            flag { print }
+          ' CHANGELOG.md > dist/release-notes.md
+          test -s dist/release-notes.md
+
       - name: Generate release checksums
         run: |
           set -euo pipefail
-          rm -f dist/SHA256SUMS
-          sha256sum dist/* > dist/SHA256SUMS
+          # Checksums must cover EVERY published asset (validated downstream),
+          # so this runs after notes/manifest/SBOMs land in dist and excludes
+          # only the checksum file itself.
+          cd dist
+          rm -f SHA256SUMS
+          mapfile -t assets < <(find . -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)
+          sha256sum "${assets[@]}" > SHA256SUMS
 
       - name: Attest release bundle
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
@@ -210,11 +228,6 @@ jobs:
           if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
             gh release upload "$RELEASE_VERSION" dist/* --clobber
           else
-            awk -v version="${RELEASE_VERSION}" '
-              $0 ~ "^## \\[" version "\\]" { flag = 1; next }
-              flag && /^## \[/ { exit }
-              flag { print }
-            ' CHANGELOG.md > dist/release-notes.md
             gh release create "$RELEASE_VERSION" \
               --verify-tag \
               --title "$RELEASE_VERSION" \

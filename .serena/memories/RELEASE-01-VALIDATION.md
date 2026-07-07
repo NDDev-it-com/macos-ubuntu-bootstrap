@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-07
 Last verified: 2026-07-07
-Last commit: 5dbea9b fix(release): use find instead of ls in the checksum pipeline
+Last commit: a0e3eb4 feat: 0.2.3 terminal layer for macOS/Ubuntu + release checksum fix (#8)
 Scope: README.md, VERSION, CHANGELOG.md, config/rldyour-contract.json, scripts/**, .github/workflows/**
 Area: RELEASE
 -->
@@ -57,7 +57,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - path:scripts/ubuntu/install.sh
 - path:.github/workflows/ci.yml
 - path:.github/workflows/release.yml
-- commit:5dbea9b
+- commit:a0e3eb4
 
 ## Do Not Infer
 - Do not infer a successful live GitHub Actions run or release publication from local files. Check GitHub Actions and Releases before claiming live release readiness.

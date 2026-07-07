@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-07
 Last verified: 2026-07-07
-Last commit: 5dbea9b fix(release): use find instead of ls in the checksum pipeline
+Last commit: a0e3eb4 feat: 0.2.3 terminal layer for macOS/Ubuntu + release checksum fix (#8)
 Scope: .gitignore, .serena/project.yml, README.md, AGENTS.md, .claude/CLAUDE.md, scripts/**
 Area: TECHDEBT
 -->
@@ -48,7 +48,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - path:.claude/CLAUDE.md
 - path:scripts/macos/install.sh
 - path:scripts/ubuntu/install.sh
-- commit:5dbea9b
+- commit:a0e3eb4
 
 ## Do Not Infer
 - Do not infer full workstation installation success from plan-mode scripts; strict verification and optional runtime checks must run on the target machine.

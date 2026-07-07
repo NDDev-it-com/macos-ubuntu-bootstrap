@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-07
 Last verified: 2026-07-07
-Last commit: 5dbea9b fix(release): use find instead of ls in the checksum pipeline
+Last commit: a0e3eb4 feat: 0.2.3 terminal layer for macOS/Ubuntu + release checksum fix (#8)
 Scope: README.md, AGENTS.md, .claude/CLAUDE.md, .serena/project.yml, .serena/memories/**
 Area: CORE
 -->
@@ -42,7 +42,7 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 - path:.serena/project.yml
 - path:.serena/memories/RELEASE-01-VALIDATION.md
 - path:.serena/memories/TECHDEBT-01-NOW.md
-- commit:5dbea9b
+- commit:a0e3eb4
 
 ## Do Not Infer
 - Do not infer current dependency versions, release state, GitHub settings, or CI status from this index; read the source files and live GitHub state.

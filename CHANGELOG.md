@@ -5,6 +5,23 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.2.2] - 2026-07-07
+
+### Fixed
+
+- Complete the release-integrity surfaces that `0.2.1` shipped without:
+  SECURITY.md supported-versions table and `config/rldyour-contract.json`
+  adapter version now track the current exact tag. The `0.2.1` tag was
+  published manually and its release carried no build assets (the release
+  workflow collided with the pre-created release); `0.2.2` supersedes it
+  through the canonical tag-driven workflow with the full asset bundle.
+
+### Changed
+
+- AGENTS.md quality-gate inventory now references the security/SAST scanner
+  set through the platform install manifests (positive-inventory wording)
+  instead of naming individual scanners in active docs.
+
 ## [0.2.1] - 2026-07-07
 
 ### Added

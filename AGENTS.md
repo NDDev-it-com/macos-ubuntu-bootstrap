@@ -65,7 +65,7 @@ the owner terminal stack:
 - Quality-gate CLIs (verified by strict verify):
   - `shellcheck`, `shfmt` (shell)
   - `oxlint`, `biome` (JS/TS/JSON)
-  - `osv-scanner`, `gitleaks`, `semgrep` (security/SAST)
+  - the security/SAST scanner set (positive inventory lives in the platform install manifests)
   - `hadolint`, `actionlint`, `yamllint`, `markdownlint-cli2`
 - Shared tools verified by installer:
   - `node`, `bun`, `python3`, `uv`, `go`, `rustup`, `dart`, `git`, `curl`, `java`, `R`

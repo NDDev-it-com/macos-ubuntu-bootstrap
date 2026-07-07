@@ -2,7 +2,7 @@
   "schema_version": 1,
   "adapter": {
     "id": "new-mac-or-ubuntu",
-    "version": "0.2.0"
+    "version": "0.2.2"
   },
-  "verified_on": "2026-07-06"
+  "verified_on": "2026-07-07"
 }

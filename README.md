@@ -90,7 +90,7 @@ OS profiles: 2 (macOS, Ubuntu)
 The bootstrap installs the pinned browser providers that every AI CLI config
 adapter relies on for browser evidence, debugging, and design validation:
 
-- CloakBrowser (`cloakbrowser==0.4.8`, isolated venv) — the default privacy-first
+- CloakBrowser (`cloakbrowser==0.4.8`, isolated venv) - the default privacy-first
   Chromium backend. A managed headless CDP daemon runs on `127.0.0.1:9222`
   (launchd / systemd `--user`); every adapter's Chrome DevTools MCP connects to
   it via `--browserUrl`, and Webwright/Playwright use the `cloak-chromium`

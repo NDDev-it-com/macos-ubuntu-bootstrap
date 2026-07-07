@@ -128,7 +128,7 @@
 - managed-лаунчеры на PATH: `cloak-chromium` (резолвит и exec'ает реальный
   версионный бинарь) и `cloak-chromium-stealth` (+ дефолтные stealth-аргументы).
 - managed CDP-демон на `127.0.0.1:9222` (launchd на macOS, systemd `--user` на
-  Linux, `KeepAlive`) — headless CloakBrowser, к которому каждый адаптерный
+  Linux, `KeepAlive`) - headless CloakBrowser, к которому каждый адаптерный
   `chrome-devtools-mcp` подключается через `--browserUrl`; Webwright/Playwright
   используют `cloak-chromium` как executable (`AGENT_BROWSER_EXECUTABLE_PATH`).
 - Pro (v148+) активируется только `CLOAKBROWSER_LICENSE_KEY` из

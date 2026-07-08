@@ -5,6 +5,12 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.2.7] - 2026-07-08
+
+### Added
+
+- Install the pinned rtk token-economy CLI and exclude-command baseline in the workstation bootstrap
+
 ## [0.2.6] - 2026-07-08
 
 ### Fixed

@@ -112,7 +112,6 @@ optional_cmds=(
   "hyperfine"
   "just"
   "gh-actions-language-server"
-  "gitlab-ci-ls"
   "postgres-language-server"
   "chrome-devtools-mcp"
   "playwright-cli"

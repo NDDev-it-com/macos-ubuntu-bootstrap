@@ -16,9 +16,9 @@ SKIP_LSPS="${RLDYOUR_SKIP_LSPS:-0}"
 SKIP_BROWSER="${RLDYOUR_SKIP_BROWSER:-0}"
 SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
 
-CLAUDE_CODE_VERSION="2.1.202"
+CLAUDE_CODE_VERSION="2.1.204"
 CODEX_VERSION="0.142.5"
-OPENCODE_VERSION="1.17.14"
+OPENCODE_VERSION="1.17.15"
 MIMOCODE_VERSION="0.1.4"
 ANTIGRAVITY_INSTALL_SCRIPT="https://antigravity.google/cli/install.sh"
 
@@ -128,6 +128,17 @@ BREW_SYSTEM_PACKAGES=(
   sd
   viddy
   tealdeer
+  # search / data / http / repo tooling (0.2.8): parity with installed workstation
+  ripgrep
+  yq
+  dasel
+  miller
+  httpie
+  ghq
+  cargo-nextest
+  github-mcp-server
+  # Deno JS/TS runtime (0.2.8)
+  deno
 )
 
 usage() {

@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 APPLY=0
 PLATFORM="auto"
+PROFILE="auto"
 STRICT=0
 SKIP_SYSTEM=0
 SKIP_AI=0
@@ -14,7 +15,8 @@ SKIP_CHECKS=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/bootstrap.sh [--platform macos|ubuntu] [--apply|--plan]
+Usage: scripts/bootstrap.sh [--platform macos|ubuntu] [--profile server|desktop]
+                           [--apply|--plan]
                            [--skip-system] [--skip-ai] [--skip-lsps] [--skip-browser]
                            [--skip-checks] [--strict]
 
@@ -23,6 +25,13 @@ Entrypoint for the module installer.
 Default:
   - mode: plan (dry-run)
   - platform: auto-detect (darwin -> macos, linux -> ubuntu)
+  - profile: auto (macos -> desktop; ubuntu -> server)
+
+Profiles:
+  - server:  full terminal-first CLI stack (shell, prompt, multiplexer, LSPs,
+             AI CLIs, dev tools). No GUI apps. Suitable for headless Ubuntu.
+  - desktop: server layer PLUS the GUI desktop layer (terminal emulator, Nerd
+             fonts). macOS is always desktop.
 EOF
 }
 
@@ -30,6 +39,10 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --platform)
       PLATFORM="${2:?--platform requires one of macos|ubuntu}"
+      shift 2
+      ;;
+    --profile)
+      PROFILE="${2:?--profile requires one of server|desktop}"
       shift 2
       ;;
     --apply)
@@ -96,6 +109,27 @@ if [ "$PLATFORM" != "macos" ] && [ "$PLATFORM" != "ubuntu" ]; then
   exit 2
 fi
 
+# Resolve the install profile. macOS is a GUI workstation (always desktop);
+# Ubuntu defaults to the headless server profile unless --profile desktop is set.
+if [ "$PROFILE" = "auto" ]; then
+  if [ "$PLATFORM" = "macos" ]; then
+    PROFILE="desktop"
+  else
+    PROFILE="server"
+  fi
+fi
+
+if [ "$PROFILE" != "server" ] && [ "$PROFILE" != "desktop" ]; then
+  echo "Unsupported profile: $PROFILE (expected server|desktop)" >&2
+  exit 2
+fi
+
+# macOS is always a desktop workstation; a server profile there is meaningless.
+if [ "$PLATFORM" = "macos" ] && [ "$PROFILE" != "desktop" ]; then
+  echo "macOS only supports the desktop profile (got: $PROFILE)" >&2
+  exit 2
+fi
+
 RUNNER_SCRIPT="${SCRIPT_DIR}/${PLATFORM}/install.sh"
 if [ ! -x "$RUNNER_SCRIPT" ]; then
   echo "Missing runner script: $RUNNER_SCRIPT" >&2
@@ -103,6 +137,7 @@ if [ ! -x "$RUNNER_SCRIPT" ]; then
 fi
 
 export RLDYOUR_DRY_RUN=$((1 - APPLY))
+export RLDYOUR_PROFILE=$PROFILE
 export RLDYOUR_STRICT=$STRICT
 export RLDYOUR_SKIP_SYSTEM=$SKIP_SYSTEM
 export RLDYOUR_SKIP_AI=$SKIP_AI

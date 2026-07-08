@@ -9,6 +9,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
 
 RLDYOUR_DRY_RUN="${RLDYOUR_DRY_RUN:-1}"
+PROFILE="${RLDYOUR_PROFILE:-server}"
 STRICT="${RLDYOUR_STRICT:-0}"
 SKIP_SYSTEM="${RLDYOUR_SKIP_SYSTEM:-0}"
 SKIP_AI="${RLDYOUR_SKIP_AI:-0}"
@@ -16,9 +17,9 @@ SKIP_LSPS="${RLDYOUR_SKIP_LSPS:-0}"
 SKIP_BROWSER="${RLDYOUR_SKIP_BROWSER:-0}"
 SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
 
-CLAUDE_CODE_VERSION="2.1.202"
+CLAUDE_CODE_VERSION="2.1.204"
 CODEX_VERSION="0.142.5"
-OPENCODE_VERSION="1.17.14"
+OPENCODE_VERSION="1.17.15"
 MIMOCODE_VERSION="0.1.4"
 ANTIGRAVITY_INSTALL_SCRIPT="https://antigravity.google/cli/install.sh"
 MARKSMAN_VERSION="${MARKSMAN_VERSION:-2026-02-08}"
@@ -30,6 +31,10 @@ PYTHON_TOOLING_PACKAGES=(
   pyright
   ruff
   pytest
+  # macOS-parity LSPs that ship as Python wheels (0.2.8):
+  # `ty` (Astral type-checker) and the CMake language server.
+  ty
+  cmake-language-server
 )
 
 # taplo ships as the npm `@taplo/cli` package (bare `taplo` is unpublished);
@@ -90,6 +95,11 @@ APT_SYSTEM_PACKAGES=(
   duf
   hexyl
   gh
+  # macOS-parity, apt-available (0.2.8): search, http, data, Qt headers
+  ripgrep
+  httpie
+  miller
+  qtbase5-dev
 )
 
 APT_GOPLS_PACKAGE="gopls"
@@ -467,24 +477,89 @@ ensure_java_and_r() {
   fi
 }
 
-# Install cargo-hosted LSPs that have no apt/bun equivalent. gitlab-ci-ls is a
-# static Rust binary distributed via crates.io. Supabase postgres-language-server
-# is intentionally NOT installed here: on Ubuntu there is no apt/crate channel,
-# and verify.sh treats it as optional on this platform.
-ensure_cargo_lsps() {
-  rldyour::section "Install cargo-hosted LSPs (best-effort)"
+# Install the macOS-parity "modern-unix" CLI wave that has no reliable apt
+# package on supported LTS. Each is a Rust binary from crates.io, so cargo is the
+# single portable channel. Best-effort and idempotent: a present binary is
+# skipped and a failed build only warns (never aborts the bootstrap).
+# NOTE: gitlab-ci-ls is intentionally NOT installed (the owner does not use
+# GitLab); it was removed in 0.2.8 to match the macOS baseline.
+CARGO_PARITY_TOOLS=(
+  # crate:binary
+  "du-dust:dust"
+  "procs:procs"
+  "sd:sd"
+  "difftastic:difft"
+  "jaq:jaq"
+  "hyperfine:hyperfine"
+  "just:just"
+  "tealdeer:tldr"
+  "ast-grep:ast-grep"
+  "watchexec-cli:watchexec"
+  "gping:gping"
+  "cargo-nextest:cargo-nextest"
+  # markdown LSP parity (macOS installs markdown-oxide via brew)
+  "markdown-oxide:markdown-oxide"
+)
+
+ensure_cargo_parity_tools() {
+  rldyour::section "Install cargo-hosted macOS-parity CLIs (best-effort)"
   if ! command -v cargo >/dev/null 2>&1; then
-    rldyour::log "warn" "cargo required for cargo-hosted LSPs; skipping"
+    rldyour::log "warn" "cargo required for parity CLIs; skipping"
     return 0
   fi
-  if command -v gitlab-ci-ls >/dev/null 2>&1; then
-    rldyour::log "ok" "gitlab-ci-ls already installed"
-  else
-    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
-      rldyour::log "info" "[DRY-RUN] cargo install gitlab-ci-ls"
-    else
-      rldyour::run cargo install gitlab-ci-ls
+  local entry crate bin
+  for entry in "${CARGO_PARITY_TOOLS[@]}"; do
+    crate="${entry%%:*}"
+    bin="${entry##*:}"
+    if command -v "$bin" >/dev/null 2>&1; then
+      rldyour::log "ok" "$bin already installed"
+      continue
     fi
+    if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+      rldyour::log "info" "[DRY-RUN] cargo install $crate"
+      continue
+    fi
+    if cargo install "$crate"; then
+      rldyour::log "ok" "$bin installed via cargo ($crate)"
+    else
+      rldyour::log "warn" "cargo install $crate failed (best-effort)"
+    fi
+  done
+}
+
+# Install macOS-parity runtimes/tools that publish an official install script or
+# a first-party apt channel. All best-effort and idempotent.
+ensure_extra_runtimes() {
+  rldyour::section "Install extra macOS-parity runtimes (best-effort)"
+
+  # Deno JS/TS runtime (official installer -> ~/.deno/bin).
+  if command -v deno >/dev/null 2>&1; then
+    rldyour::log "ok" "deno already installed"
+  elif [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] deno install script"
+  else
+    rldyour::run bash -c "curl -fsSL https://deno.land/install.sh | sh -s -- -y" ||
+      rldyour::log "warn" "deno install failed (best-effort)"
+  fi
+
+  # mise version manager (official installer -> ~/.local/bin).
+  if command -v mise >/dev/null 2>&1; then
+    rldyour::log "ok" "mise already installed"
+  elif [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] mise install script"
+  else
+    rldyour::run bash -c "curl -fsSL https://mise.run | sh" ||
+      rldyour::log "warn" "mise install failed (best-effort)"
+  fi
+
+  # carapace completion engine (official install script -> ~/.local/bin).
+  if command -v carapace >/dev/null 2>&1; then
+    rldyour::log "ok" "carapace already installed"
+  elif [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] carapace install script"
+  else
+    rldyour::run bash -c "curl -fsSL https://carapace.sh/install.sh | sh -s -- -b $HOME/.local/bin" ||
+      rldyour::log "warn" "carapace install failed (best-effort)"
   fi
 }
 
@@ -536,6 +611,50 @@ install_lsp() {
   done
 }
 
+# Desktop-only GUI layer (profile=desktop): a GUI terminal emulator and a Nerd
+# font for glyph rendering. The headless server profile intentionally skips this
+# — a server still gets the full terminal-first CLI stack above, just no GUI.
+# All best-effort: a missing snap/apt channel warns and never aborts.
+NERD_FONT_VERSION="${NERD_FONT_VERSION:-v3.4.0}"
+install_desktop_layer() {
+  if [ "$PROFILE" != "desktop" ]; then
+    rldyour::log "info" "server profile: skipping GUI desktop layer (terminal-first CLI stack is installed)"
+    return 0
+  fi
+  rldyour::section "Install desktop GUI layer (profile=desktop)"
+
+  # JetBrainsMono Nerd Font -> ~/.local/share/fonts (matches the macOS terminal glyphs).
+  local font_dir="$HOME/.local/share/fonts"
+  if fc-list 2>/dev/null | grep -qi "JetBrainsMono Nerd Font"; then
+    rldyour::log "ok" "JetBrainsMono Nerd Font already installed"
+  elif [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] install JetBrainsMono Nerd Font ${NERD_FONT_VERSION} -> ${font_dir}"
+  else
+    mkdir -p "$font_dir"
+    if curl -fsSL "https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_FONT_VERSION}/JetBrainsMono.zip" -o /tmp/JetBrainsMono.zip &&
+      unzip -oq /tmp/JetBrainsMono.zip -d "$font_dir/JetBrainsMonoNerd"; then
+      command -v fc-cache >/dev/null 2>&1 && fc-cache -f "$font_dir" >/dev/null 2>&1
+      rm -f /tmp/JetBrainsMono.zip
+      rldyour::log "ok" "JetBrainsMono Nerd Font installed"
+    else
+      rldyour::log "warn" "Nerd Font install failed (best-effort)"
+    fi
+  fi
+
+  # Ghostty terminal emulator (macOS uses the Ghostty cask; on Ubuntu the
+  # first-party channel is snap). Best-effort so headless/snapless hosts skip it.
+  if command -v ghostty >/dev/null 2>&1; then
+    rldyour::log "ok" "ghostty already installed"
+  elif ! command -v snap >/dev/null 2>&1; then
+    rldyour::log "warn" "snap unavailable; install a terminal emulator manually (ghostty/kitty/alacritty)"
+  elif [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] sudo snap install ghostty --classic"
+  else
+    rldyour::run sudo snap install ghostty --classic ||
+      rldyour::log "warn" "ghostty snap install failed (best-effort; try kitty/alacritty via apt)"
+  fi
+}
+
 run_post_checks() {
   rldyour::section "Post-checks"
   bash "$SCRIPT_DIR/verify.sh" --strict --skip-optional
@@ -550,7 +669,7 @@ rldyour::assert_root "$REPO_ROOT"
 rldyour::ensure_path
 
 rldyour::section "rldyour-new-mac-or-ubuntu (Ubuntu) installer"
-rldyour::log "info" "mode: $([ "$RLDYOUR_DRY_RUN" -eq 1 ] && echo dry-run || echo apply)"
+rldyour::log "info" "mode: $([ "$RLDYOUR_DRY_RUN" -eq 1 ] && echo dry-run || echo apply); profile: ${PROFILE}"
 
 if [ "$SKIP_SYSTEM" -eq 0 ]; then
   ensure_apt_repo_updates
@@ -590,7 +709,8 @@ if [ "$SKIP_LSPS" -eq 0 ]; then
   install_quality_packages
   install_security_scanners
   ensure_extended_lsps
-  ensure_cargo_lsps
+  ensure_cargo_parity_tools
+  ensure_extra_runtimes
 else
   rldyour::log "warn" "LSP layer skipped by --skip-lsps"
 fi
@@ -601,6 +721,8 @@ if [ "$SKIP_BROWSER" -eq 0 ]; then
 else
   rldyour::log "warn" "browser tooling skipped by --skip-browser"
 fi
+
+install_desktop_layer
 
 if [ "$SKIP_CHECKS" -eq 0 ]; then
   run_post_checks

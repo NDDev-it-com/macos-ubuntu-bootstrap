@@ -236,12 +236,34 @@ macOS всегда `desktop` (это GUI-воркстейшн), Ubuntu по ум
 - Профиль `server` этот слой пропускает намеренно (headless), но получает полный
   terminal-first CLI-стек.
 
-#### Известные пробелы паритета Ubuntu (честно)
+#### Полный LSP-паритет Ubuntu (0.2.8) — пробел закрыт
 
-Эти LSP ставятся на macOS через Homebrew, но на Ubuntu пока НЕ имеют надёжного
-apt/uv/cargo-канала и остаются **optional** в `ubuntu/verify.sh` (не ставятся
-автоматически): `terraform-ls`, `helm-ls`, `jdtls` (Java), `kotlin-language-server`,
-`postgres-language-server`. Ставьте вручную при необходимости соответствующего языка.
+Ранее отсутствовавшие LSP теперь ставятся `ensure_parity_lsps` по проверенным
+официальным каналам (best-effort, идемпотентно, dry-run-aware):
+
+- `terraform-ls` — HashiCorp apt repo (`apt.releases.hashicorp.com`).
+- `helm_ls` — GitHub release `helm_ls_linux_<arch>` (mrjosh/helm-ls, pin `v0.5.4`) → `~/.local/bin`.
+- `jdtls` — Eclipse tarball (`download.eclipse.org/jdtls/snapshots`) → `~/.local/share/jdtls`
+  (+ `openjdk-21-jdk`, `python3`).
+- `kotlin-language-server` — GitHub release `server.zip` (fwcd, pin `1.3.13`) → `~/.local/share`
+  (+ `openjdk-21-jre`).
+- `postgres-language-server` — GitHub release binary (supabase-community, pin `0.25.5`) → `~/.local/bin`
+  (LSP-команда `postgres-language-server lsp-proxy`).
+
+Остаются `optional` в `ubuntu/verify.sh` (установка — best-effort загрузка бинарников,
+может транзиентно упасть на конкретном хосте/арх), но ставятся автоматически.
+
+#### Google Cloud CLI (0.2.8)
+
+- macOS: `brew install --cask gcloud-cli` (`ensure_gcloud`).
+- Ubuntu: официальный apt repo `packages.cloud.google.com`, пакет `google-cloud-cli`.
+- Бинарь: `gcloud` (+ `gsutil`, `bq`).
+
+#### Опциональные личные приложения (desktop, 0.2.8)
+
+- macOS: casks `discord`, `obs` (`ensure_personal_apps`).
+- Ubuntu desktop: snap `discord`, `obs-studio` (только `--profile desktop`).
+- Отключить: `RLDYOUR_SKIP_PERSONAL_APPS=1`.
 
 #### Quality-gate CLI (bun global, где нет apt-пакета)
 

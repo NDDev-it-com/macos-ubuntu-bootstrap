@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 03419cc fix(ci): make shell control flow portable
+Last commit: c7fc734 fix(ci): remove unsupported actionlint input
 Scope: README.md, AGENTS.md, .claude/CLAUDE.md, .serena/project.yml, .serena/memories/**
 Area: CORE
 -->
@@ -32,7 +32,7 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 
 ## Current State
 - This module has three tracked memories: `CORE-01-INDEX.md`, `RELEASE-01-VALIDATION.md`, and `TECHDEBT-01-NOW.md`.
-- The 0.3.3 contract composes Apple Silicon macOS desktop, Ubuntu 24.04/26.04 desktop, and Ubuntu 24.04/26.04 server roles. Desktop roles are source/LSP-only; the Ubuntu server role owns build/runtime and explicit Docker modes.
+- The 0.3.4 contract composes Apple Silicon macOS desktop, Ubuntu 24.04/26.04 desktop, and Ubuntu 24.04/26.04 server roles. Desktop roles are source/LSP-only; the Ubuntu server role owns build/runtime and explicit Docker modes.
 - GUI is an optional desktop overlay. Ubuntu server is always headless.
 - The module owns exact AI CLI installation, terminal integration, language-server/tooling installation, and the mandatory CloakBrowser runtime. Native AI CLI configuration remains in sibling adapter repositories.
 - Serena indexes Bash and Python because the implementation is shell-first with Python validators and fault-injection tests.
@@ -48,6 +48,7 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 - commit:0ec6ec6
 - commit:ec5416b
 - commit:03419cc
+- commit:c7fc734
 
 ## Do Not Infer
 - Do not infer current dependency versions, release state, GitHub settings, or CI status from this index; read the source files and live GitHub state.

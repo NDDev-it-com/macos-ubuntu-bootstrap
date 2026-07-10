@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 03419cc fix(ci): make shell control flow portable
+Last commit: c7fc734 fix(ci): remove unsupported actionlint input
 Scope: .gitignore, .serena/project.yml, README.md, AGENTS.md, .claude/CLAUDE.md, scripts/**
 Area: TECHDEBT
 -->
@@ -39,7 +39,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - Managed shell integration edits only delimited source blocks, backs up pre-existing files, and verifies a fresh login shell. Interactive aliases activate only when their target executable exists.
 - ZCode remains an explicit integrity handoff because upstream publishes no checksum/signature manifest. Ubuntu can install it only with an independently supplied SHA-256.
 - Full apply evidence still requires representative Apple Silicon macOS and Ubuntu 24.04/26.04 hosts with launchd/systemd, real user sessions, and the chosen Docker mode. Container-only CI does not prove SSH reachability, UFW behavior, desktop app launch, or Docker daemon health.
-- No current bootstrap contract/version drift: `VERSION`, contract, scripts, frozen locks, docs, SECURITY, and tests agree on release 0.3.3 and its exact runtime pins.
+- No current bootstrap contract/version drift: `VERSION`, contract, scripts, frozen locks, docs, SECURITY, and tests agree on release 0.3.4 and its exact runtime pins.
 
 ## Evidence
 - path:.gitignore
@@ -57,6 +57,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - commit:0ec6ec6
 - commit:ec5416b
 - commit:03419cc
+- commit:c7fc734
 
 ## Do Not Infer
 - Do not infer full workstation installation success from plan-mode scripts; strict verification and optional runtime checks must run on the target machine.

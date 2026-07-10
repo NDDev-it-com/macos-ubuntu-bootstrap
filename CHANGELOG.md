@@ -5,6 +5,12 @@ All notable changes to this module will be documented in this file.
 ## [Unreleased]
 
 
+## [0.3.8] - 2026-07-10
+
+### Fixed
+
+- Preserve signed unmanaged macOS app bundles during idempotent cask installation.
+
 ## [0.3.7] - 2026-07-10
 
 ### Changed

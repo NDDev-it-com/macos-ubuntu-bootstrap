@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts/browser_runtime_integrity.py"
 SPEC = importlib.util.spec_from_file_location("browser_runtime_integrity", MODULE_PATH)
@@ -43,6 +42,37 @@ def test_policy_contract_exposes_only_two_active_providers() -> None:
     assert integrity.ACTIVE_PROVIDERS == ["playwright-cli", "chrome-devtools-mcp"]
     assert b"exit 78\n" in integrity.DISABLED_WEBWRIGHT
     assert b"NOT_PROVEN" in integrity.DISABLED_WEBWRIGHT
+
+
+def test_cloak_runtime_identity_preserves_repository_logical_names(
+    tmp_path: Path,
+) -> None:
+    platform_label = "Darwin-arm64"
+    expected = integrity.content_id(
+        f"cloakbrowser|version={integrity.CLOAK_VERSION}|platform={platform_label}",
+        [
+            ROOT / "templates/browser/cloakbrowser-pyproject.toml",
+            ROOT / "templates/browser/cloakbrowser-uv.lock",
+        ],
+    )
+    assert integrity.cloak_runtime_identity(platform_label) == expected
+
+    # Installed files intentionally use conventional project names. Their
+    # bytes match, but those renamed paths are not the installer's logical
+    # content-ID inputs.
+    project = tmp_path / "pyproject.toml"
+    lock = tmp_path / "uv.lock"
+    project.write_bytes(
+        (ROOT / "templates/browser/cloakbrowser-pyproject.toml").read_bytes()
+    )
+    lock.write_bytes((ROOT / "templates/browser/cloakbrowser-uv.lock").read_bytes())
+    assert (
+        integrity.content_id(
+            f"cloakbrowser|version={integrity.CLOAK_VERSION}|platform={platform_label}",
+            [project, lock],
+        )
+        != expected
+    )
 
 
 def test_receipt_round_trip_rejects_payload_tampering(tmp_path: Path) -> None:

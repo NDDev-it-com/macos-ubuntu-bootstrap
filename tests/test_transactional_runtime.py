@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -8,7 +9,6 @@ import textwrap
 from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 AI_VERSIONS = ("2.1.206", "0.144.1", "1.17.18", "0.1.5")
@@ -25,21 +25,33 @@ def runtime_fixture(tmp_path: Path) -> Path:
     (fixture / "scripts/lib").mkdir(parents=True)
     (fixture / "config").mkdir(parents=True)
     shutil.copy2(ROOT / "scripts/lib/common.sh", fixture / "scripts/lib/common.sh")
-    shutil.copy2(ROOT / "scripts/browser_runtime_integrity.py", fixture / "scripts/browser_runtime_integrity.py")
-    shutil.copy2(ROOT / "scripts/verify-browser-runtime.sh", fixture / "scripts/verify-browser-runtime.sh")
-    shutil.copy2(ROOT / "config/rldyour-contract.json", fixture / "config/rldyour-contract.json")
+    shutil.copy2(
+        ROOT / "scripts/browser_runtime_integrity.py",
+        fixture / "scripts/browser_runtime_integrity.py",
+    )
+    shutil.copy2(
+        ROOT / "scripts/verify-browser-runtime.sh",
+        fixture / "scripts/verify-browser-runtime.sh",
+    )
+    shutil.copy2(
+        ROOT / "config/rldyour-contract.json", fixture / "config/rldyour-contract.json"
+    )
     shutil.copytree(ROOT / "templates/ai-cli", fixture / "templates/ai-cli")
     shutil.copytree(ROOT / "templates/browser", fixture / "templates/browser")
     return fixture
 
 
-def test_browser_provider_apply_preserves_corrupt_runtime_receipt(tmp_path: Path) -> None:
+def test_browser_provider_apply_preserves_corrupt_runtime_receipt(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
     write_executable(fake_bin / "bun", "#!/usr/bin/env bash\nexit 0\n")
-    write_executable(fake_bin / "node", "#!/usr/bin/env bash\nprintf '%s\\n' '24.18.0'\n")
+    write_executable(
+        fake_bin / "node", "#!/usr/bin/env bash\nprintf '%s\\n' '24.18.0'\n"
+    )
     browser_home = home / ".local/share/rldyour/browser-stack"
     browser_home.mkdir(parents=True)
     (browser_home / ".rldyour-browser-stack").write_text(
@@ -86,6 +98,76 @@ def run_bash(
         text=True,
         env=env,
     )
+
+
+@pytest.mark.parametrize("installer_fails", (False, True))
+def test_exact_legacy_cloak_home_migration_is_transactional(
+    tmp_path: Path, installer_fails: bool
+) -> None:
+    fixture = runtime_fixture(tmp_path)
+    home = tmp_path / "home"
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    write_executable(fake_bin / "uname", "#!/usr/bin/env bash\nprintf '%s\\n' TestOS\n")
+    cloak_home = home / ".local/share/rldyour/cloakbrowser"
+    profile = cloak_home / "daemon-profile"
+    profile.mkdir(parents=True)
+    (profile / "owner-state").write_text("preserve\n", encoding="utf-8")
+    (cloak_home / "legacy-runtime").write_text("preserve\n", encoding="utf-8")
+    wrappers = home / ".local/bin"
+    write_executable(wrappers / "cloak-chromium", "#!/usr/bin/env bash\necho legacy\n")
+    write_executable(
+        wrappers / "cloak-chromium-stealth", "#!/usr/bin/env bash\necho legacy\n"
+    )
+    write_executable(
+        wrappers / "chrome-devtools-mcp", "#!/usr/bin/env bash\necho prior-provider\n"
+    )
+    wrapper_before = (wrappers / "cloak-chromium").read_bytes()
+    provider_before = (wrappers / "chrome-devtools-mcp").read_bytes()
+    failure = "return 77" if installer_fails else "return 0"
+    result = run_bash(
+        fixture,
+        home,
+        fake_bin,
+        f"""
+        rldyour::_is_exact_legacy_cloak_home() {{ return 0; }}
+        rldyour::_install_browser_providers_impl() {{
+          [ -f "$HOME/.local/share/rldyour/cloakbrowser/.rldyour-browser-stack" ] || return 64
+          [ "$(cat "$HOME/.local/share/rldyour/cloakbrowser/daemon-profile/owner-state")" = preserve ] || return 65
+          printf '%s\n%s\n' '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' managed \
+            >"$HOME/.local/bin/cloak-chromium"
+          printf '%s\n%s\n' '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' managed \
+            >"$HOME/.local/bin/chrome-devtools-mcp"
+          printf '%s\n%s\n' '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' managed \
+            >"$HOME/.local/bin/playwright-cli"
+          {failure}
+        }}
+        rldyour::install_browser_providers
+        """,
+    )
+
+    if installer_fails:
+        assert result.returncode != 0
+        assert (cloak_home / "legacy-runtime").read_text(
+            encoding="utf-8"
+        ) == "preserve\n"
+        assert not (cloak_home / ".rldyour-browser-stack").exists()
+        assert not list(cloak_home.parent.glob("cloakbrowser-legacy-*"))
+        failed = list(cloak_home.parent.glob("cloakbrowser-failed-*"))
+        assert len(failed) == 1
+        assert (failed[0] / ".rldyour-browser-stack").is_file()
+        assert (wrappers / "cloak-chromium").read_bytes() == wrapper_before
+        assert (wrappers / "chrome-devtools-mcp").read_bytes() == provider_before
+        assert not (wrappers / "playwright-cli").exists()
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (cloak_home / ".rldyour-browser-stack").is_file()
+        assert (profile / "owner-state").read_text(encoding="utf-8") == "preserve\n"
+        backups = list(cloak_home.parent.glob("cloakbrowser-legacy-*"))
+        assert len(backups) == 1
+        assert (backups[0] / "legacy-runtime").read_text(
+            encoding="utf-8"
+        ) == "preserve\n"
 
 
 def install_fake_bun(fake_bin: Path) -> None:
@@ -151,7 +233,9 @@ def install_fake_bun(fake_bin: Path) -> None:
         printf '<%s>' "$@" >>"$FAKE_PROVIDER_LOG"
         printf '\n' >>"$FAKE_PROVIDER_LOG"
         PROVIDER
-        chmod 0755 "$cwd/node_modules/.bin/chrome-devtools-mcp" "$cwd/node_modules/.bin/playwright-cli"
+        # Reproduce Bun/package modes that would be unsafe under a permissive
+        # umask; the installer must normalize them before publication.
+        chmod 0775 "$cwd/node_modules/.bin/chrome-devtools-mcp" "$cwd/node_modules/.bin/playwright-cli"
         """,
     )
 
@@ -219,7 +303,9 @@ def install_verified_cloak_receipt(home: Path) -> Path:
     return binary
 
 
-def test_wrapper_set_publish_rolls_back_after_mid_set_rename_failure(tmp_path: Path) -> None:
+def test_wrapper_set_publish_rolls_back_after_mid_set_rename_failure(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     destination = home / ".local/bin"
@@ -228,8 +314,13 @@ def test_wrapper_set_publish_rolls_back_after_mid_set_rename_failure(tmp_path: P
     marker = "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
     names = ("chrome-devtools-mcp", "playwright-cli", "webwright")
     for name in names:
-        write_executable(destination / name, f"#!/usr/bin/env bash\n{marker}\nprintf '%s\\n' old-{name}\n")
-        write_executable(stage / name, f"#!/usr/bin/env bash\n{marker}\nprintf '%s\\n' new-{name}\n")
+        write_executable(
+            destination / name,
+            f"#!/usr/bin/env bash\n{marker}\nprintf '%s\\n' old-{name}\n",
+        )
+        write_executable(
+            stage / name, f"#!/usr/bin/env bash\n{marker}\nprintf '%s\\n' new-{name}\n"
+        )
     before = {name: (destination / name).read_bytes() for name in names}
 
     fake_bin = tmp_path / "fake-bin"
@@ -251,14 +342,14 @@ def test_wrapper_set_publish_rolls_back_after_mid_set_rename_failure(tmp_path: P
         fixture,
         home,
         fake_bin,
-        r'''
+        r"""
           if rldyour::_publish_managed_wrapper_set \
             "$HOME/.local/bin/.wrapper-stage" "$HOME/.local/bin" \
             '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' \
             chrome-devtools-mcp playwright-cli webwright; then
             exit 99
           fi
-        ''',
+        """,
         extra_env={"FAKE_MV_COUNT": str(tmp_path / "mv.count")},
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -313,7 +404,9 @@ def test_native_artifact_installers_reject_unsafe_managed_paths_before_download(
     assert not download_log.exists()
 
 
-def test_ai_bundle_is_idempotent_and_bun_failure_preserves_runtime_and_wrappers(tmp_path: Path) -> None:
+def test_ai_bundle_is_idempotent_and_bun_failure_preserves_runtime_and_wrappers(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -327,7 +420,10 @@ def test_ai_bundle_is_idempotent_and_bun_failure_preserves_runtime_and_wrappers(
     first = run_bash(fixture, home, fake_bin, command, extra_env=env)
     assert first.returncode == 0, first.stdout + first.stderr
     wrappers = home / ".local/bin"
-    before = {name: (wrappers / name).read_bytes() for name in ("claude", "codex", "opencode", "mimo")}
+    before = {
+        name: (wrappers / name).read_bytes()
+        for name in ("claude", "codex", "opencode", "mimo")
+    }
     runtimes = home / ".local/share/rldyour/ai-cli/runtimes"
     first_runtime = visible_runtimes(runtimes)
     assert len(first_runtime) == 1
@@ -345,7 +441,9 @@ def test_ai_bundle_is_idempotent_and_bun_failure_preserves_runtime_and_wrappers(
     assert before == {name: (wrappers / name).read_bytes() for name in before}
 
     lock = fixture / "templates/ai-cli/bun.lock"
-    lock.write_text(lock.read_text(encoding="utf-8") + "\n# fault-injection\n", encoding="utf-8")
+    lock.write_text(
+        lock.read_text(encoding="utf-8") + "\n# fault-injection\n", encoding="utf-8"
+    )
     failed_upgrade = run_bash(
         fixture,
         home,
@@ -359,7 +457,9 @@ def test_ai_bundle_is_idempotent_and_bun_failure_preserves_runtime_and_wrappers(
     assert not list(runtimes.glob(".*.staging.*"))
 
 
-def test_ai_bundle_rejects_unmanaged_namespace_without_running_bun(tmp_path: Path) -> None:
+def test_ai_bundle_rejects_unmanaged_namespace_without_running_bun(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     unmanaged = home / ".local/share/rldyour/ai-cli"
@@ -384,7 +484,9 @@ def test_ai_bundle_rejects_unmanaged_namespace_without_running_bun(tmp_path: Pat
     assert not (tmp_path / "bun.log").exists()
 
 
-def test_policy_python_ignores_poisoned_pythonpath_for_legacy_ownership(tmp_path: Path) -> None:
+def test_policy_python_ignores_poisoned_pythonpath_for_legacy_ownership(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -406,12 +508,12 @@ def test_policy_python_ignores_poisoned_pythonpath_for_legacy_ownership(tmp_path
         fixture,
         home,
         fake_bin,
-        r'''
+        r"""
           if rldyour::_is_legacy_cloak_service_file launchd \
             "$UNMANAGED" "$HOME/.local/bin" "$HOME/cloak" "$HOME/profile" macos 9222; then
             exit 99
           fi
-        ''',
+        """,
         extra_env={
             "POISON_LOG": str(poison_log),
             "PYTHONHOME": str(poison),
@@ -424,7 +526,9 @@ def test_policy_python_ignores_poisoned_pythonpath_for_legacy_ownership(tmp_path
     assert not poison_log.exists()
 
 
-def test_browser_node_bundle_is_transactional_and_disables_detached_checks(tmp_path: Path) -> None:
+def test_browser_node_bundle_is_transactional_and_disables_detached_checks(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -433,18 +537,22 @@ def test_browser_node_bundle_is_transactional_and_disables_detached_checks(tmp_p
     bun_log = tmp_path / "bun.log"
     provider_log = tmp_path / "provider.log"
     env = {"FAKE_BUN_LOG": str(bun_log), "FAKE_PROVIDER_LOG": str(provider_log)}
-    command = r'''
+    command = r"""
       rldyour::_install_browser_node_bundle \
         1.5.0 0.1.17 "$HOME/browser" \
         "$FIXTURE/templates/browser/provider/package.json" \
         "$FIXTURE/templates/browser/provider/bun.lock" chrome_result playwright_result || exit
       printf '%s\n%s\n' "$chrome_result" "$playwright_result"
-    '''
+    """
 
     first = run_bash(fixture, home, fake_bin, command, extra_env=env)
     assert first.returncode == 0, first.stdout + first.stderr
     runtime_paths = first.stdout.strip().splitlines()[-2:]
     assert all(Path(path).is_file() for path in runtime_paths)
+    assert all(
+        pathlib_mode & 0o022 == 0
+        for pathlib_mode in (path.stat().st_mode for path in map(Path, runtime_paths))
+    )
     assert "chrome usage=1 updates=1" in provider_log.read_text(encoding="utf-8")
     runtimes = home / "browser/node-runtimes"
     first_runtime = visible_runtimes(runtimes)
@@ -459,8 +567,17 @@ def test_browser_node_bundle_is_transactional_and_disables_detached_checks(tmp_p
     assert second.returncode == 0, second.stdout + second.stderr
     assert len(bun_log.read_text(encoding="utf-8").splitlines()) == 1
 
+    Path(runtime_paths[0]).chmod(0o775)
+    repaired = run_bash(fixture, home, fake_bin, command, extra_env=env)
+    assert repaired.returncode == 0, repaired.stdout + repaired.stderr
+    assert len(bun_log.read_text(encoding="utf-8").splitlines()) == 2
+    assert Path(runtime_paths[0]).stat().st_mode & 0o022 == 0
+    assert len(list(runtimes.glob(".*.unsafe-*"))) == 1
+
     lock = fixture / "templates/browser/provider/bun.lock"
-    lock.write_text(lock.read_text(encoding="utf-8") + "\n# fault-injection\n", encoding="utf-8")
+    lock.write_text(
+        lock.read_text(encoding="utf-8") + "\n# fault-injection\n", encoding="utf-8"
+    )
     failed_upgrade = run_bash(
         fixture,
         home,
@@ -474,7 +591,9 @@ def test_browser_node_bundle_is_transactional_and_disables_detached_checks(tmp_p
     assert not list(runtimes.glob(".*.staging.*"))
 
 
-def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(tmp_path: Path) -> None:
+def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -488,11 +607,11 @@ def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(tmp_path: 
         "PYTHONPATH": "poisoned-pythonpath",
         "PYTHONHOME": "poisoned-pythonhome",
     }
-    command = r'''
+    command = r"""
       rldyour::_install_cloak_runtime 0.4.10 "$HOME/cloak" \
         "$FIXTURE/templates/browser" runtime_result || exit
       printf '%s\n' "$runtime_result"
-    '''
+    """
 
     first = run_bash(fixture, home, fake_bin, command, extra_env=env)
     assert first.returncode == 0, first.stdout + first.stderr
@@ -515,7 +634,10 @@ def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(tmp_path: 
 
     wrapper = home / ".local/bin/cloak-chromium"
     wrapper.parent.mkdir(parents=True)
-    wrapper.write_text("# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\nold\n", encoding="utf-8")
+    wrapper.write_text(
+        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\nold\n",
+        encoding="utf-8",
+    )
     before_wrapper = wrapper.read_bytes()
     marker = home / "cloak/.rldyour-browser-stack"
     marker.write_text(
@@ -524,7 +646,9 @@ def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(tmp_path: 
         encoding="utf-8",
     )
     lock = fixture / "templates/browser/cloakbrowser-uv.lock"
-    lock.write_text(lock.read_text(encoding="utf-8") + "\n# fault-injection\n", encoding="utf-8")
+    lock.write_text(
+        lock.read_text(encoding="utf-8") + "\n# fault-injection\n", encoding="utf-8"
+    )
     failed_upgrade = run_bash(
         fixture,
         home,
@@ -538,13 +662,17 @@ def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(tmp_path: 
     assert not list((home / "cloak/runtimes").glob(".*.staging.*"))
 
 
-def test_cloak_install_rejects_symlinked_cache_before_uv_or_download(tmp_path: Path) -> None:
+def test_cloak_install_rejects_symlinked_cache_before_uv_or_download(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
     uv_log = tmp_path / "uv-called"
-    write_executable(fake_bin / "uv", f"#!/usr/bin/env bash\nprintf called >'{uv_log}'\nexit 77\n")
+    write_executable(
+        fake_bin / "uv", f"#!/usr/bin/env bash\nprintf called >'{uv_log}'\nexit 77\n"
+    )
     cloak_home = home / ".local/share/rldyour/cloakbrowser"
     cloak_home.mkdir(parents=True)
     (cloak_home / ".rldyour-browser-stack").write_text(
@@ -608,7 +736,7 @@ def test_deferred_daemon_rollback_restores_linger_through_sudo(tmp_path: Path) -
         fixture,
         home,
         fake_bin,
-        r'''
+        r"""
           rldyour::_rollback_cloak_service_handoff() { return 0; }
           RLDYOUR_CLOAK_DAEMON_TX_KIND=systemd
           RLDYOUR_CLOAK_DAEMON_TX_FILE=/unused/unit
@@ -619,7 +747,7 @@ def test_deferred_daemon_rollback_restores_linger_through_sudo(tmp_path: Path) -
           RLDYOUR_CLOAK_DAEMON_TX_PRIOR_LINGER=0
           RLDYOUR_CLOAK_DAEMON_TX_DOMAIN=
           rldyour::rollback_cloak_daemon_handoff
-        ''',
+        """,
         extra_env={
             "FAKE_LINGER_STATE": str(linger_state),
             "FAKE_SUDO_LOG": str(sudo_log),
@@ -630,9 +758,12 @@ def test_deferred_daemon_rollback_restores_linger_through_sudo(tmp_path: Path) -
     assert "<disable-linger>" in sudo_log.read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("failure_mode", ("restart", "health", "inactive-restart", "linger"))
+@pytest.mark.parametrize("legacy_owned", (False, True))
+@pytest.mark.parametrize(
+    "failure_mode", ("restart", "health", "inactive-restart", "linger")
+)
 def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
-    tmp_path: Path, failure_mode: str
+    tmp_path: Path, failure_mode: str, legacy_owned: bool
 ) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
@@ -721,7 +852,9 @@ def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
         """,
     )
     install_verified_cloak_receipt(home)
-    prior_binary = home / ".local/share/rldyour/cloakbrowser/cache/chromium-prior/chrome"
+    prior_binary = (
+        home / ".local/share/rldyour/cloakbrowser/cache/chromium-prior/chrome"
+    )
     write_executable(prior_binary, "#!/usr/bin/env bash\nexit 23\n")
     prior_sha256 = hashlib.sha256(prior_binary.read_bytes()).hexdigest()
     unit = home / ".config/systemd/user/rldyour-cloakbrowser.service"
@@ -740,7 +873,24 @@ def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
         "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
         f"# rldyour-binary-sha256={prior_sha256}",
     ).replace(str(bin_dir / "cloak-chromium"), str(prior_binary))
-    if failure_mode == "inactive-restart":
+    legacy_old_unit = (
+        "[Unit]\n"
+        "Description=rldyour CloakBrowser headless CDP endpoint\n"
+        "After=default.target\n\n"
+        "[Service]\n"
+        f"ExecStart={bin_dir / 'cloak-chromium'} --headless=new "
+        "--remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 "
+        f"--user-data-dir={profile} --no-first-run --no-default-browser-check "
+        "--fingerprint-platform=linux\n"
+        "Restart=always\n"
+        "RestartSec=3\n\n"
+        "[Install]\n"
+        "WantedBy=default.target\n"
+    )
+    if legacy_owned:
+        old_unit = legacy_old_unit
+        expected_rollback_unit = legacy_old_unit
+    elif failure_mode == "inactive-restart":
         old_unit = expected_stable_rollback
         expected_rollback_unit = old_unit
     else:
@@ -756,19 +906,21 @@ def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
     enabled_state.write_text("enabled\n", encoding="utf-8")
     linger_state.write_text("no\n", encoding="utf-8")
     systemctl_log = tmp_path / "systemctl.log"
-    effective_failure = "restart" if failure_mode == "inactive-restart" else failure_mode
+    effective_failure = (
+        "restart" if failure_mode == "inactive-restart" else failure_mode
+    )
 
     result = run_bash(
         fixture,
         home,
         fake_bin,
-        r'''
+        r"""
           rldyour::_active_cloak_service_binary() {
             printf -v "$5" '%s' "$FAKE_PRIOR_BINARY"
             printf -v "$6" '%s' "$FAKE_PRIOR_SHA256"
           }
           rldyour::install_cloakbrowser_daemon
-        ''',
+        """,
         extra_env={
             "FAKE_ACTIVE_STATE": str(active_state),
             "FAKE_ENABLED_STATE": str(enabled_state),
@@ -782,13 +934,20 @@ def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
     )
     assert result.returncode != 0
     assert unit.read_text(encoding="utf-8") == expected_rollback_unit
-    assert str(bin_dir / "cloak-chromium") not in unit.read_text(encoding="utf-8")
-    assert str(prior_binary) in unit.read_text(encoding="utf-8")
-    assert prior_sha256 in unit.read_text(encoding="utf-8")
+    if legacy_owned:
+        assert str(bin_dir / "cloak-chromium") in unit.read_text(encoding="utf-8")
+        assert str(prior_binary) not in unit.read_text(encoding="utf-8")
+        assert prior_sha256 not in unit.read_text(encoding="utf-8")
+    else:
+        assert str(bin_dir / "cloak-chromium") not in unit.read_text(encoding="utf-8")
+        assert str(prior_binary) in unit.read_text(encoding="utf-8")
+        assert prior_sha256 in unit.read_text(encoding="utf-8")
     assert active_state.read_text(encoding="utf-8").strip() == prior_active
     assert enabled_state.read_text(encoding="utf-8").strip() == "enabled"
     assert linger_state.read_text(encoding="utf-8").strip() == "no"
-    assert not list((home / ".local/share/rldyour/cloakbrowser").glob(".*service-snapshot.*"))
+    assert not list(
+        (home / ".local/share/rldyour/cloakbrowser").glob(".*service-snapshot.*")
+    )
     calls = systemctl_log.read_text(encoding="utf-8")
     assert "<stop><rldyour-cloakbrowser.service>" in calls
     assert "<daemon-reload>" in calls
@@ -797,7 +956,10 @@ def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
         assert "<start><rldyour-cloakbrowser.service>" in calls
 
 
-def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(tmp_path: Path) -> None:
+@pytest.mark.parametrize("legacy_owned", (False, True))
+def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(
+    tmp_path: Path, legacy_owned: bool
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -846,9 +1008,13 @@ def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(t
     )
     bin_dir = home / ".local/bin"
     write_executable(bin_dir / "cloak-chromium", "#!/usr/bin/env bash\nexit 0\n")
-    write_executable(bin_dir / "cloakbrowser-cdp-health", "#!/usr/bin/env bash\nexit 0\n")
+    write_executable(
+        bin_dir / "cloakbrowser-cdp-health", "#!/usr/bin/env bash\nexit 0\n"
+    )
     install_verified_cloak_receipt(home)
-    prior_binary = home / ".local/share/rldyour/cloakbrowser/cache/chromium-prior/Chromium"
+    prior_binary = (
+        home / ".local/share/rldyour/cloakbrowser/cache/chromium-prior/Chromium"
+    )
     write_executable(prior_binary, "#!/usr/bin/env bash\nexit 23\n")
     prior_sha256 = hashlib.sha256(prior_binary.read_bytes()).hexdigest()
     plist = home / "Library/LaunchAgents/com.rldyour.cloakbrowser.plist"
@@ -871,6 +1037,32 @@ def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(t
         "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->\n"
         f"<!-- rldyour-binary-sha256: {prior_sha256} -->",
     ).replace(str(bin_dir / "cloak-chromium"), str(prior_binary))
+    if legacy_owned:
+        old_plist = plistlib.dumps(
+            {
+                "Label": "com.rldyour.cloakbrowser",
+                "ProgramArguments": [
+                    str(bin_dir / "cloak-chromium"),
+                    "--headless=new",
+                    "--remote-debugging-address=127.0.0.1",
+                    "--remote-debugging-port=9222",
+                    f"--user-data-dir={profile}",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--fingerprint-platform=macos",
+                ],
+                "RunAtLoad": True,
+                "KeepAlive": True,
+                "ProcessType": "Background",
+                "StandardErrorPath": str(
+                    home / ".local/share/rldyour/cloakbrowser/daemon.log"
+                ),
+                "StandardOutPath": str(
+                    home / ".local/share/rldyour/cloakbrowser/daemon.log"
+                ),
+            }
+        ).decode("utf-8")
+        expected_rollback_plist = old_plist
     plist.parent.mkdir(parents=True)
     plist.write_text(old_plist, encoding="utf-8")
     launchd_state = tmp_path / "launchd.state"
@@ -883,13 +1075,13 @@ def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(t
         fixture,
         home,
         fake_bin,
-        r'''
+        r"""
           rldyour::_active_cloak_service_binary() {
             printf -v "$5" '%s' "$FAKE_PRIOR_BINARY"
             printf -v "$6" '%s' "$FAKE_PRIOR_SHA256"
           }
           rldyour::install_cloakbrowser_daemon
-        ''',
+        """,
         extra_env={
             "FAKE_BOOTSTRAP_FAILURES": str(bootstrap_failures),
             "FAKE_LAUNCHCTL_LOG": str(launchctl_log),
@@ -900,16 +1092,25 @@ def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(t
     )
     assert result.returncode != 0
     assert plist.read_text(encoding="utf-8") == expected_rollback_plist
-    assert str(prior_binary) in plist.read_text(encoding="utf-8")
-    assert prior_sha256 in plist.read_text(encoding="utf-8")
+    if legacy_owned:
+        assert str(bin_dir / "cloak-chromium") in plist.read_text(encoding="utf-8")
+        assert str(prior_binary) not in plist.read_text(encoding="utf-8")
+        assert prior_sha256 not in plist.read_text(encoding="utf-8")
+    else:
+        assert str(prior_binary) in plist.read_text(encoding="utf-8")
+        assert prior_sha256 in plist.read_text(encoding="utf-8")
     assert launchd_state.read_text(encoding="utf-8").strip() == "loaded"
-    assert not list((home / ".local/share/rldyour/cloakbrowser").glob(".*service-snapshot.*"))
+    assert not list(
+        (home / ".local/share/rldyour/cloakbrowser").glob(".*service-snapshot.*")
+    )
     calls = launchctl_log.read_text(encoding="utf-8")
     assert calls.count("<bootstrap>") == 2
     assert calls.count("<bootout>") >= 2
 
 
-def test_cloak_health_accepts_restored_prior_binary_with_managed_provenance(tmp_path: Path) -> None:
+def test_cloak_health_accepts_restored_prior_binary_with_managed_provenance(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -927,7 +1128,9 @@ def test_cloak_health_accepts_restored_prior_binary_with_managed_provenance(tmp_
         """,
     )
     current_binary = install_verified_cloak_receipt(home)
-    prior_binary = home / ".local/share/rldyour/cloakbrowser/cache/chromium-prior/chrome"
+    prior_binary = (
+        home / ".local/share/rldyour/cloakbrowser/cache/chromium-prior/chrome"
+    )
     write_executable(prior_binary, "#!/usr/bin/env bash\nexit 23\n")
     (home / ".local/share/rldyour/cloakbrowser/.rldyour-browser-stack").write_text(
         "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
@@ -977,26 +1180,34 @@ def test_cloak_health_accepts_restored_prior_binary_with_managed_provenance(tmp_
         printf '%s\\n' '{prior_binary} --headless=new --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir={profile} --no-first-run --no-default-browser-check --fingerprint-platform=linux'
         """,
     )
-    write_executable(fake_bin / "readlink", f"#!/usr/bin/env bash\nprintf '%s\\n' '{prior_binary}'\n")
+    write_executable(
+        fake_bin / "readlink", f"#!/usr/bin/env bash\nprintf '%s\\n' '{prior_binary}'\n"
+    )
     write_executable(
         fake_bin / "ss",
         "#!/usr/bin/env bash\nprintf '%s\\n' 'LISTEN 0 128 127.0.0.1:9222 users:((chrome,pid=4242,fd=3))'\n",
     )
     write_executable(
         fake_bin / "curl",
-        "#!/usr/bin/env bash\nprintf '%s\\n' '{\"Browser\":\"Cloak\",\"Protocol-Version\":\"1.3\",\"webSocketDebuggerUrl\":\"ws://127.0.0.1:9222/devtools/browser/test\"}'\n",
+        '#!/usr/bin/env bash\nprintf \'%s\\n\' \'{"Browser":"Cloak","Protocol-Version":"1.3","webSocketDebuggerUrl":"ws://127.0.0.1:9222/devtools/browser/test"}\'\n',
     )
     health = subprocess.run(
         [str(home / ".local/bin/cloakbrowser-cdp-health")],
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "HOME": str(home), "PATH": f"{fake_bin}:{os.environ['PATH']}"},
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        },
     )
     assert health.returncode == 0, health.stdout + health.stderr
 
 
-def test_browser_wrappers_reject_privacy_bypasses_and_ignore_global_remote(tmp_path: Path) -> None:
+def test_browser_wrappers_reject_privacy_bypasses_and_ignore_global_remote(
+    tmp_path: Path,
+) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -1043,13 +1254,15 @@ def test_browser_wrappers_reject_privacy_bypasses_and_ignore_global_remote(tmp_p
     )
     malicious = home / ".playwright/cli.config.json"
     malicious.parent.mkdir(parents=True)
-    malicious.write_text('{"browser":{"remoteEndpoint":"http://attacker.invalid"}}\n', encoding="utf-8")
+    malicious.write_text(
+        '{"browser":{"remoteEndpoint":"http://attacker.invalid"}}\n', encoding="utf-8"
+    )
     env = {
         "FAKE_CHROME_PROVIDER": str(chrome_provider),
         "FAKE_PLAYWRIGHT_PROVIDER": str(playwright_provider),
         "WRAPPER_PROVIDER_LOG": str(provider_log),
     }
-    install = r'''
+    install = r"""
       rldyour::_install_browser_node_bundle() {
         printf -v "$6" '%s' "$FAKE_CHROME_PROVIDER"
         printf -v "$7" '%s' "$FAKE_PLAYWRIGHT_PROVIDER"
@@ -1066,7 +1279,7 @@ def test_browser_wrappers_reject_privacy_bypasses_and_ignore_global_remote(tmp_p
       rldyour::install_cloakbrowser_daemon() { :; }
       rldyour::_publish_browser_runtime_receipt() { :; }
       rldyour::install_browser_providers
-    '''
+    """
     installed = run_bash(fixture, home, fake_bin, install, extra_env=env)
     assert installed.returncode == 0, installed.stdout + installed.stderr
 
@@ -1118,8 +1331,13 @@ def test_browser_wrappers_reject_privacy_bypasses_and_ignore_global_remote(tmp_p
     )
     assert playwright.returncode == 0, playwright.stdout + playwright.stderr
     playwright_log = provider_log.read_text(encoding="utf-8").splitlines()[-1]
-    expected_empty_root = home / ".local/share/rldyour/browser-stack/playwright-global-empty"
-    assert f"notifier=1 global={expected_empty_root} global_exists=0 route=cdp" in playwright_log
+    expected_empty_root = (
+        home / ".local/share/rldyour/browser-stack/playwright-global-empty"
+    )
+    assert (
+        f"notifier=1 global={expected_empty_root} global_exists=0 route=cdp"
+        in playwright_log
+    )
     assert not any(expected_empty_root.iterdir())
     config_runtimes = home / ".local/share/rldyour/browser-stack/config-runtimes"
     published_configs = sorted(config_runtimes.glob("config-*/playwright-cli.json"))
@@ -1131,13 +1349,21 @@ def test_browser_wrappers_reject_privacy_bypasses_and_ignore_global_remote(tmp_p
     assert old_config.read_bytes() == old_config_bytes
 
     provider_lines = provider_log.read_text(encoding="utf-8").splitlines()
-    for forbidden_args in (("run-code",), ("--filename", "payload.py"), ("--filename=payload.py",)):
+    for forbidden_args in (
+        ("run-code",),
+        ("--filename", "payload.py"),
+        ("--filename=payload.py",),
+    ):
         rejected_code = subprocess.run(
             [str(wrappers / "playwright-cli"), *forbidden_args],
             capture_output=True,
             text=True,
             check=False,
-            env={**os.environ, "HOME": str(home), "WRAPPER_PROVIDER_LOG": str(provider_log)},
+            env={
+                **os.environ,
+                "HOME": str(home),
+                "WRAPPER_PROVIDER_LOG": str(provider_log),
+            },
         )
         assert rejected_code.returncode == 64
         assert "arbitrary code and file execution are disabled" in rejected_code.stderr
@@ -1166,4 +1392,4 @@ def test_retired_webwright_has_no_runtime_or_python_execution_path() -> None:
     assert "--performanceCrux|--performanceCrux=*" in common
     assert "CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1" in common
     assert 'export PWTEST_CLI_GLOBAL_CONFIG="\\$global_config_root"' in common
-    assert 'export NO_UPDATE_NOTIFIER=1' in common
+    assert "export NO_UPDATE_NOTIFIER=1" in common

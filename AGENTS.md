@@ -221,7 +221,8 @@ Docker runtime evidence that was not actually produced.
 - Do not force-push `main` or rewrite pushed history without explicit approval.
 - Releases support numeric tag pushes and a numeric `workflow_dispatch` input.
   Manual dispatch must use the exact `origin/main` commit, require its green
-  `bootstrap-gate`, and create or reuse only an exact non-rewritten tag; the
-  pinned reusable workflow owns immutable release publication.
+  `bootstrap-gate`, and verify an already existing exact non-rewritten tag.
+  Root automation is the sole tag creator; the pinned reusable workflow owns
+  immutable release publication.
 - Move any superproject gitlink only after this repository's changes are pushed
   and verified.

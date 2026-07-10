@@ -877,7 +877,7 @@ def test_release_keeps_numeric_tag_push_path() -> None:
     assert '[ "$RELEASE_REF_TYPE" = "tag" ]' in release
 
 
-def test_release_manual_dispatch_creates_or_reuses_safe_exact_tag() -> None:
+def test_release_manual_dispatch_requires_existing_safe_exact_tag() -> None:
     release = file(".github/workflows/release.yml")
     assert "workflow_dispatch:" in release
     assert "inputs:\n      version:" in release
@@ -890,17 +890,18 @@ def test_release_manual_dispatch_creates_or_reuses_safe_exact_tag() -> None:
     assert "without leading zeros" in release
     assert "manual release must dispatch the exact origin/main commit" in release
     assert "check_name=bootstrap-gate&status=completed" in release
-    assert "prepare-tag:\n    name: Prepare exact manual release tag" in release
-    assert "checks: read\n      contents: write" in release
+    assert "verify-tag:\n    name: Verify exact manual release tag" in release
+    assert "checks: read\n      contents: read" in release
     assert "persist-credentials: false" in release
-    assert "persist-credentials: true" in release
-    assert "Create or reuse exact release tag" in release
-    assert 'git tag "$RELEASE_VERSION" "$GITHUB_SHA"' in release
-    assert 'git push origin "$tag_ref"' in release
+    assert "persist-credentials: true" not in release
+    assert "Require existing exact release tag" in release
+    assert "root automation creates tags" in release
+    assert 'git tag "$RELEASE_VERSION"' not in release
+    assert "git push origin" not in release
     assert 'git rev-parse --verify "${tag_ref}^{commit}"' in release
     assert "existing tag '$RELEASE_VERSION' points to a different commit" in release
-    assert "needs: [resolve, prepare-tag]" in release
-    assert "needs.prepare-tag.result == 'skipped'" in release
+    assert "needs: [resolve, verify-tag]" in release
+    assert "needs.verify-tag.result == 'skipped'" in release
     assert "--force" not in release
     assert "gh release create" in release
     assert "--verify-tag" in release

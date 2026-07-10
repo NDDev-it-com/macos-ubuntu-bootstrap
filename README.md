@@ -245,9 +245,10 @@ Docker daemon state.
 Numeric tag pushes remain the primary release path. A manual
 `workflow_dispatch` accepts only the exact numeric value from `VERSION`, must
 run at the current `origin/main` commit with a successful `bootstrap-gate`, and
-may create or reuse only a tag that resolves to that exact commit. It never
-rewrites a tag. The pinned reusable supply-chain workflow then publishes one
-immutable release with checksums, an SPDX SBOM, and attestations.
+requires an already existing tag that resolves to that exact commit. It never
+creates or rewrites a tag; root release automation is the sole tag creator. The
+pinned reusable supply-chain workflow then publishes one immutable release
+with checksums, an SPDX SBOM, and attestations.
 
 ## Security And Support
 

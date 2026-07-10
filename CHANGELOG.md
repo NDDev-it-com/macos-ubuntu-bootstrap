@@ -10,9 +10,10 @@ All notable changes to this module will be documented in this file.
 
 - Restore the standard numeric `workflow_dispatch.inputs.version` release
   path. Manual dispatch now requires the exact `origin/main` commit and its
-  successful `bootstrap-gate`, creates or reuses only an exact non-rewritten
-  tag, and retains the pinned immutable supply-chain publication used by
-  numeric tag pushes.
+  successful `bootstrap-gate`, verifies an already existing exact
+  non-rewritten tag, and retains the pinned immutable supply-chain publication
+  used by numeric tag pushes. Root release automation remains the sole tag
+  creator.
 
 ## [0.3.4] - 2026-07-10
 

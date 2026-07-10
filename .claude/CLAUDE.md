@@ -159,9 +159,10 @@ Never claim runtime evidence that was not produced.
 
 Release automation accepts a numeric tag push or an exact numeric
 `workflow_dispatch` version. Manual dispatch must target current `origin/main`,
-require its successful `bootstrap-gate`, and may create or reuse only the exact
-non-rewritten tag. Immutable publication remains delegated to the pinned
-reusable supply-chain workflow.
+require its successful `bootstrap-gate`, and must verify an already existing
+exact non-rewritten tag. Root automation remains the sole tag creator;
+immutable publication is delegated to the pinned reusable supply-chain
+workflow.
 
 ## Change Discipline
 

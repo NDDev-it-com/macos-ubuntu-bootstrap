@@ -26,7 +26,7 @@ When prose and implementation disagree, verify the scripts and contract, then
 update the affected documentation in the same change. Do not invent a second
 policy source.
 
-## Contract `0.3.4`
+## Contract `0.3.5`
 
 Ubuntu profile selection is always explicit. Never infer server/rootful Docker
 from `uname=Linux`; require `--profile desktop|server`.
@@ -219,5 +219,9 @@ Docker runtime evidence that was not actually produced.
 - Keep implementation, tests/validators, docs/policy, and generated metadata
   independently reviewable when practical.
 - Do not force-push `main` or rewrite pushed history without explicit approval.
+- Releases support numeric tag pushes and a numeric `workflow_dispatch` input.
+  Manual dispatch must use the exact `origin/main` commit, require its green
+  `bootstrap-gate`, and create or reuse only an exact non-rewritten tag; the
+  pinned reusable workflow owns immutable release publication.
 - Move any superproject gitlink only after this repository's changes are pushed
   and verified.

@@ -4,12 +4,18 @@ on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Numeric VERSION to release; creates or reuses the exact tag."
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.workflow }}-${{ github.ref }}
+  group: release-${{ github.workflow }}-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -28,11 +34,32 @@ jobs:
           persist-credentials: false
       - name: Resolve version
         id: version
+        env:
+          RELEASE_EVENT_NAME: ${{ github.event_name }}
+          RELEASE_INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_REF_NAME: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME}"
-          [ "${GITHUB_REF_TYPE}" = "tag" ] || {
-            echo "release workflow must run from a tag ref" >&2
+          case "$RELEASE_EVENT_NAME" in
+            push)
+              [ "$RELEASE_REF_TYPE" = "tag" ] || {
+                echo "release push must run from a tag ref" >&2
+                exit 1
+              }
+              version="$RELEASE_REF_NAME"
+              ;;
+            workflow_dispatch)
+              version="$RELEASE_INPUT_VERSION"
+              ;;
+            *)
+              echo "unsupported release event '$RELEASE_EVENT_NAME'" >&2
+              exit 1
+              ;;
+          esac
+          printf '%s' "$version" | grep -Eq \
+            '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || {
+            echo "release version '$version' must be numeric SemVer X.Y.Z without leading zeros" >&2
             exit 1
           }
           file_version="$(tr -d '[:space:]' < VERSION)"
@@ -46,7 +73,9 @@ jobs:
           }
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Require tag commit on main
+      - name: Require release commit on main
+        env:
+          RELEASE_EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
@@ -54,6 +83,13 @@ jobs:
             echo "release tag commit must be reachable from origin/main" >&2
             exit 1
           }
+          if [ "$RELEASE_EVENT_NAME" = "workflow_dispatch" ]; then
+            main_sha="$(git rev-parse --verify origin/main)"
+            [ "$GITHUB_SHA" = "$main_sha" ] || {
+              echo "manual release must dispatch the exact origin/main commit" >&2
+              exit 1
+            }
+          fi
 
       - name: Prepare release validation tools
         run: |
@@ -71,8 +107,70 @@ jobs:
       - name: Validate workflow syntax
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7
 
-  supply-chain:
+  prepare-tag:
+    name: Prepare exact manual release tag
+    if: github.event_name == 'workflow_dispatch'
     needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: read
+      contents: write
+    steps:
+      - name: Checkout exact dispatch commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: true
+
+      - name: Create or reuse exact release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          main_sha="$(git rev-parse --verify origin/main)"
+          [ "$GITHUB_SHA" = "$main_sha" ] || {
+            echo "manual release commit is no longer the exact origin/main commit" >&2
+            exit 1
+          }
+          gate_conclusion="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?check_name=bootstrap-gate&status=completed&filter=latest&per_page=1" \
+              --jq '.check_runs[0].conclusion // ""'
+          )"
+          [ "$gate_conclusion" = "success" ] || {
+            echo "manual release requires a successful bootstrap-gate on the exact commit" >&2
+            exit 1
+          }
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            echo "release '$RELEASE_VERSION' already exists and is immutable; bump VERSION" >&2
+            exit 1
+          fi
+
+          tag_ref="refs/tags/${RELEASE_VERSION}"
+          remote_tag="$(git ls-remote --refs origin "$tag_ref" | awk 'NR == 1 { print $1 }')"
+          if [ -n "$remote_tag" ]; then
+            git fetch --no-tags origin "${tag_ref}:${tag_ref}"
+            tag_commit="$(git rev-parse --verify "${tag_ref}^{commit}")"
+            [ "$tag_commit" = "$GITHUB_SHA" ] || {
+              echo "existing tag '$RELEASE_VERSION' points to a different commit" >&2
+              exit 1
+            }
+            echo "reusing exact tag '$RELEASE_VERSION' at '$tag_commit'"
+          else
+            git tag "$RELEASE_VERSION" "$GITHUB_SHA"
+            git push origin "$tag_ref"
+          fi
+
+  # The pinned reusable workflow owns immutable `gh release create`
+  # publication with `--verify-tag`; this caller only prepares an exact tag.
+  supply-chain:
+    needs: [resolve, prepare-tag]
+    if: ${{ always() && needs.resolve.result == 'success' && (needs.prepare-tag.result == 'success' || needs.prepare-tag.result == 'skipped') }}
     permissions:
       contents: write
       id-token: write

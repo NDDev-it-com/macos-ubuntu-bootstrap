@@ -4,6 +4,16 @@ All notable changes to this module will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-10
+
+### Fixed
+
+- Restore the standard numeric `workflow_dispatch.inputs.version` release
+  path. Manual dispatch now requires the exact `origin/main` commit and its
+  successful `bootstrap-gate`, creates or reuses only an exact non-rewritten
+  tag, and retains the pinned immutable supply-chain publication used by
+  numeric tag pushes.
+
 ## [0.3.4] - 2026-07-10
 
 ### Fixed

@@ -5,7 +5,7 @@ Plan-first bootstrap automation for Apple Silicon macOS desktops, Ubuntu
 
 ## Current Contract
 
-The adapter contract version is `0.3.4`.
+The adapter contract version is `0.3.5`.
 
 - **macOS Apple Silicon:** desktop, GUI or no GUI, Docker `none`, source/LSP
   only.
@@ -239,6 +239,15 @@ bash scripts/ubuntu/verify-server.sh --docker-mode rootful
 Full server verification requires a real Ubuntu VM with systemd. Container-only
 CI cannot prove SSH reachability, firewall exposure, time synchronization, or
 Docker daemon state.
+
+## Release Automation
+
+Numeric tag pushes remain the primary release path. A manual
+`workflow_dispatch` accepts only the exact numeric value from `VERSION`, must
+run at the current `origin/main` commit with a successful `bootstrap-gate`, and
+may create or reuse only a tag that resolves to that exact commit. It never
+rewrites a tag. The pinned reusable supply-chain workflow then publishes one
+immutable release with checksums, an SPDX SBOM, and attestations.
 
 ## Security And Support
 

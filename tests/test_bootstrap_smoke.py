@@ -103,7 +103,7 @@ def test_contract_version_and_profile_matrix() -> None:
     contract = json.loads(file("config/rldyour-contract.json"))
     assert contract["schema_version"] == 2
     version = file("VERSION").strip()
-    assert contract["adapter"]["version"] == version == "0.3.4"
+    assert contract["adapter"]["version"] == version == "0.3.5"
     assert json.loads(file("templates/ai-cli/package.json"))["version"] == version
     assert json.loads(file("templates/browser/provider/package.json"))["version"] == version
     assert f'version = "{version}"' in file("templates/browser/cloakbrowser-pyproject.toml")
@@ -869,8 +869,38 @@ def test_dependency_check_enforces_frozen_ai_and_antigravity_channels() -> None:
     assert 'marker = "antigravity.google/cli/install.sh"' not in workflow
 
 
-def test_release_is_tag_only() -> None:
+def test_release_keeps_numeric_tag_push_path() -> None:
     release = file(".github/workflows/release.yml")
-    assert "workflow_dispatch:" not in release
-    assert 'version="${GITHUB_REF_NAME}"' in release
-    assert '"${GITHUB_REF_TYPE}" = "tag"' in release
+    assert 'tags:\n      - "[0-9]+.[0-9]+.[0-9]+"' in release
+    assert 'RELEASE_REF_NAME: ${{ github.ref_name }}' in release
+    assert 'RELEASE_REF_TYPE: ${{ github.ref_type }}' in release
+    assert '[ "$RELEASE_REF_TYPE" = "tag" ]' in release
+
+
+def test_release_manual_dispatch_creates_or_reuses_safe_exact_tag() -> None:
+    release = file(".github/workflows/release.yml")
+    assert "workflow_dispatch:" in release
+    assert "inputs:\n      version:" in release
+    assert 'RELEASE_INPUT_VERSION: ${{ inputs.version }}' in release
+    input_lines = [
+        line.strip() for line in release.splitlines() if "${{ inputs.version }}" in line
+    ]
+    assert input_lines == ["RELEASE_INPUT_VERSION: ${{ inputs.version }}"]
+    assert "group: release-${{ github.workflow }}-${{ inputs.version || github.ref_name }}" in release
+    assert "without leading zeros" in release
+    assert "manual release must dispatch the exact origin/main commit" in release
+    assert "check_name=bootstrap-gate&status=completed" in release
+    assert "prepare-tag:\n    name: Prepare exact manual release tag" in release
+    assert "checks: read\n      contents: write" in release
+    assert "persist-credentials: false" in release
+    assert "persist-credentials: true" in release
+    assert "Create or reuse exact release tag" in release
+    assert 'git tag "$RELEASE_VERSION" "$GITHUB_SHA"' in release
+    assert 'git push origin "$tag_ref"' in release
+    assert 'git rev-parse --verify "${tag_ref}^{commit}"' in release
+    assert "existing tag '$RELEASE_VERSION' points to a different commit" in release
+    assert "needs: [resolve, prepare-tag]" in release
+    assert "needs.prepare-tag.result == 'skipped'" in release
+    assert "--force" not in release
+    assert "gh release create" in release
+    assert "--verify-tag" in release

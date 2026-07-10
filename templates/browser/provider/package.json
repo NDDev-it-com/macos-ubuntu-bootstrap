@@ -1,6 +1,6 @@
 {
   "name": "rldyour-browser-providers",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "dependencies": {
     "@playwright/cli": "0.1.17",

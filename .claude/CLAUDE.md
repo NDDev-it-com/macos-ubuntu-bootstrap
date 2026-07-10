@@ -10,7 +10,7 @@ Maintain one plan-first bootstrap adapter for:
 
 The public entry point is `scripts/bootstrap.sh`. Treat
 `config/rldyour-contract.json`, the platform installers, verification scripts,
-and tests as the executable contract. Current adapter version: `0.3.4`.
+and tests as the executable contract. Current adapter version: `0.3.5`.
 
 ## Composition Invariants
 
@@ -156,6 +156,12 @@ python3 -m pytest
 Use `bash -n` and `shellcheck -x` for targeted shell changes. Run strict
 platform verification on the corresponding real OS when behavior changes.
 Never claim runtime evidence that was not produced.
+
+Release automation accepts a numeric tag push or an exact numeric
+`workflow_dispatch` version. Manual dispatch must target current `origin/main`,
+require its successful `bootstrap-gate`, and may create or reuse only the exact
+non-rewritten tag. Immutable publication remains delegated to the pinned
+reusable supply-chain workflow.
 
 ## Change Discipline
 

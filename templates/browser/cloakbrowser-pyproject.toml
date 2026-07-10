@@ -1,7 +1,7 @@
 # Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
 [project]
 name = "rldyour-cloakbrowser-runtime"
-version = "0.3.8"
+version = "0.3.9"
 requires-python = ">=3.10"
 dependencies = [
   "cloakbrowser==0.4.10",

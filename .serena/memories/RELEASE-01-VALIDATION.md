@@ -44,9 +44,9 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Existing unmanaged state is preserved. Managed runtime and service publication is content-addressed, health-gated, and rollback-aware.
 
 ## Current State
-- Current product/config version is `0.3.6`.
+- Current product/config version is `0.3.7`.
 - Supported targets are Apple Silicon macOS desktop and Ubuntu 24.04/26.04 desktop/server on amd64 or arm64. Desktop Docker mode is always `none`; server Docker is explicit `none`, `rootful`, or `rootless`.
-- Exact AI pins are Claude Code `2.1.206`, Codex CLI `0.144.1`, OpenCode `1.17.18`, MiMoCode `0.1.5`, and Antigravity `1.1.0` with self-update disabled.
+- Exact AI pins are Claude Code `2.1.206`, Codex CLI `0.144.1`, OpenCode `1.17.18`, MiMoCode `0.1.5`, and Antigravity `1.1.1` with self-update disabled.
 - The mandatory browser baseline is CloakBrowser `0.4.10`, Chrome DevTools MCP `1.5.0`, and Playwright CLI `0.1.17` on loopback CDP `127.0.0.1:9222`; Webwright has no installed runtime or dependency tree.
 - AI, browser Node, and CloakBrowser runtimes install from repository-owned frozen locks into content-addressed directories before an atomic wrapper/service/receipt handoff.
 - Ubuntu server hardening is opt-in. SSH key/algorithm/Match context, UFW operator CIDR, Docker ownership, APT key identity, time service, Fail2ban, systemd linger, and rollback state are validated fail closed.
@@ -58,7 +58,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Pinned `raven-actions/actionlint` steps rely on supported default workflow discovery. Regression coverage scans every Raven actionlint use and rejects the unsupported `args` input that GitHub would annotate.
 - The dedicated pytest workflow cancels superseded runs for the same workflow/ref while keeping different refs isolated.
 - Manual release dispatch maps its version input through the environment, rejects non-canonical numeric SemVer, requires the exact current `origin/main` commit and its successful `bootstrap-gate`, and verifies an already existing exact non-rewritten tag in a read-only job. Root release automation is the sole tag creator; the pinned reusable workflow owns immutable publication.
-- The verified 0.3.6 local implementation gate is 66 pytest tests plus lint, validate, Ruff, Pyright, ShellCheck, actionlint, and diff checks. Hosted validation/release jobs provision ShellCheck and ripgrep, while every hosted pytest surface provisions Zsh for terminal portability coverage. Live hosted GitHub status remains a separate check before publication.
+- The verified 0.3.7 local implementation gate is 66 pytest tests plus lint, validate, Ruff, Pyright, ShellCheck, actionlint, and diff checks. Hosted validation/release jobs provision ShellCheck and ripgrep, while every hosted pytest surface provisions Zsh for terminal portability coverage. Live hosted GitHub status remains a separate check before publication.
 
 ## Evidence
 - path:VERSION

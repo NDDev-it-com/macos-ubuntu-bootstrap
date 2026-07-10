@@ -8,168 +8,79 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
 
 STRICT=0
-INCLUDE_OPTIONAL=1
-
-for arg in "${@:-}"; do
+GUI_ENABLED="${RLDYOUR_GUI_ENABLED:-1}"
+for arg in "$@"; do
   case "$arg" in
-    --strict)
-      STRICT=1
-      ;;
-    --skip-optional)
-      INCLUDE_OPTIONAL=0
-      ;;
+    --strict) STRICT=1 ;;
+    --no-gui) GUI_ENABLED=0 ;;
     --help)
-      cat <<'EOF'
-Usage: scripts/macos/verify.sh [--strict] [--skip-optional]
-EOF
+      echo "Usage: scripts/macos/verify.sh [--strict] [--no-gui]"
       exit 0
       ;;
+    *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
 
 rldyour::ensure_path
-rldyour::section "rldyour-new-mac-or-ubuntu macOS verification"
+rldyour::section "Verify macOS source/LSP workstation"
 
 required_cmds=(
-  "git"
-  "curl"
-  "node"
-  "bun"
-  "uv"
-  "python3"
-  "go"
-  "rustup"
-  "dart"
-  "java"
-  "shellcheck"
-  "shfmt"
-  "pyright-langserver"
-  "pyright"
-  "ruff"
-  "basedpyright"
-  "tsc"
-  "vtsls"
-  "yaml-language-server"
-  "bash-language-server"
-  "rust-analyzer"
-  "gopls"
-  "marksman"
-  "markdown-oxide"
-  "taplo"
-  "terraform-ls"
-  "helm_ls"
-  "clangd"
-  "jdtls"
-  "kotlin-language-server"
-  "cmake-language-server"
-  "oxlint"
-  "biome"
-  "osv-scanner"
-  "gitleaks"
-  "semgrep"
-  "hadolint"
-  "actionlint"
-  "yamllint"
-  "markdownlint-cli2"
-  "jq"
-  "fd"
-  "eza"
-  "bat"
-  "xh"
-  "jaq"
-  "jnv"
-  "duckdb"
-  "ast-grep"
-  "scc"
-  "difft"
-  "gh"
-  "lazygit"
-  "yazi"
-  "tmux"
-  "starship"
-  "atuin"
-  "fzf"
-  "zoxide"
-  "carapace"
-  "dust"
-  "dua"
-  "duf"
-  "procs"
-  "btop"
-  "doggo"
-  "gping"
-  "hexyl"
-  "sd"
-  "viddy"
-  "tldr"
-  "delta"
-  "watchexec"
-  "hyperfine"
-  "just"
-  "prettier"
-  "pandoc"
-  "codex"
-  "opencode"
-  "vscode-html-language-server"
-  "vscode-css-language-server"
-  "vscode-json-language-server"
-  "postgres-language-server"
+  git curl node bun uv python3 shellcheck shfmt clangd gopls
+  pyright pyright-langserver basedpyright ruff
+  tsc vtsls yaml-language-server bash-language-server docker-langserver
+  vscode-html-language-server vscode-css-language-server vscode-json-language-server
+  taplo marksman terraform-ls cmake-language-server
+  claude codex opencode mimo agy rtk
+  cloak-chromium cloakbrowser-cdp-health chrome-devtools-mcp playwright-cli webwright
 )
-
-# Browser providers (chrome-devtools-mcp, playwright-cli) are intentionally
-# optional: they are installed by the --skip-browser-gated
-# rldyour::install_browser_providers layer and must not fail strict verification
-# on server-only or headless profiles where the browser layer is skipped.
-optional_cmds=(
-  "mimo"
-  "agy"
-  "ty"
-  "tsgo"
-  "sqls"
-  "R"
-  "kubeconform"
-  "mise"
-  "gh-actions-language-server"
-  "gcloud"
-  "chrome-devtools-mcp"
-  "playwright-cli"
-  "cloak-chromium"
-  "rtk"
-)
-
 for cmd in "${required_cmds[@]}"; do
   rldyour::require_cmd "$cmd" required
 done
-
-rldyour::require_one_of_cmd required claude-code claude
-# macOS provides Docker's `docker-language-server` (Homebrew); Ubuntu provides
-# `docker-langserver` (dockerfile-language-server-nodejs). Either satisfies the
-# Dockerfile LSP requirement.
 rldyour::require_one_of_cmd required docker-language-server docker-langserver
 
-if [ "$INCLUDE_OPTIONAL" -eq 1 ]; then
-  for cmd in "${optional_cmds[@]}"; do
-    rldyour::require_cmd "$cmd" optional
+rldyour::require_cmd_min_version node 20.19 --version
+[ "$(claude --version 2>/dev/null | head -n 1)" = "2.1.206 (Claude Code)" ] || {
+  rldyour::log "missing" "Claude Code exact managed version 2.1.206"
+  exit 1
+}
+[ "$(codex --version 2>/dev/null | head -n 1)" = "codex-cli 0.144.1" ] || {
+  rldyour::log "missing" "Codex exact managed version 0.144.1"
+  exit 1
+}
+[ "$(opencode --version 2>/dev/null | head -n 1)" = "1.17.18" ] || {
+  rldyour::log "missing" "OpenCode exact managed version 1.17.18"
+  exit 1
+}
+[ "$(mimo --version 2>/dev/null | head -n 1)" = "0.1.5" ] || {
+  rldyour::log "missing" "MiMoCode exact managed version 0.1.5"
+  exit 1
+}
+[ "$(agy --version 2>/dev/null | head -n 1)" = "1.1.0" ] || {
+  rldyour::log "missing" "agy exact managed version 1.1.0"
+  exit 1
+}
+rtk --version 2>/dev/null | head -n 1 | grep -Eq '^rtk[[:space:]]+0\.43\.0([[:space:]]|$)' || {
+  rldyour::log "missing" "rtk exact managed version 0.43.0"
+  exit 1
+}
+cloakbrowser-cdp-health
+chrome-devtools-mcp --version | grep -Fq "1.5.0"
+playwright-cli --version | grep -Fq "0.1.17"
+rldyour::verify_terminal_environment
+
+if [ "$GUI_ENABLED" -eq 1 ]; then
+  for app in Ghostty cmux ChatGPT Claude; do
+    [ -d "/Applications/${app}.app" ] || {
+      rldyour::log "missing" "required GUI app: /Applications/${app}.app"
+      exit 1
+    }
   done
 fi
 
-rldyour::section "Runtime versions"
-printf 'git:      %s\n' "$(git --version)"
-printf 'node:     %s\n' "$(node --version)"
-printf 'bun:      %s\n' "$(bun --version)"
-printf 'uv:       %s\n' "$(uv --version)"
-printf 'go:       %s\n' "$(go version | awk '{print $3}')"
-printf 'rustup:   %s\n' "$(rustup --version | head -n 1)"
-printf 'dart:     %s\n' "$(dart --version 2>&1 | head -n 1)"
-printf 'python:   %s\n' "$(python3 --version)"
-printf 'java:     %s\n' "$(java -version 2>&1 | head -n 1)"
-printf 'clangd:   %s\n' "$(clangd --version 2>&1 | head -n 1)"
-# R is optional; only print when actually installed so this section never aborts
-# verification under `set -euo pipefail` when R is absent.
-if command -v R >/dev/null 2>&1; then
-  printf 'r:        %s\n' "$(R --version 2>&1 | head -n 1)"
+if command -v docker >/dev/null 2>&1; then
+  rldyour::log "warn" "unmanaged Docker is present; this desktop bootstrap neither uses nor removes it"
+else
+  rldyour::log "ok" "desktop policy: Docker is absent"
 fi
 
-if [ "$STRICT" -eq 1 ] || [ "$INCLUDE_OPTIONAL" -eq 0 ]; then
-  rldyour::log "info" "verification finished in strict-like mode"
-fi
+[ "$STRICT" -eq 0 ] || rldyour::log "ok" "strict macOS verification passed"

@@ -26,11 +26,14 @@ check_cmd shellcheck
 
 SCRIPT_PATHS=(
   "$REPO_ROOT/scripts/bootstrap.sh"
+  "$REPO_ROOT/scripts/auth-handoff.sh"
   "$REPO_ROOT/scripts/lib/common.sh"
   "$REPO_ROOT/scripts/macos/install.sh"
   "$REPO_ROOT/scripts/macos/verify.sh"
   "$REPO_ROOT/scripts/ubuntu/install.sh"
+  "$REPO_ROOT/scripts/ubuntu/server.sh"
   "$REPO_ROOT/scripts/ubuntu/verify.sh"
+  "$REPO_ROOT/scripts/ubuntu/verify-server.sh"
   "$REPO_ROOT/scripts/ci/lint.sh"
   "$REPO_ROOT/scripts/ci/validate.sh"
 )

@@ -1,255 +1,785 @@
-import subprocess
-from pathlib import Path
+import hashlib
+import json
+import os
 import re
+import subprocess
+import tarfile
+from pathlib import Path
 
 
-def run_shell(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def run_shell(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        cmd,
+        ["bash", "scripts/bootstrap.sh", *args],
+        cwd=ROOT,
         capture_output=True,
         check=False,
         text=True,
     )
 
 
-def parse_array(body: str, pattern: re.Pattern[str], name: str) -> set[str]:
-    match = pattern.search(body)
+def file(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
+def parse_array(body: str, name: str) -> set[str]:
+    match = re.search(rf"^\s*{re.escape(name)}=\((.*?)\)", body, re.MULTILINE | re.DOTALL)
     assert match is not None, f"{name} array not found"
-    raw = match.group(1)
-    tokens = []
-    for token in re.findall(r"\"([^\"]+)\"|'([^']+)'|([^\s#]+)", raw):
-        value = (token[0] or token[1] or token[2]).strip()
+    values: list[str] = []
+    for quoted_double, quoted_single, bare in re.findall(
+        r'"([^"]+)"|\'([^\']+)\'|([^\s#]+)', match.group(1)
+    ):
+        value = quoted_double or quoted_single or bare
         if value:
-            tokens.append(value)
-    return set(tokens)
+            values.append(value)
+    return set(values)
 
 
-BUN_LSP_PATTERN = re.compile(r"^\s*BUN_LSP_PACKAGES=\((.*?)\)", re.MULTILINE | re.DOTALL)
-BREW_SYSTEM_PATTERN = re.compile(r"^\s*BREW_SYSTEM_PACKAGES=\((.*?)\)", re.MULTILINE | re.DOTALL)
-PYTHON_TOOLING_PATTERN = re.compile(r"^\s*PYTHON_TOOLING_PACKAGES=\((.*?)\)", re.MULTILINE | re.DOTALL)
-
-
-def test_bootstrap_help() -> None:
-    result = run_shell(["bash", "scripts/bootstrap.sh", "--help"])
+def test_help_documents_composed_profiles() -> None:
+    result = run_shell("--help")
     assert result.returncode == 0
-    assert "Usage: scripts/bootstrap.sh" in result.stdout
-    assert "--platform macos|ubuntu" in result.stdout
+    assert "--gui|--no-gui" in result.stdout
+    assert "--docker-mode none|rootful|rootless" in result.stdout
+    assert "source editing" in result.stdout
+    assert "CloakBrowser" in result.stdout
 
 
-def test_bootstrap_plan_is_dry_run_safe() -> None:
-    result = run_shell(
+def test_plan_matrix_is_non_destructive() -> None:
+    common = ("--plan", "--skip-system", "--skip-ai", "--skip-lsps", "--skip-checks")
+    matrix = (
+        ("--platform", "macos", "--profile", "desktop", "--gui"),
+        ("--platform", "macos", "--profile", "desktop", "--no-gui"),
+        ("--platform", "ubuntu", "--profile", "desktop", "--gui"),
+        ("--platform", "ubuntu", "--profile", "desktop", "--no-gui"),
+        ("--platform", "ubuntu", "--profile", "server", "--docker-mode", "rootful"),
+        ("--platform", "ubuntu", "--profile", "server", "--docker-mode", "rootless"),
+    )
+    for profile in matrix:
+        result = run_shell(*profile, *common)
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert "dry-run" in result.stdout
+        assert "CloakBrowser" in result.stdout
+
+
+def test_invalid_profile_combinations_fail_closed() -> None:
+    invalid = (
+        ("--platform", "ubuntu"),
+        ("--platform", "macos", "--profile", "server"),
+        ("--platform", "ubuntu", "--profile", "server", "--gui"),
+        ("--platform", "ubuntu", "--profile", "desktop", "--docker-mode", "rootful"),
+        ("--platform", "ubuntu", "--skip-browser"),
+    )
+    for args in invalid:
+        result = run_shell(*args, "--plan")
+        assert result.returncode != 0
+
+
+def test_contract_version_and_profile_matrix() -> None:
+    contract = json.loads(file("config/rldyour-contract.json"))
+    assert contract["schema_version"] == 2
+    assert contract["adapter"]["version"] == file("VERSION").strip() == "0.3.0"
+    assert contract["targets"]["macos"]["architectures"] == ["arm64"]
+    assert contract["targets"]["ubuntu"]["releases"] == ["24.04", "26.04"]
+    assert contract["targets"]["ubuntu"]["profiles"]["server"]["default_docker_mode"] == "rootful"
+    assert contract["targets"]["ubuntu"]["profiles"]["desktop"]["docker_modes"] == ["none"]
+    assert contract["runtime_support"]["ubuntu_node_lts"] == "24.18.0"
+    assert set(contract["runtime_support"]["ubuntu_node_sha256"]) == {"x64", "arm64"}
+    assert contract["runtime_support"]["ubuntu_uv"] == "0.11.28"
+    assert contract["runtime_support"]["ubuntu_bun"] == "1.3.14"
+    assert contract["safety"]["ubuntu_profile_selection"] == "explicit"
+
+
+def test_ai_pins_match_both_installers_contract_and_docs() -> None:
+    names = {
+        "CLAUDE_CODE_VERSION": "2.1.206",
+        "CODEX_VERSION": "0.144.1",
+        "OPENCODE_VERSION": "1.17.18",
+        "MIMOCODE_VERSION": "0.1.5",
+    }
+    installers = (file("scripts/macos/install.sh"), file("scripts/ubuntu/install.sh"))
+    for body in installers:
+        for name, version in names.items():
+            assert f'{name}="{version}"' in body
+    contract = json.loads(file("config/rldyour-contract.json"))["ai_cli"]
+    assert contract == {
+        "claude_code": "2.1.206",
+        "codex": "0.144.1",
+        "opencode": "1.17.18",
+        "mimocode": "0.1.5",
+        "antigravity": "1.1.0",
+    }
+    for path in ("README.md", "AGENTS.md", ".claude/CLAUDE.md", "docs/install.md"):
+        body = file(path)
+        for version in names.values():
+            assert version in body, f"{path} missing {version}"
+
+
+def test_ai_cli_bundle_is_frozen_and_runs_no_lifecycle_scripts() -> None:
+    expected = {
+        "@anthropic-ai/claude-code": "2.1.206",
+        "@mimo-ai/cli": "0.1.5",
+        "@openai/codex": "0.144.1",
+        "opencode-ai": "1.17.18",
+    }
+    manifest = json.loads(file("templates/ai-cli/package.json"))
+    assert manifest["dependencies"] == expected
+    assert "trustedDependencies" not in manifest
+    lock = file("templates/ai-cli/bun.lock")
+    assert "trustedDependencies" not in lock
+    for package, version in expected.items():
+        assert f'"{package}@{version}"' in lock
+    assert lock.count("sha512-") >= len(expected)
+
+    common = file("scripts/lib/common.sh")
+    assert "install_ai_cli_bundle" in common
+    assert "--frozen-lockfile --ignore-scripts" in common
+    assert "OpenCode's locked native optional" in common
+    assert "ai-cli-runtime-v1" in common
+    for installer in (file("scripts/macos/install.sh"), file("scripts/ubuntu/install.sh")):
+        assert "install_ai_cli_bundle" in installer
+        for package in expected:
+            assert f'bun add -g "{package}@' not in installer
+
+
+def test_desktop_manifests_exclude_project_runtime_and_docker() -> None:
+    macos = parse_array(file("scripts/macos/install.sh"), "BREW_SOURCE_PACKAGES")
+    ubuntu = parse_array(file("scripts/ubuntu/install.sh"), "APT_SOURCE_PACKAGES")
+    forbidden_macos = {"docker", "docker-desktop", "go", "rustup", "dart", "cmake", "openjdk", "mise", "deno", "cargo-nextest"}
+    forbidden_ubuntu = {"docker.io", "docker-ce", "build-essential", "golang-go", "rustc", "cargo", "dart", "cmake", "default-jdk", "r-base"}
+    assert macos.isdisjoint(forbidden_macos)
+    assert ubuntu.isdisjoint(forbidden_ubuntu)
+    assert "llvm" in macos  # Homebrew's supported clangd distribution only.
+    assert "docker-language-server" in macos
+    assert "dockerfile-language-server-nodejs" in parse_array(file("scripts/ubuntu/install.sh"), "BUN_LSP_PACKAGES")
+    cloak_runtime = parse_array(file("scripts/ubuntu/install.sh"), "APT_CLOAK_RUNTIME_PACKAGES")
+    for dependency in ("libnss3", "libgbm1", "libgtk-3-0t64", "fonts-liberation"):
+        assert dependency in cloak_runtime
+
+
+def test_server_module_owns_docker_and_safe_hardening() -> None:
+    server = file("scripts/ubuntu/server.sh")
+    for package in (
+        "docker-ce",
+        "docker-ce-cli",
+        "containerd.io",
+        "docker-buildx-plugin",
+        "docker-compose-plugin",
+    ):
+        assert package in server
+    assert "24.04" in server and "26.04" in server
+    assert "docker group is intentionally unchanged" in server
+    assert "sshd -t" in server
+    assert "--enable-ufw" in server and "--harden-ssh" in server
+    assert "sysctl -w" not in server
+    assert "/etc/sysctl.d" not in server
+    assert "/etc/security/limits" not in server
+    assert "docker_rootless_preflight" in server
+    assert "existing rootful Docker/containerd state will be preserved" in server
+    assert "rm -f /var/run/docker.sock" not in server
+    assert "/etc/apt/keyrings/rldyour-docker.asc" in server
+    assert "/etc/apt/sources.list.d/rldyour-docker.sources" in server
+    assert "exact ownership is recorded in a sidecar" in server
+    assert "RLDYOUR_SERVER_DOCKER_GPG_FINGERPRINT" not in server
+    assert "rollback_ufw" in server
+    assert 'chown root:root -- "$destination"' in server
+
+
+def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
+    common = file("scripts/lib/common.sh")
+    bootstrap = file("scripts/bootstrap.sh")
+    contract = json.loads(file("config/rldyour-contract.json"))["browser_automation"]
+    assert contract == {
+        "required": True,
+        "provider": "cloakbrowser",
+        "cloakbrowser": "0.4.10",
+        "cdp_endpoint": "http://127.0.0.1:9222",
+        "fallback_allowed": False,
+        "chrome_devtools_mcp": "1.5.0",
+        "playwright_cli": "0.1.17",
+        "webwright_commit": "4a46f282ec37f27d6003cc498a977939d62d9015",
+    }
+    assert "RLDYOUR_BROWSER_REQUIRED=1" in bootstrap
+    assert "--skip-browser is unsupported" in bootstrap
+    assert 'local pin="0.4.10"' in common
+    assert "127.0.0.1:9222" in common
+    assert "alternate CDP endpoint rejected" in common
+    provider_manifest = json.loads(file("templates/browser/provider/package.json"))
+    assert provider_manifest["dependencies"] == {
+        "@playwright/cli": "0.1.17",
+        "chrome-devtools-mcp": "1.5.0",
+    }
+    assert "4a46f282ec37f27d6003cc498a977939d62d9015" in common
+    assert "local_cdp_auto_start: false" in file("templates/browser/webwright-local-cdp.yaml")
+    assert '"cdpEndpoint": "http://127.0.0.1:9222"' in file("templates/browser/playwright-cli.json")
+    assert "uv sync" in common and "--frozen --no-dev" in common
+    assert "webwright-uv.lock" in common
+    assert "--frozen-lockfile" in common
+    provider_lock = file("templates/browser/provider/bun.lock")
+    assert '"chrome-devtools-mcp": ["chrome-devtools-mcp@1.5.0"' in provider_lock
+    assert '"@playwright/cli": ["@playwright/cli@0.1.17"' in provider_lock
+    lock = file("templates/browser/webwright-uv.lock")
+    assert "version = 1" in lock and "sha256:" in lock
+    cloak_lock = file("templates/browser/cloakbrowser-uv.lock")
+    assert 'name = "cloakbrowser"' in cloak_lock
+    assert 'version = "0.4.10"' in cloak_lock
+    assert "36342e97f02f82af43beda972ee785df69b9a17db374019109dd2b70b7c124d6" in cloak_lock
+
+
+def test_browser_fail_closed_regressions_are_guarded() -> None:
+    common = file("scripts/lib/common.sh")
+    for forbidden in (
+        "CLOAKBROWSER_BINARY_PATH",
+        "CLOAKBROWSER_DOWNLOAD_URL",
+        "CLOAKBROWSER_SKIP_CHECKSUM",
+        "CLOAKBROWSER_VERSION",
+        "CLOAKBROWSER_WIDEVINE_CDM",
+    ):
+        assert forbidden in common
+    assert "install|install-browser|attach)" in common
+    assert "'--' cannot bypass the mandatory CDP and privacy flags" in common
+    assert "'--' cannot bypass the mandatory CDP configuration" in common
+    assert "--endpoint|--endpoint=*" in common
+    assert "--no-usage-statistics --no-performance-crux" in common
+    assert "CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS=1" in common
+    assert "NO_UPDATE_NOTIFIER=1" in common
+    assert "PWTEST_DAEMON_SESSION_DIR" in common
+    assert 'browser="${webwright_home}/src/webwright/config/local_browser.yaml"' in common
+    assert 'model="${webwright_home}/src/webwright/config/model_openai.yaml"' in common
+    assert r'"\$@" -c "\$overlay"' in common
+    assert "MainPID" in common
+    assert "fixed CDP listener is not owned by the managed service PID" in common
+    assert "service executable is not the verified CloakBrowser binary" in common
+    assert "browser provider executable smoke check failed" in common
+    assert "_playwright_config_owner_valid" in common
+    assert 'chmod "$mode" "$dest"' in common
+
+
+def test_browser_trust_override_propagates_to_public_entrypoint() -> None:
+    result = subprocess.run(
         [
             "bash",
             "scripts/bootstrap.sh",
             "--platform",
             "ubuntu",
+            "--profile",
+            "desktop",
+            "--no-gui",
             "--plan",
             "--skip-system",
             "--skip-ai",
             "--skip-lsps",
             "--skip-checks",
-        ]
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        env={**os.environ, "CLOAKBROWSER_BINARY_PATH": "/tmp/unmanaged-browser"},
     )
-    assert result.returncode == 0
-    assert "rldyour-new-mac-or-ubuntu (Ubuntu) installer" in result.stdout
-    assert "mode: dry-run" in result.stdout
+    assert result.returncode != 0
+    assert "forbidden by the signed CloakBrowser trust policy" in result.stdout
 
 
-def test_profile_pin_and_lsp_parity() -> None:
-    macos = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
-    ubuntu = Path("scripts/ubuntu/install.sh").read_text(encoding="utf-8")
-
-    pattern = re.compile(r"^(CLAUDE_CODE_VERSION|CODEX_VERSION|OPENCODE_VERSION|MIMOCODE_VERSION)=\"([^\"]+)\"$", re.MULTILINE)
-
-    macos_versions = {k: v for k, v in pattern.findall(macos)}
-    ubuntu_versions = {k: v for k, v in pattern.findall(ubuntu)}
-
-    assert macos_versions and ubuntu_versions
-    assert macos_versions == ubuntu_versions
-    assert "2.1.204" in macos_versions.get("CLAUDE_CODE_VERSION", "")
-    assert "0.142.5" in macos_versions.get("CODEX_VERSION", "")
-    assert "1.17.15" in macos_versions.get("OPENCODE_VERSION", "")
-    assert "0.1.4" in macos_versions.get("MIMOCODE_VERSION", "")
-
-    assert "gopls" in macos
-
-
-def test_ubuntu_installs_marksman_for_verify_contract() -> None:
-    ubuntu = Path("scripts/ubuntu/install.sh").read_text(encoding="utf-8")
-    macos = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
-    verify = Path("scripts/ubuntu/verify.sh").read_text(encoding="utf-8")
-
-    # marksman is not published on npm, so it must NOT be bun-installed. Ubuntu
-    # installs it from the pinned artempyanykh/marksman GitHub release binary.
-    assert "marksman" not in parse_array(ubuntu, BUN_LSP_PATTERN, "ubuntu BUN_LSP_PACKAGES")
-    assert "artempyanykh/marksman" in ubuntu
-    assert "ensure_marksman" in ubuntu
-
-    # macOS installs marksman from Homebrew; verify still requires the binary.
-    assert "marksman" in parse_array(macos, BREW_SYSTEM_PATTERN, "macOS BREW_SYSTEM_PACKAGES")
-    assert "marksman" in verify
-
-
-def test_lsp_install_channels_use_published_packages() -> None:
-    """Lock the clean-PC install channels so broken package names never regress."""
-    macos = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
-    ubuntu = Path("scripts/ubuntu/install.sh").read_text(encoding="utf-8")
-    macos_verify = Path("scripts/macos/verify.sh").read_text(encoding="utf-8")
-    ubuntu_verify = Path("scripts/ubuntu/verify.sh").read_text(encoding="utf-8")
-
-    # taplo ships as the npm `@taplo/cli` package; the bare `taplo` name is
-    # unpublished on npm and must never be bun-installed.
-    ubuntu_bun = parse_array(ubuntu, BUN_LSP_PATTERN, "ubuntu BUN_LSP_PACKAGES")
-    assert "@taplo/cli" in ubuntu_bun
-    assert "taplo" not in ubuntu_bun
-    assert "taplo" not in parse_array(macos, BUN_LSP_PATTERN, "macOS BUN_LSP_PACKAGES")
-
-    # `pyright` ships both `pyright` and `pyright-langserver`; there is no
-    # separate `pyright-langserver` distribution to install.
-    for body, name in ((macos, "macOS"), (ubuntu, "ubuntu")):
-        tooling = parse_array(body, PYTHON_TOOLING_PATTERN, f"{name} PYTHON_TOOLING_PACKAGES")
-        assert "pyright" in tooling
-        assert "pyright-langserver" not in tooling
-
-    # Homebrew llvm is keg-only, so macOS must symlink clangd onto PATH.
-    assert "ensure_clangd" in macos
-
-    # The Dockerfile LSP is satisfied by either command name across platforms.
-    for verify_body in (macos_verify, ubuntu_verify):
-        assert "require_one_of_cmd required docker-language-server docker-langserver" in verify_body
-
-
-AI_PIN_PATTERN = re.compile(
-    r"^(CLAUDE_CODE_VERSION|CODEX_VERSION|OPENCODE_VERSION|MIMOCODE_VERSION)=\"([^\"]+)\"$",
-    re.MULTILINE,
-)
-
-
-def test_ai_runtime_pins_match_documentation_surfaces() -> None:
-    """Doc surfaces must cite the same AI CLI versions the installer pins.
-
-    The installer profiles (scripts/*/install.sh) are the source of truth for
-    AI runtime pins. README, instruction docs, and the install matrix duplicate
-    those versions for humans; without this guard a pin bump (e.g.
-    2.1.199 -> 2.1.201) can land in the installers while the prose silently
-    drifts, and no other check catches it.
-    """
-    install = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
-    pins = {name: value for name, value in AI_PIN_PATTERN.findall(install)}
-    assert set(pins) == {
-        "CLAUDE_CODE_VERSION",
-        "CODEX_VERSION",
-        "OPENCODE_VERSION",
-        "MIMOCODE_VERSION",
-    }, f"unexpected installer pin set: {sorted(pins)}"
-
-    doc_surfaces = (
-        "README.md",
-        "AGENTS.md",
-        ".claude/CLAUDE.md",
-        "docs/install.md",
+def test_browser_managed_file_repairs_mode_and_rejects_marker_substrings(tmp_path: Path) -> None:
+    common_path = ROOT / "scripts/lib/common.sh"
+    marker = "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+    managed = tmp_path / "managed"
+    managed_content = f"{marker}\npayload\n"
+    managed.write_text(managed_content, encoding="utf-8")
+    managed.chmod(0o600)
+    script = r'''
+source "$1"
+export RLDYOUR_DRY_RUN=0
+printf '%s' "$CONTENT" | rldyour::_install_managed_browser_file "$2" "$3" 0755
+'''
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(common_path), str(managed), marker],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "CONTENT": managed_content},
     )
-    for surface in doc_surfaces:
-        text = Path(surface).read_text(encoding="utf-8")
-        for name, version in pins.items():
-            assert version in text, (
-                f"{surface} is missing {name}={version}; align the doc surface "
-                f"with the installer pin"
-            )
+    assert result.returncode == 0, result.stderr
+    assert managed.stat().st_mode & 0o777 == 0o755
+
+    unmanaged = tmp_path / "unmanaged"
+    original = f"prefix {marker} suffix\nowner data\n"
+    unmanaged.write_text(original, encoding="utf-8")
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(common_path), str(unmanaged), marker],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "CONTENT": managed_content},
+    )
+    assert result.returncode != 0
+    assert unmanaged.read_text(encoding="utf-8") == original
 
 
-def test_vtsls_replaces_typescript_language_server() -> None:
-    """@vtsls/language-server must replace typescript-language-server.
+def test_antigravity_artifact_install_is_pinned_and_tamper_evident(tmp_path: Path) -> None:
+    payload = tmp_path / "antigravity"
+    payload.write_text("#!/usr/bin/env bash\nprintf '1.1.0\\n'\n", encoding="utf-8")
+    payload.chmod(0o755)
+    archive = tmp_path / "agy.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        bundle.add(payload, arcname="antigravity")
+    sha512 = hashlib.sha512(archive.read_bytes()).hexdigest()
 
-    vtsls was chosen as the TS/JS LSP (better feature parity with the VS Code
-    TS extension; selected by Zed and LazyVim). A future PR must not silently
-    restore typescript-language-server or drop the vtsls entry.
-    """
-    for profile in ("macos", "ubuntu"):
-        body = Path(f"scripts/{profile}/install.sh").read_text(encoding="utf-8")
-        bun_lsp = parse_array(body, BUN_LSP_PATTERN, f"{profile} BUN_LSP_PACKAGES")
-        assert "@vtsls/language-server" in bun_lsp, (
-            f"{profile} BUN_LSP_PACKAGES must include @vtsls/language-server"
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_curl = fake_bin / "curl"
+    fake_curl.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+destination=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output) destination=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+cp "$FAKE_ARCHIVE" "$destination"
+""",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(0o755)
+    fake_uname = fake_bin / "uname"
+    fake_uname.write_text(
+        "#!/usr/bin/env bash\n[ \"${1:-}\" = -s ] && { echo Linux; exit 0; }\nexec /usr/bin/uname \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_uname.chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    interrupted = home / ".local/share/rldyour/antigravity/1.1.0"
+    interrupted.mkdir(parents=True)
+    (interrupted / "agy.sha256").write_text(
+        "# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1\n"
+        "version=1.1.0\n"
+        f"sha256={hashlib.sha256(payload.read_bytes()).hexdigest()}\n",
+        encoding="utf-8",
+    )
+    script = r'''
+source "$1"
+export RLDYOUR_DRY_RUN=0
+rldyour::install_antigravity_artifact 1.1.0 https://example.invalid/agy.tar.gz "$2"
+'''
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "FAKE_ARCHIVE": str(archive),
+    }
+    common_path = ROOT / "scripts/lib/common.sh"
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(common_path), sha512],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    launcher = home / ".local/bin/agy"
+    assert "AGY_CLI_DISABLE_AUTO_UPDATE=true" in launcher.read_text(encoding="utf-8")
+    assert subprocess.check_output([launcher, "--version"], text=True).strip() == "1.1.0"
+
+    # A fully valid managed installation must be a clean no-download rerun.
+    second = subprocess.run(
+        ["bash", "-c", script, "_", str(common_path), sha512],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert second.returncode == 0, second.stderr + second.stdout
+    assert subprocess.check_output([launcher, "--version"], text=True).strip() == "1.1.0"
+
+    managed_binary = home / ".local/share/rldyour/antigravity/1.1.0/agy"
+    managed_binary.write_bytes(managed_binary.read_bytes() + b"\n# tampered\n")
+    tampered = subprocess.run(
+        [launcher, "--version"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert tampered.returncode == 126
+    assert "managed binary identity changed" in tampered.stderr
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(common_path), sha512],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert "binary identity changed" in result.stdout
+
+
+def test_rtk_artifact_install_is_pinned_and_tamper_evident(tmp_path: Path) -> None:
+    payload = tmp_path / "rtk"
+    payload.write_text("#!/usr/bin/env bash\nprintf 'rtk 0.43.0\\n'\n", encoding="utf-8")
+    payload.chmod(0o755)
+    archive = tmp_path / "rtk.tar.gz"
+    with tarfile.open(archive, "w:gz") as bundle:
+        bundle.add(payload, arcname="rtk")
+    sha256 = hashlib.sha256(archive.read_bytes()).hexdigest()
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_curl = fake_bin / "curl"
+    fake_curl.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+destination=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output) destination=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+cp "$FAKE_ARCHIVE" "$destination"
+""",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(0o755)
+    fake_uname = fake_bin / "uname"
+    fake_uname.write_text(
+        "#!/usr/bin/env bash\n"
+        "case \"${1:-}\" in -s) echo Linux ;; -m) echo x86_64 ;; *) exec /usr/bin/uname \"$@\" ;; esac\n",
+        encoding="utf-8",
+    )
+    fake_uname.chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    interrupted = home / ".local/share/rldyour/rtk/0.43.0"
+    interrupted.mkdir(parents=True)
+    (interrupted / "rtk.sha256").write_text(
+        "# Managed by rldyour-new-mac-or-ubuntu: rtk-v1\n"
+        "version=0.43.0\n"
+        f"sha256={hashlib.sha256(payload.read_bytes()).hexdigest()}\n",
+        encoding="utf-8",
+    )
+    common_path = ROOT / "scripts/lib/common.sh"
+    script = r'''
+source "$1"
+export RLDYOUR_DRY_RUN=0
+rldyour::install_rtk
+'''
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "FAKE_ARCHIVE": str(archive),
+    }
+    # Replace the production hash only inside the sourced test copy so the
+    # installer path and receipt behavior are exercised without network access.
+    test_common = tmp_path / "common.sh"
+    test_common.write_text(
+        common_path.read_text(encoding="utf-8").replace(
+            "ff8a1e7766496e175291a85aeca1dc97c9ff6df33e51e5893d1fbc78fea2a609",
+            sha256,
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(test_common)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    launcher = home / ".local/bin/rtk"
+    assert subprocess.check_output([launcher, "--version"], text=True).strip() == "rtk 0.43.0"
+
+    managed_binary = home / ".local/share/rldyour/rtk/0.43.0/rtk"
+    managed_binary.write_bytes(managed_binary.read_bytes() + b"\n# tampered\n")
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(test_common)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert "binary identity changed" in result.stdout
+
+
+def test_browser_commands_are_required_in_verifiers() -> None:
+    for platform in ("macos", "ubuntu"):
+        verify = file(f"scripts/{platform}/verify.sh")
+        required = parse_array(verify, "required_cmds")
+        for command in (
+            "cloak-chromium",
+            "cloakbrowser-cdp-health",
+            "chrome-devtools-mcp",
+            "playwright-cli",
+            "webwright",
+        ):
+            assert command in required
+    ubuntu_verify = file("scripts/ubuntu/verify.sh")
+    assert "tool_host_provenance" in ubuntu_verify
+    assert "ubuntu-runtime-v1" in ubuntu_verify
+    assert "managed_link" in ubuntu_verify
+
+
+def test_remote_code_is_never_piped_directly_to_shell() -> None:
+    for path in (ROOT / "scripts").rglob("*.sh"):
+        body = path.read_text(encoding="utf-8")
+        assert not re.search(r"curl[^\n|]*\|\s*(?:ba)?sh", body), path
+
+
+def test_remote_installers_have_tracked_integrity_roots() -> None:
+    macos = file("scripts/macos/install.sh")
+    ubuntu = file("scripts/ubuntu/install.sh")
+    common = file("scripts/lib/common.sh")
+    assert "HOMEBREW_PKG_VERSION=" in macos
+    assert "HOMEBREW_PKG_SHA256=" in macos
+    assert "pkgutil --check-signature" in macos
+    assert "spctl --assess --type install" in macos
+    for body in (macos, ubuntu):
+        assert "ANTIGRAVITY_ARTIFACT_SHA512" in body
+        assert "install_antigravity_artifact" in body
+        assert "antigravity.google/cli/install.sh" not in body
+    assert "AGY_CLI_DISABLE_AUTO_UPDATE=true" in common
+    assert "AGY_CLI_DISABLE_AUTO_UPDATE=true" in file("templates/terminal/zshenv")
+    assert "DISABLE_AUTOUPDATER=1" in common
+    assert "DISABLE_UPDATES=1" in common
+    assert "DISABLE_AUTOUPDATER=1" in file("templates/terminal/zshenv")
+    assert "DISABLE_UPDATES=1" in file("templates/terminal/zshenv")
+    assert "download_verified_file" in common
+    assert "astral.sh/uv/install.sh" not in ubuntu
+    assert "bun.sh/install" not in ubuntu
+    supply = json.loads(file("config/rldyour-contract.json"))["supply_chain"]
+    for value in supply.values():
+        if isinstance(value, bool):
+            continue
+        assert str(value) in macos + ubuntu + common or str(value).startswith("templates/")
+
+
+def test_existing_homebrew_packages_are_never_implicitly_upgraded() -> None:
+    macos = file("scripts/macos/install.sh")
+    assert "brew upgrade" not in macos
+    assert "brew outdated" not in macos
+    assert "preserving installed Homebrew formula" in macos
+    assert "preserving installed Homebrew cask" in macos
+
+
+def test_versioned_native_artifacts_publish_on_the_destination_filesystem() -> None:
+    common = file("scripts/lib/common.sh")
+    ubuntu = file("scripts/ubuntu/install.sh")
+    assert '.agy.tmp.XXXXXX' in common
+    assert '.rtk.tmp.XXXXXX' in common
+    assert '.node-${NODE_VERSION}.tmp.XXXXXX' in ubuntu
+    assert '.uv-${UV_VERSION}.tmp.XXXXXX' in ubuntu
+    assert '.bun-${BUN_VERSION}.tmp.XXXXXX' in ubuntu
+    assert 'mv "$stage" "$destination"' in ubuntu
+    assert "ubuntu-runtime-v1" in ubuntu
+    assert "validate_runtime_receipt" in ubuntu
+    assert "preflight_managed_link" in ubuntu
+    for function_name in ("ensure_node", "ensure_uv", "ensure_bun"):
+        match = re.search(
+            rf"^{function_name}\(\) \{{(.*?)(?=^\w[^\n]*\(\) \{{)",
+            ubuntu,
+            re.MULTILINE | re.DOTALL,
         )
-        assert "typescript-language-server" not in bun_lsp, (
-            f"{profile} BUN_LSP_PACKAGES must not include typescript-language-server"
+        assert match is not None
+        assert "command -v" not in match.group(1), (
+            f"{function_name} must not trust an external PATH version"
         )
 
 
-def test_browser_providers_are_optional_in_verify() -> None:
-    """Browser providers must be optional, not required, in verify.sh.
-
-    chrome-devtools-mcp and playwright-cli are installed by the
-    --skip-browser-gated rldyour::install_browser_providers layer. Listing them
-    as required would fail strict verification on server-only or headless
-    profiles where the browser layer is intentionally skipped.
-    """
-    for profile in ("macos", "ubuntu"):
-        verify = Path(f"scripts/{profile}/verify.sh").read_text(encoding="utf-8")
-        required = parse_array(verify, re.compile(r"^\s*required_cmds=\((.*?)\)", re.MULTILINE | re.DOTALL), f"{profile} required_cmds")
-        optional = parse_array(verify, re.compile(r"^\s*optional_cmds=\((.*?)\)", re.MULTILINE | re.DOTALL), f"{profile} optional_cmds")
-        for cmd in ("chrome-devtools-mcp", "playwright-cli"):
-            assert cmd not in required, (
-                f"{profile} verify.sh must not list {cmd} as required (browser layer is opt-in)"
-            )
-            assert cmd in optional, (
-                f"{profile} verify.sh must list {cmd} as optional"
-            )
+def test_auth_handoff_contains_all_manual_boundaries() -> None:
+    handoff = file("scripts/auth-handoff.sh")
+    for marker in (
+        "gh auth login",
+        "codex login --device-auth",
+        "claude auth login",
+        "opencode auth login",
+        "mimo",
+        "agy",
+        "zcode.z.ai",
+        "cloakbrowser-cdp-health",
+        "Settings → Secrets and variables → Actions",
+    ):
+        assert marker in handoff
+    assert "never reads" in handoff
 
 
-def test_go_bin_in_ensure_path() -> None:
-    """$HOME/go/bin must be in rldyour::ensure_path candidates.
-
-    go-installed binaries (sqls and any future Go tool) land in ~/go/bin; without
-    it in ensure_path they are not discoverable during verification in the same
-    session.
-    """
-    common = Path("scripts/lib/common.sh").read_text(encoding="utf-8")
-    assert '"$HOME/go/bin"' in common, (
-        "scripts/lib/common.sh rldyour::ensure_path must include $HOME/go/bin"
+def test_shell_dropins_preserve_user_files_and_are_idempotent(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    zshenv = home / ".zshenv"
+    zprofile = home / ".zprofile"
+    zshenv.write_text("# owner zshenv\nexport OWNER_VALUE=kept\n", encoding="utf-8")
+    zprofile.write_text("# owner zprofile\n", encoding="utf-8")
+    zshenv.chmod(0o600)
+    script = r'''
+source "$1"
+export RLDYOUR_DRY_RUN=0
+rldyour::install_terminal_configs "$2"
+rldyour::install_terminal_configs "$2"
+'''
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            script,
+            "_",
+            str(ROOT / "scripts/lib/common.sh"),
+            str(ROOT / "templates/terminal"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "HOME": str(home)},
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert zshenv.stat().st_mode & 0o777 == 0o600
+    assert zshenv.read_text(encoding="utf-8").startswith(
+        "# owner zshenv\nexport OWNER_VALUE=kept\n"
+    )
+    assert zshenv.read_text(encoding="utf-8").count(
+        "source \"$HOME/.config/rldyour/zshenv\""
+    ) == 1
+    assert zprofile.read_text(encoding="utf-8").count(
+        "source \"$HOME/.config/rldyour/zprofile\""
+    ) == 1
+    managed = home / ".config/rldyour/zshenv"
+    assert managed.read_text(encoding="utf-8").startswith(
+        "# Managed by rldyour-new-mac-or-ubuntu: terminal-zshenv-v1"
+    )
+    backups = list((home / ".local/share/rldyour/backups/shell").rglob(".zshenv"))
+    assert len(backups) == 1
+    assert backups[0].read_text(encoding="utf-8") == (
+        "# owner zshenv\nexport OWNER_VALUE=kept\n"
     )
 
 
-def test_macos_python_tooling_has_no_duplicate_ruff() -> None:
-    """macOS PYTHON_TOOLING_PACKAGES must not contain ruff.
-
-    ruff is installed via the Homebrew formula (single source of truth for the
-    version and the ruff server LSP). A duplicate uv-tool install would shadow
-    or conflict with the brew one depending on PATH ordering.
-    """
-    macos = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
-    tooling = parse_array(macos, PYTHON_TOOLING_PATTERN, "macOS PYTHON_TOOLING_PACKAGES")
-    assert "ruff" not in tooling, (
-        "macOS PYTHON_TOOLING_PACKAGES must not contain ruff (installed via Homebrew)"
+def test_ssh_activation_and_reload_preserve_existing_provider(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    log = tmp_path / "systemctl.log"
+    systemctl = fake_bin / "systemctl"
+    systemctl.write_text(
+        r'''#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  is-active)
+    [ "${ACTIVE_PROVIDER:-}" = "$3" ] ||
+      { [ -f "$SYSTEMCTL_STATE" ] && grep -Fxq "$3" "$SYSTEMCTL_STATE"; }
+    ;;
+  is-enabled) [ "${ENABLED_PROVIDER:-}" = "$3" ] ;;
+  list-unit-files)
+    case "${AVAILABLE_PROVIDER:-ssh.service}" in
+      ssh.service) printf 'ssh.service enabled\n' ;;
+      ssh.socket) printf 'ssh.socket enabled\n' ;;
+    esac
+    ;;
+  enable)
+    printf '%s\n' "$*" >> "$SYSTEMCTL_LOG"
+    printf '%s\n' "${@: -1}" > "$SYSTEMCTL_STATE"
+    ;;
+  reload) printf '%s\n' "$*" >> "$SYSTEMCTL_LOG" ;;
+  *) exit 2 ;;
+esac
+''',
+        encoding="utf-8",
     )
-
-
-def test_macos_bun_lsp_has_no_duplicate_vscode_ls() -> None:
-    """macOS BUN_LSP_PACKAGES must not contain vscode-langservers-extracted.
-
-    The vscode-* language servers are installed via the Homebrew
-    vscode-langservers-extracted formula (single source of truth); bun-installing
-    the npm package duplicates them.
-    """
-    macos = Path("scripts/macos/install.sh").read_text(encoding="utf-8")
-    bun_lsp = parse_array(macos, BUN_LSP_PATTERN, "macOS BUN_LSP_PACKAGES")
-    assert "vscode-langservers-extracted" not in bun_lsp, (
-        "macOS BUN_LSP_PACKAGES must not contain vscode-langservers-extracted (Homebrew only)"
-    )
-
-
-def test_ubuntu_installs_security_scanners_required_by_verify() -> None:
-    """Ubuntu install.sh must install every scanner verify.sh requires.
-
-    Strict post-checks run verify.sh, so each required scanner must have an
-    install channel in install.sh. This guard prevents a regression where a
-    scanner is added to verify.sh required_cmds without a matching installer.
-    """
-    ubuntu_install = Path("scripts/ubuntu/install.sh").read_text(encoding="utf-8")
-    assert "install_security_scanners" in ubuntu_install, (
-        "ubuntu install.sh must define install_security_scanners()"
-    )
-    for scanner in ("basedpyright", "osv-scanner", "gitleaks", "semgrep", "hadolint", "actionlint"):
-        assert scanner in ubuntu_install, (
-            f"ubuntu install.sh must reference scanner '{scanner}' (required by verify.sh)"
+    systemctl.chmod(0o755)
+    script = r'''
+source "$1"
+export RLDYOUR_DRY_RUN=0
+rldyour::ubuntu_server::as_root() { "$@"; }
+rldyour::ubuntu_server::ensure_ssh_activation
+rldyour::ubuntu_server::reload_ssh_authentication
+'''
+    base_env = {
+        **os.environ,
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "SYSTEMCTL_LOG": str(log),
+        "SYSTEMCTL_STATE": str(tmp_path / "systemctl.state"),
+    }
+    for provider in ("ssh.service", "ssh.socket"):
+        log.write_text("", encoding="utf-8")
+        result = subprocess.run(
+            ["bash", "-c", script, "_", str(ROOT / "scripts/ubuntu/server.sh")],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**base_env, "ACTIVE_PROVIDER": provider},
         )
+        assert result.returncode == 0, result.stderr + result.stdout
+        calls = log.read_text(encoding="utf-8")
+        if provider == "ssh.service":
+            assert calls == "reload ssh.service\n"
+        else:
+            assert calls == ""
+
+    log.write_text("", encoding="utf-8")
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(ROOT / "scripts/ubuntu/server.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**base_env, "ENABLED_PROVIDER": "ssh.socket"},
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert log.read_text(encoding="utf-8") == "enable --now ssh.socket\n"
+
+
+def test_ssh_port_detection_uses_privileged_read_only_probe() -> None:
+    script = r'''
+source "$1"
+rldyour::ubuntu_server::probe_as_root() {
+  [ "$1 $2" = "sshd -T" ] || exit 9
+  printf 'port 2202\n'
+}
+rldyour::ubuntu_server::detect_ssh_port
+'''
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(ROOT / "scripts/ubuntu/server.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=os.environ,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout.strip() == "2202"
+
+
+def test_browser_owned_templates_and_files_are_preserved_fail_closed() -> None:
+    common = file("scripts/lib/common.sh")
+    assert "unmanaged browser file differs; preserved" in common
+    assert "browser provider home exists without a management marker" in common
+    assert "stock Chromium" in common
+
+
+def test_no_gui_mode_is_distinct_from_server_role() -> None:
+    bootstrap = file("scripts/bootstrap.sh")
+    assert "export RLDYOUR_GUI_ENABLED=1" in bootstrap
+    assert "export RLDYOUR_GUI_ENABLED=0" in bootstrap
+    assert 'RLDYOUR_LOCAL_EXECUTION_POLICY="source-lsp-only"' in bootstrap
+    assert 'RLDYOUR_LOCAL_EXECUTION_POLICY="server-build-runtime"' in bootstrap
+
+
+def test_reusable_ci_is_pinned_to_current_ci_workflows_release() -> None:
+    expected = "ac4d1f469f5974741c7449305ffcbd5f05a5a47f"
+    found = 0
+    for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
+        body = workflow.read_text(encoding="utf-8")
+        for sha in re.findall(r"NDDev-it-com/nddev-ci-workflows/[^@\s]+@([0-9a-f]{40})", body):
+            found += 1
+            assert sha == expected, f"{workflow.name} has stale central CI pin {sha}"
+    assert found >= 8
+
+
+def test_release_is_tag_only() -> None:
+    release = file(".github/workflows/release.yml")
+    assert "workflow_dispatch:" not in release
+    assert 'version="${GITHUB_REF_NAME}"' in release
+    assert '"${GITHUB_REF_TYPE}" = "tag"' in release

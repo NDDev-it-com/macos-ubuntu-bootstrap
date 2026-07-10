@@ -1,0 +1,10 @@
+# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# This overlay must be composed last so no earlier config can enable a stock
+# Chrome/Chromium fallback.
+environment:
+  environment_class: local_browser
+  browser_mode: local_cdp
+  local_cdp_url: http://127.0.0.1:9222
+  local_cdp_auto_start: false
+  local_cdp_new_page: true
+  local_cdp_close_started_browser_on_exit: false

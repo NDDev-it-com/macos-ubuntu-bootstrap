@@ -6,32 +6,44 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 APPLY=0
 PLATFORM="auto"
 PROFILE="auto"
+GUI_MODE="auto"
+DOCKER_MODE="auto"
 STRICT=0
 SKIP_SYSTEM=0
 SKIP_AI=0
 SKIP_LSPS=0
-SKIP_BROWSER=0
 SKIP_CHECKS=0
+HARDEN_SSH=0
+ENABLE_UFW=0
+WITH_FAIL2BAN=0
 
 usage() {
   cat <<'EOF'
 Usage: scripts/bootstrap.sh [--platform macos|ubuntu] [--profile server|desktop]
-                           [--apply|--plan]
-                           [--skip-system] [--skip-ai] [--skip-lsps] [--skip-browser]
-                           [--skip-checks] [--strict]
+                           [--gui|--no-gui] [--docker-mode none|rootful|rootless]
+                           [--apply|--plan] [--skip-system] [--skip-ai]
+                           [--skip-lsps] [--skip-checks] [--strict]
+                           [--harden-ssh] [--enable-ufw] [--with-fail2ban]
 
 Entrypoint for the module installer.
 
 Default:
   - mode: plan (dry-run)
   - platform: auto-detect (darwin -> macos, linux -> ubuntu)
-  - profile: auto (macos -> desktop; ubuntu -> server)
+  - profile: macOS resolves to desktop; Ubuntu requires an explicit profile
+  - GUI: enabled for desktop, disabled for server; override desktop with --no-gui
+  - Docker: rootful on Ubuntu server, none on desktops; rootless is explicit
 
 Profiles:
-  - server:  full terminal-first CLI stack (shell, prompt, multiplexer, LSPs,
-             AI CLIs, dev tools). No GUI apps. Suitable for headless Ubuntu.
-  - desktop: server layer PLUS the GUI desktop layer (terminal emulator, Nerd
-             fonts). macOS is always desktop.
+  - desktop: source editing, LSP/quality tools, AI CLIs, mandatory headless
+             CloakBrowser, and optional GUI apps. No Docker or project runtime.
+  - server:  Ubuntu-only headless build/runtime host with Docker, AI CLIs,
+             LSPs, mandatory CloakBrowser, and safe server verification.
+
+Safety:
+  --harden-ssh and --enable-ufw are never implied. They require an explicit
+  apply run because a generic remote-host mutation can lock out SSH or expose
+  Docker-published ports. Plan mode remains the default.
 EOF
 }
 
@@ -43,6 +55,18 @@ while [ "$#" -gt 0 ]; do
       ;;
     --profile)
       PROFILE="${2:?--profile requires one of server|desktop}"
+      shift 2
+      ;;
+    --gui)
+      GUI_MODE="enabled"
+      shift
+      ;;
+    --no-gui)
+      GUI_MODE="disabled"
+      shift
+      ;;
+    --docker-mode)
+      DOCKER_MODE="${2:?--docker-mode requires one of none|rootful|rootless}"
       shift 2
       ;;
     --apply)
@@ -66,8 +90,8 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     --skip-browser)
-      SKIP_BROWSER=1
-      shift
+      echo "--skip-browser is unsupported: CloakBrowser is mandatory and has no stock-browser fallback" >&2
+      exit 2
       ;;
     --skip-checks)
       SKIP_CHECKS=1
@@ -75,6 +99,18 @@ while [ "$#" -gt 0 ]; do
       ;;
     --strict)
       STRICT=1
+      shift
+      ;;
+    --harden-ssh)
+      HARDEN_SSH=1
+      shift
+      ;;
+    --enable-ufw)
+      ENABLE_UFW=1
+      shift
+      ;;
+    --with-fail2ban)
+      WITH_FAIL2BAN=1
       shift
       ;;
     -h | --help)
@@ -109,13 +145,15 @@ if [ "$PLATFORM" != "macos" ] && [ "$PLATFORM" != "ubuntu" ]; then
   exit 2
 fi
 
-# Resolve the install profile. macOS is a GUI workstation (always desktop);
-# Ubuntu defaults to the headless server profile unless --profile desktop is set.
+# Resolve the install profile. macOS is always a desktop workstation. Ubuntu
+# cannot safely infer desktop/no-GUI desktop/server from uname alone, so its
+# role is intentionally explicit before even a plan is composed.
 if [ "$PROFILE" = "auto" ]; then
   if [ "$PLATFORM" = "macos" ]; then
     PROFILE="desktop"
   else
-    PROFILE="server"
+    echo "Ubuntu requires --profile desktop or --profile server; the bootstrap never infers Docker/server state" >&2
+    exit 2
   fi
 fi
 
@@ -130,6 +168,43 @@ if [ "$PLATFORM" = "macos" ] && [ "$PROFILE" != "desktop" ]; then
   exit 2
 fi
 
+if [ "$GUI_MODE" = "auto" ]; then
+  if [ "$PROFILE" = "desktop" ]; then GUI_MODE="enabled"; else GUI_MODE="disabled"; fi
+fi
+if [ "$GUI_MODE" != "enabled" ] && [ "$GUI_MODE" != "disabled" ]; then
+  echo "Unsupported GUI mode: $GUI_MODE" >&2
+  exit 2
+fi
+if [ "$PROFILE" = "server" ] && [ "$GUI_MODE" != "disabled" ]; then
+  echo "The server profile is always headless; use --profile desktop for GUI apps" >&2
+  exit 2
+fi
+
+if [ "$DOCKER_MODE" = "auto" ]; then
+  if [ "$PLATFORM" = "ubuntu" ] && [ "$PROFILE" = "server" ]; then
+    DOCKER_MODE="rootful"
+  else
+    DOCKER_MODE="none"
+  fi
+fi
+case "$DOCKER_MODE" in none|rootful|rootless) ;; *)
+  echo "Unsupported Docker mode: $DOCKER_MODE (expected none|rootful|rootless)" >&2
+  exit 2
+  ;;
+esac
+if [ "$PROFILE" = "desktop" ] && [ "$DOCKER_MODE" != "none" ]; then
+  echo "Desktop profiles are source/LSP-only and cannot install Docker" >&2
+  exit 2
+fi
+if [ "$PLATFORM" = "macos" ] && [ "$DOCKER_MODE" != "none" ]; then
+  echo "This bootstrap never installs local Docker on macOS" >&2
+  exit 2
+fi
+if [ "$PROFILE" != "server" ] && { [ "$HARDEN_SSH" -eq 1 ] || [ "$ENABLE_UFW" -eq 1 ] || [ "$WITH_FAIL2BAN" -eq 1 ]; }; then
+  echo "Server hardening flags require --profile server" >&2
+  exit 2
+fi
+
 RUNNER_SCRIPT="${SCRIPT_DIR}/${PLATFORM}/install.sh"
 if [ ! -x "$RUNNER_SCRIPT" ]; then
   echo "Missing runner script: $RUNNER_SCRIPT" >&2
@@ -138,11 +213,25 @@ fi
 
 export RLDYOUR_DRY_RUN=$((1 - APPLY))
 export RLDYOUR_PROFILE=$PROFILE
+if [ "$GUI_MODE" = "enabled" ]; then
+  export RLDYOUR_GUI_ENABLED=1
+else
+  export RLDYOUR_GUI_ENABLED=0
+fi
+export RLDYOUR_DOCKER_MODE=$DOCKER_MODE
 export RLDYOUR_STRICT=$STRICT
 export RLDYOUR_SKIP_SYSTEM=$SKIP_SYSTEM
 export RLDYOUR_SKIP_AI=$SKIP_AI
 export RLDYOUR_SKIP_LSPS=$SKIP_LSPS
-export RLDYOUR_SKIP_BROWSER=$SKIP_BROWSER
+export RLDYOUR_BROWSER_REQUIRED=1
 export RLDYOUR_SKIP_CHECKS=$SKIP_CHECKS
+export RLDYOUR_HARDEN_SSH=$HARDEN_SSH
+export RLDYOUR_ENABLE_UFW=$ENABLE_UFW
+export RLDYOUR_WITH_FAIL2BAN=$WITH_FAIL2BAN
+if [ "$PROFILE" = "desktop" ]; then
+  export RLDYOUR_LOCAL_EXECUTION_POLICY="source-lsp-only"
+else
+  export RLDYOUR_LOCAL_EXECUTION_POLICY="server-build-runtime"
+fi
 
 "$RUNNER_SCRIPT"

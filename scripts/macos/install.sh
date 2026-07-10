@@ -13,31 +13,38 @@ STRICT="${RLDYOUR_STRICT:-0}"
 SKIP_SYSTEM="${RLDYOUR_SKIP_SYSTEM:-0}"
 SKIP_AI="${RLDYOUR_SKIP_AI:-0}"
 SKIP_LSPS="${RLDYOUR_SKIP_LSPS:-0}"
-SKIP_BROWSER="${RLDYOUR_SKIP_BROWSER:-0}"
 SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
+GUI_ENABLED="${RLDYOUR_GUI_ENABLED:-1}"
+LOCAL_EXECUTION_POLICY="${RLDYOUR_LOCAL_EXECUTION_POLICY:-source-lsp-only}"
 
-CLAUDE_CODE_VERSION="2.1.204"
-CODEX_VERSION="0.142.5"
-OPENCODE_VERSION="1.17.15"
-MIMOCODE_VERSION="0.1.4"
-ANTIGRAVITY_INSTALL_SCRIPT="https://antigravity.google/cli/install.sh"
+CLAUDE_CODE_VERSION="2.1.206"
+CODEX_VERSION="0.144.1"
+OPENCODE_VERSION="1.17.18"
+MIMOCODE_VERSION="0.1.5"
+ANTIGRAVITY_VERSION="1.1.0"
+ANTIGRAVITY_ARTIFACT_URL="https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.0-4523441756438528/darwin-arm/cli_mac_arm64.tar.gz?generation=1783473498752070"
+ANTIGRAVITY_ARTIFACT_SHA512="cb477ea9a556d9e6d67ee225ff7569255f779761b2c6d4ffb424e73d007c085832e9ab4f30b542dc0e74b58370c4513dbe785c5e05d3d9053cff0bb7d65f4819"
+HOMEBREW_PKG_VERSION="6.0.9"
+HOMEBREW_PKG_SHA256="525599bd2dcbda29857120234336b0103ad5283a3dc8511f72066eeb917abd3c"
+HOMEBREW_INSTALLER_TEAM="927JGANW46"
 
-# The `pyright` package ships both `pyright` and `pyright-langserver` console
-# scripts; there is no separate `pyright-langserver` distribution to install.
-# `ruff` is intentionally NOT listed here: it is installed via the Homebrew
-# `ruff` formula (see BREW_SYSTEM_PACKAGES) so its LSP server (`ruff server`) is
-# available system-wide and there is a single source of truth for the version.
-PYTHON_TOOLING_PACKAGES=(
-  pyright
-  pytest
+# Source/LSP-only workstation baseline. No Docker, project build orchestration,
+# test runner, or local project runtime. Homebrew's LLVM distribution is present
+# only because it is the supported clangd provider; this policy never invokes
+# its compiler/linker for project builds.
+BREW_SOURCE_PACKAGES=(
+  git curl ca-certificates node bun uv python
+  shellcheck shfmt llvm gopls docker-language-server
+  vscode-langservers-extracted taplo marksman markdown-oxide
+  terraform-ls helm-ls cmake-language-server
+  pyright basedpyright ruff ty jdtls kotlin-language-server
+  oxlint biome osv-scanner gitleaks semgrep hadolint actionlint
+  yamllint markdownlint-cli2 prettier
+  ripgrep fd eza bat git-delta jq yq ast-grep
+  starship atuin fzf zoxide carapace antidote zsh-completions
+  gh lazygit yazi xh jaq jnv duckdb difftastic tmux
 )
 
-# taplo is provided by Homebrew (BREW_SYSTEM_PACKAGES); it is not published as a
-# bare npm `taplo` package, so it must not be bun-installed here.
-# vscode-langservers-extracted is also installed via Homebrew (single source of
-# truth for the HTML/CSS/JSON servers), so it is not bun-installed here.
-# vtsls replaces typescript-language-server as the recommended TS/JS LSP (better
-# feature parity with the VS Code TS extension; chosen by Zed and LazyVim).
 BUN_LSP_PACKAGES=(
   typescript
   "@vtsls/language-server"
@@ -47,444 +54,137 @@ BUN_LSP_PACKAGES=(
   gh-actions-language-server
 )
 
-# Homebrew baseline: runtimes, LSPs that ship as brew formulas, and the
-# quality-gate / formatter CLIs used by the agent verification layer.
-BREW_SYSTEM_PACKAGES=(
-  git
-  curl
-  ca-certificates
-  go
-  gopls
-  shellcheck
-  shfmt
-  llvm
-  cmake
-  qt
-  openjdk
-  docker-language-server
-  vscode-langservers-extracted
-  taplo
-  marksman
-  markdown-oxide
-  terraform-ls
-  helm-ls
-  cmake-language-server
-  basedpyright
-  ruff
-  ty
-  jdtls
-  kotlin-language-server
-  oxlint
-  biome
-  osv-scanner
-  gitleaks
-  semgrep
-  hadolint
-  actionlint
-  yamllint
-  markdownlint-cli2
-  fd
-  eza
-  bat
-  git-delta
-  watchexec
-  hyperfine
-  just
-  jq
-  prettier
-  pandoc
-  kubeconform
-  mise
-  libxml2
-  xmlstarlet
-  r
-  # terminal layer (0.2.3): shell stack, TUIs, structured data, introspection
-  starship
-  atuin
-  fzf
-  zoxide
-  carapace
-  antidote
-  zsh-completions
-  gh
-  lazygit
-  yazi
-  xh
-  jaq
-  jnv
-  duckdb
-  ast-grep
-  scc
-  difftastic
-  tmux
-  dust
-  dua-cli
-  duf
-  procs
-  btop
-  doggo
-  gping
-  hexyl
-  sd
-  viddy
-  tealdeer
-  # search / data / http / repo tooling (0.2.8): parity with installed workstation
-  ripgrep
-  yq
-  dasel
-  miller
-  httpie
-  ghq
-  cargo-nextest
-  github-mcp-server
-  # Deno JS/TS runtime (0.2.8)
-  deno
-)
+GUI_CASKS=(ghostty cmux chatgpt claude)
 
 usage() {
   cat <<'EOF'
 Usage: scripts/macos/install.sh
 
-Entrypoint for macOS profile. This script is usually executed via
-scripts/bootstrap.sh. It defaults to dry-run mode and supports strict checks
-and skip flags.
+Internal macOS Apple Silicon installer. Use scripts/bootstrap.sh so profile,
+GUI, safety, and verification settings are composed consistently.
 EOF
 }
 
-ensure_brew() {
+ensure_homebrew() {
   if command -v brew >/dev/null 2>&1; then
     rldyour::log "ok" "Homebrew already installed"
     return 0
   fi
-
-  rldyour::log "warn" "Homebrew not found"
-  rldyour::run bash -c "/bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-}
-
-ensure_node() {
-  rldyour::section "Ensure Node.js runtime (>=22)"
-  if command -v node >/dev/null 2>&1; then
-    if rldyour::require_cmd_min_version node 22 "--version"; then
-      rldyour::log "ok" "node already satisfies minimum version: $(node --version)"
-      return 0
-    fi
-    rldyour::log "warn" "node version does not meet minimum; reinstalling from Homebrew"
-  fi
-
-  rldyour::run brew install node
-}
-
-# Link the keg-only `openjdk` formula so `java`/`javac` resolve on PATH without
-# requiring the user to run `brew link` manually. Required by jdtls and the
-# Kotlin language server.
-ensure_java() {
-  rldyour::section "Link keg-only OpenJDK (for Java/Kotlin LSPs)"
-  if command -v java >/dev/null 2>&1; then
-    rldyour::log "ok" "java already on PATH: $(java -version 2>&1 | head -n 1)"
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] download notarized Homebrew ${HOMEBREW_PKG_VERSION} package, verify tracked SHA-256 and Apple installer signature, then install"
     return 0
   fi
-  if ! command -v brew >/dev/null 2>&1; then
-    rldyour::log "warn" "brew unavailable; cannot link openjdk"
+  local installer signature
+  installer="$(mktemp -d)/Homebrew.pkg"
+  trap 'rm -rf "$(dirname "$installer")"' RETURN
+  rldyour::download_verified_file \
+    "https://github.com/Homebrew/brew/releases/download/${HOMEBREW_PKG_VERSION}/Homebrew.pkg" \
+    "$HOMEBREW_PKG_SHA256" "$installer"
+  signature="$(/usr/sbin/pkgutil --check-signature "$installer" 2>&1)" || {
+    rldyour::log "error" "Homebrew installer signature validation failed"
+    return 1
+  }
+  printf '%s\n' "$signature" | grep -Fq "$HOMEBREW_INSTALLER_TEAM" || {
+    rldyour::log "error" "Homebrew installer signer team mismatch"
+    return 1
+  }
+  /usr/sbin/spctl --assess --type install --verbose=2 "$installer" >/dev/null 2>&1 || {
+    rldyour::log "error" "Homebrew package failed Gatekeeper/notarization assessment"
+    return 1
+  }
+  sudo /usr/sbin/installer -pkg "$installer" -target /
+  rm -rf "$(dirname "$installer")"
+  trap - RETURN
+}
+
+ensure_formula() {
+  local formula="$1"
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ] && ! command -v brew >/dev/null 2>&1; then
+    rldyour::log "info" "[DRY-RUN] brew install ${formula}"
     return 0
   fi
-  if brew list --formula openjdk >/dev/null 2>&1; then
-    rldyour::run brew link --force --overwrite openjdk
+  if brew list --formula "$formula" >/dev/null 2>&1; then
+    rldyour::log "ok" "preserving installed Homebrew formula: $formula"
   else
-    rldyour::log "warn" "openjdk not installed via brew; skipping link"
+    rldyour::run brew install "$formula"
   fi
 }
 
-install_brew_packages() {
-  rldyour::section "Install Homebrew packages"
-  for package in "${BREW_SYSTEM_PACKAGES[@]}"; do
-    if brew list --formula "$package" >/dev/null 2>&1; then
-      rldyour::log "ok" "$package already installed"
-    else
-      rldyour::run brew install "$package"
-    fi
+install_source_packages() {
+  rldyour::section "Install source/LSP-only Homebrew baseline"
+  local formula
+  for formula in "${BREW_SOURCE_PACKAGES[@]}"; do
+    ensure_formula "$formula"
   done
 }
 
-ensure_uv() {
-  rldyour::section "Install uv toolchain"
-  if command -v uv >/dev/null 2>&1; then
-    rldyour::log "ok" "uv already installed: $(uv --version)"
+ensure_cask() {
+  local cask="$1"
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ] && ! command -v brew >/dev/null 2>&1; then
+    rldyour::log "info" "[DRY-RUN] brew install --cask ${cask}"
     return 0
   fi
-  rldyour::run bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
-}
-
-ensure_bun() {
-  rldyour::section "Install bun runtime"
-  if command -v bun >/dev/null 2>&1; then
-    rldyour::log "ok" "bun already installed: $(bun --version)"
-    return 0
-  fi
-  rldyour::run bash -c "curl -fsSL https://bun.sh/install | bash"
-}
-
-ensure_python3() {
-  rldyour::section "Ensure Python 3"
-  if command -v python3 >/dev/null 2>&1; then
-    rldyour::log "ok" "python3 already available: $(python3 --version)"
-    return 0
-  fi
-  rldyour::run brew install python@3.12
-}
-
-ensure_rust() {
-  rldyour::section "Install Rust toolchain"
-  if command -v rustup >/dev/null 2>&1; then
-    rldyour::log "ok" "rustup already installed"
+  if brew list --cask "$cask" >/dev/null 2>&1; then
+    rldyour::log "ok" "preserving installed Homebrew cask: $cask"
   else
-    rldyour::run bash -c "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-  fi
-
-  if [ "$RLDYOUR_DRY_RUN" -eq 0 ] && [ -f "$HOME/.cargo/env" ]; then
-    # shellcheck source=/dev/null
-    source "$HOME/.cargo/env"
-  fi
-  if [ "$RLDYOUR_DRY_RUN" -eq 0 ]; then
-    if command -v rustup >/dev/null 2>&1; then
-      rldyour::run rustup component add rust-src rust-analyzer
-    elif [ "$STRICT" -eq 1 ]; then
-      rldyour::log "error" "rustup unavailable after bootstrap"
-      exit 1
-    fi
+    rldyour::run brew install --cask "$cask"
   fi
 }
 
-install_dart() {
-  rldyour::section "Install Dart (SDK)"
-  if command -v dart >/dev/null 2>&1; then
-    rldyour::log "ok" "dart already installed"
+install_gui_apps() {
+  if [ "$GUI_ENABLED" -ne 1 ]; then
+    rldyour::log "info" "GUI apps disabled by --no-gui"
     return 0
   fi
-
-  rldyour::run brew tap dart-lang/dart
-  rldyour::run brew install dart-lang/dart/dart
-}
-
-ensure_clangd() {
-  rldyour::section "Ensure clangd on PATH (llvm is keg-only)"
-  if command -v clangd >/dev/null 2>&1; then
-    rldyour::log "ok" "clangd already on PATH"
-    return 0
-  fi
-  if ! command -v brew >/dev/null 2>&1; then
-    rldyour::log "warn" "brew unavailable; cannot resolve keg-only clangd"
-    return 0
-  fi
-  local keg
-  keg="$(brew --prefix llvm 2>/dev/null)/bin/clangd"
-  if [ -x "$keg" ]; then
-    if [ "$RLDYOUR_DRY_RUN" -eq 0 ]; then
-      mkdir -p "$HOME/.local/bin"
-    fi
-    rldyour::run ln -sf "$keg" "$HOME/.local/bin/clangd"
-    rldyour::log "ok" "linked keg-only clangd -> ~/.local/bin/clangd"
-  elif [ "$STRICT" -eq 1 ]; then
-    rldyour::log "error" "clangd not found under $(brew --prefix llvm 2>/dev/null); install llvm first"
-    exit 1
-  else
-    rldyour::log "warn" "clangd not found under llvm keg; ensure llvm is installed"
-  fi
-}
-
-
-# zsh-abbr lives in the olets tap; full-name install auto-taps, presence is
-# checked by bare formula name.
-ensure_zsh_abbr() {
-  rldyour::section "Ensure zsh-abbr (olets tap)"
-  if brew list --formula zsh-abbr >/dev/null 2>&1; then
-    rldyour::log "ok" "zsh-abbr already installed"
-    return 0
-  fi
-  rldyour::run brew install olets/tap/zsh-abbr
-}
-
-ensure_ghostty() {
-  rldyour::section "Ensure Ghostty terminal (cask)"
-  if brew list --cask ghostty >/dev/null 2>&1; then
-    rldyour::log "ok" "ghostty already installed"
-    return 0
-  fi
-  rldyour::run brew install --cask ghostty
-}
-
-# Google Cloud CLI (0.2.8). Cask renamed google-cloud-sdk -> gcloud-cli. Binary: gcloud.
-ensure_gcloud() {
-  rldyour::section "Ensure Google Cloud CLI (gcloud)"
-  if command -v gcloud >/dev/null 2>&1 || brew list --cask gcloud-cli >/dev/null 2>&1; then
-    rldyour::log "ok" "gcloud already installed"
-    return 0
-  fi
-  rldyour::run brew install --cask gcloud-cli
-}
-
-# Optional personal desktop apps (0.2.8): Discord + OBS (casks). Best-effort.
-# Set RLDYOUR_SKIP_PERSONAL_APPS=1 to opt out.
-ensure_personal_apps() {
-  if [ "${RLDYOUR_SKIP_PERSONAL_APPS:-0}" = "1" ]; then
-    rldyour::log "info" "personal desktop apps skipped (RLDYOUR_SKIP_PERSONAL_APPS=1)"
-    return 0
-  fi
-  rldyour::section "Ensure optional personal apps (Discord, OBS)"
+  rldyour::section "Install verified macOS GUI applications"
   local cask
-  for cask in discord obs; do
-    if brew list --cask "$cask" >/dev/null 2>&1; then
-      rldyour::log "ok" "$cask already installed"
-    else
-      rldyour::run brew install --cask "$cask" ||
-        rldyour::log "warn" "$cask cask install failed (best-effort)"
-    fi
+  for cask in "${GUI_CASKS[@]}"; do
+    ensure_cask "$cask"
   done
-}
-
-install_python_tooling() {
-  rldyour::section "Install Python tooling"
-  if ! command -v uv >/dev/null 2>&1; then
-    if [ "$STRICT" -eq 1 ]; then
-      rldyour::log "error" "uv required for Python tooling install"
-      exit 1
-    fi
-    rldyour::log "warn" "skip Python tooling until uv is available"
-    return 0
-  fi
-
-  for pkg in "${PYTHON_TOOLING_PACKAGES[@]}"; do
-    if uv tool list | grep -q "^$pkg"; then
-      rldyour::log "ok" "$pkg already managed by uv"
-    else
-      rldyour::run uv tool install --upgrade "$pkg"
-    fi
-  done
+  rldyour::log "info" "ChatGPT is the supported OpenAI desktop surface and includes Codex mode."
+  rldyour::log "warn" "ZCode is not auto-installed because upstream publishes no checksum/signature manifest; see scripts/auth-handoff.sh."
 }
 
 install_ai_runtimes() {
-  rldyour::section "Install AI runtimes (pinned)"
-  if ! command -v bun >/dev/null 2>&1; then
-    if [ "$STRICT" -eq 1 ]; then
-      rldyour::log "error" "bun is required for AI runtime install"
-      exit 1
-    fi
-    rldyour::log "warn" "skip AI runtime install until bun is available"
-    return 0
-  fi
+  rldyour::section "Install exact AI CLI versions"
+  rldyour::install_ai_cli_bundle \
+    "$CLAUDE_CODE_VERSION" "$CODEX_VERSION" \
+    "$OPENCODE_VERSION" "$MIMOCODE_VERSION"
 
-  if command -v claude-code >/dev/null 2>&1; then
-    rldyour::log "ok" "claude-code already present"
-  elif command -v claude >/dev/null 2>&1; then
-    rldyour::log "ok" "claude already present (treated as claude-code-compatible entrypoint)"
-  else
-    rldyour::run bun add -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
-  fi
-
-  if ! command -v codex >/dev/null 2>&1; then
-    rldyour::run bun add -g "@openai/codex@${CODEX_VERSION}"
-  else
-    rldyour::log "ok" "codex already present"
-  fi
-
-  if ! command -v opencode >/dev/null 2>&1; then
-    rldyour::run bun add -g "opencode-ai@${OPENCODE_VERSION}"
-  else
-    rldyour::log "ok" "opencode already present"
-  fi
-
-  if ! command -v agy >/dev/null 2>&1; then
-    rldyour::run bash -c "curl -fsSL ${ANTIGRAVITY_INSTALL_SCRIPT} | bash"
-  else
-    rldyour::log "ok" "antigravity agy already present"
-  fi
-
-  if ! command -v mimo >/dev/null 2>&1; then
-    rldyour::run bun add -g "@mimo-ai/cli@${MIMOCODE_VERSION}"
-  else
-    rldyour::log "ok" "mimo already present"
-  fi
+  rldyour::install_antigravity_artifact \
+    "$ANTIGRAVITY_VERSION" \
+    "$ANTIGRAVITY_ARTIFACT_URL" \
+    "$ANTIGRAVITY_ARTIFACT_SHA512"
 }
 
-install_lsp() {
-  rldyour::section "Install LSP set"
-  if ! command -v bun >/dev/null 2>&1; then
-    if [ "$STRICT" -eq 1 ]; then
-      rldyour::log "error" "bun required for LSP bootstrap"
-      exit 1
+install_bun_lsps() {
+  rldyour::section "Install registry-backed language servers"
+  local package
+  for package in "${BUN_LSP_PACKAGES[@]}"; do
+    if bun pm ls -g 2>/dev/null | grep -Fq "${package}@"; then
+      rldyour::log "ok" "preserving installed Bun source tool: ${package}"
+    else
+      rldyour::run bun add -g --ignore-scripts "$package"
     fi
-    rldyour::log "warn" "skip LSP bootstrap without bun"
-    return 0
-  fi
-  for pkg in "${BUN_LSP_PACKAGES[@]}"; do
-    rldyour::run bun add -g "$pkg"
   done
 }
 
-# Supabase's postgres-language-server ships as a Homebrew formula; the
-# `postgres-lsp` crate on crates.io is an unrelated project and must not be
-# used as a substitute.
-ensure_postgres_language_server() {
-  rldyour::section "Ensure Supabase postgres-language-server"
-  if command -v postgres-language-server >/dev/null 2>&1; then
-    rldyour::log "ok" "postgres-language-server already installed"
-    return 0
-  fi
-  if ! command -v brew >/dev/null 2>&1; then
-    rldyour::log "warn" "brew unavailable; cannot install postgres-language-server"
-    return 0
-  fi
-  rldyour::run brew install postgres-language-server
-}
-
-# sqls (multi-DB SQL LSP) is installed via `go install`. Requires the Go
-# toolchain to be on PATH (ensured by the system layer).
-ensure_sqls() {
-  rldyour::section "Ensure sqls (multi-DB SQL LSP)"
-  if command -v sqls >/dev/null 2>&1; then
-    rldyour::log "ok" "sqls already installed"
-    return 0
-  fi
-  if ! command -v go >/dev/null 2>&1; then
-    rldyour::log "warn" "go toolchain required for sqls; skipping"
-    return 0
-  fi
-  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
-    rldyour::log "info" "[DRY-RUN] go install github.com/sqls-server/sqls@latest"
-    return 0
-  fi
-  if go install github.com/sqls-server/sqls@latest; then
-    rldyour::log "ok" "sqls installed via go install"
+configure_cmux_hooks() {
+  [ "$GUI_ENABLED" -eq 1 ] || return 0
+  if command -v cmux >/dev/null 2>&1; then
+    rldyour::run cmux hooks setup
   else
-    rldyour::log "warn" "sqls install failed (best-effort)"
+    rldyour::log "info" "cmux hooks will be configured after cmux first appears on PATH"
   fi
 }
 
-# R language server is an R package installed into the local R library; it
-# requires the R runtime (provided by the `r` formula in BREW_SYSTEM_PACKAGES).
-ensure_r_languageserver() {
-  rldyour::section "Ensure R languageserver"
-  if ! command -v R >/dev/null 2>&1; then
-    rldyour::log "warn" "R runtime required for languageserver; skipping"
-    return 0
-  fi
+verify_apply() {
   if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
-    rldyour::log "info" "[DRY-RUN] R -e install.packages('languageserver')"
-    return 0
+    rldyour::log "info" "plan complete; verification runs only after apply"
+  elif [ "$SKIP_CHECKS" -eq 0 ]; then
+    RLDYOUR_GUI_ENABLED="$GUI_ENABLED" RLDYOUR_BROWSER_REQUIRED=1 \
+      bash "$SCRIPT_DIR/verify.sh" --strict
   fi
-  if R -q -e 'library(languageserver)' >/dev/null 2>&1; then
-    rldyour::log "ok" "R languageserver already installed"
-    return 0
-  fi
-  if R -e 'ncpus <- parallel::detectCores(); ncpus <- if (is.na(ncpus) || ncpus < 1) 1 else ncpus; install.packages("languageserver", repos="https://cloud.r-project.org", Ncpus=ncpus)'; then
-    rldyour::log "ok" "R languageserver installed"
-  else
-    rldyour::log "warn" "R languageserver install failed (best-effort)"
-  fi
-}
-
-run_post_checks() {
-  rldyour::section "Post-checks"
-  bash "$SCRIPT_DIR/verify.sh" --strict --skip-optional
 }
 
 if [ "${1:-}" = "--help" ]; then
@@ -494,62 +194,43 @@ fi
 
 rldyour::assert_root "$REPO_ROOT"
 rldyour::ensure_path
+[ "$LOCAL_EXECUTION_POLICY" = "source-lsp-only" ] || {
+  rldyour::log "error" "macOS must use source-lsp-only policy"
+  exit 2
+}
+if [ "$RLDYOUR_DRY_RUN" -eq 0 ]; then
+  [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ] || {
+    rldyour::log "error" "supported macOS apply target is Apple Silicon (arm64)"
+    exit 2
+  }
+fi
 
 rldyour::section "rldyour-new-mac-or-ubuntu (macOS) installer"
-rldyour::log "info" "mode: $([ "$RLDYOUR_DRY_RUN" -eq 1 ] && echo dry-run || echo apply)"
+rldyour::log "info" "mode: $([ "$RLDYOUR_DRY_RUN" -eq 1 ] && echo dry-run || echo apply); gui: $GUI_ENABLED; policy: $LOCAL_EXECUTION_POLICY"
 
 if [ "$SKIP_SYSTEM" -eq 0 ]; then
-  ensure_brew
+  ensure_homebrew
   rldyour::ensure_path
-  if command -v brew >/dev/null 2>&1; then
-    install_brew_packages
+  if command -v brew >/dev/null 2>&1 || [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    install_source_packages
+    install_gui_apps
   elif [ "$STRICT" -eq 1 ]; then
-    rldyour::log "error" "Homebrew required for macOS system baseline"
+    rldyour::log "error" "Homebrew unavailable after installation"
     exit 1
   fi
-  ensure_node
-  ensure_java
-
-  ensure_bun
-  ensure_uv
-  ensure_python3
-  install_python_tooling
-  ensure_rust
-  install_dart
-  ensure_clangd
-  ensure_zsh_abbr
-  ensure_ghostty
-  ensure_gcloud
-  ensure_personal_apps
   rldyour::ensure_git_perf
   rldyour::ensure_git_delta_config
   rldyour::install_terminal_configs "$REPO_ROOT/templates/terminal"
 else
-  rldyour::log "warn" "system layer skipped by --skip-system"
+  rldyour::log "warn" "system layer skipped by explicit recovery flag"
 fi
 
-if [ "$SKIP_AI" -eq 0 ]; then
-  install_ai_runtimes
-else
-  rldyour::log "warn" "AI runtimes skipped by --skip-ai"
-fi
+[ "$SKIP_AI" -eq 1 ] || install_ai_runtimes
+[ "$SKIP_LSPS" -eq 1 ] || install_bun_lsps
 
-if [ "$SKIP_LSPS" -eq 0 ]; then
-  install_lsp
-  ensure_postgres_language_server
-  ensure_sqls
-  ensure_r_languageserver
-else
-  rldyour::log "warn" "LSP layer skipped by --skip-lsps"
-fi
-
-if [ "$SKIP_BROWSER" -eq 0 ]; then
-  rldyour::install_browser_providers
-  rldyour::install_rtk
-else
-  rldyour::log "warn" "browser tooling skipped by --skip-browser"
-fi
-
-if [ "$SKIP_CHECKS" -eq 0 ]; then
-  run_post_checks
-fi
+# Mandatory on GUI and no-GUI profiles. No skip/fallback path exists.
+rldyour::install_browser_providers
+rldyour::install_rtk
+configure_cmux_hooks
+verify_apply
+rldyour::log "info" "Run 'bash scripts/auth-handoff.sh' for user-controlled sign-in steps."

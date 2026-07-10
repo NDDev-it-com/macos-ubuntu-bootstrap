@@ -10,39 +10,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: pytest-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   bootstrap-pytests:
-    name: Bootstrap module tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: read
-    steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
-        with:
-          egress-policy: audit
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Python runtime
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.13"
-
-      - name: Install test dependency
-        run: |
-          set -euo pipefail
-          python -m pip install --user --upgrade pip
-          python -m pip install --user "pytest==9.1.1"
-
-      - name: Run pytest
-        run: |
-          set -euo pipefail
-          python -m pytest -q
+    uses: NDDev-it-com/nddev-ci-workflows/.github/workflows/python-ci.yml@ac4d1f469f5974741c7449305ffcbd5f05a5a47f # 0.5.1
+    with:
+      python_version: "3.14"
+      install_command: python -m pip install "pytest==9.1.1"
+      test_command: python -m pytest -q
+      timeout_minutes: 15

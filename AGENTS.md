@@ -2,116 +2,222 @@
 
 ## Purpose
 
-This module is the bootstrap adapter that installs and validates prerequisites for the
-rldyour AI CLI toolchain on:
+This repository owns plan-first bootstrap and verification for the rldyour AI
+CLI environment on Apple Silicon macOS desktops, Ubuntu 24.04/26.04 desktops,
+and headless Ubuntu 24.04/26.04 servers.
 
-- macOS desktops
-- Ubuntu workstations/servers
+It is an adapter, not an upstream AI runtime. Keep installation logic,
+verification, contract metadata, tests, and documentation synchronized.
 
-It owns only bootstrap automation for base dependencies and validation gates used by
-the owner terminal stack:
+## Sources Of Truth
 
-- Claude Code
-- Codex
-- OpenCode
-- Antigravity CLI (`agy`)
-- MiMoCode (`mimo`)
+- Public compositor: `scripts/bootstrap.sh`
+- Shared helpers and managed browser layer: `scripts/lib/common.sh`
+- macOS installer/verifier: `scripts/macos/install.sh`, `scripts/macos/verify.sh`
+- Ubuntu installer/verifier: `scripts/ubuntu/install.sh`, `scripts/ubuntu/verify.sh`
+- Ubuntu server module/verifier: `scripts/ubuntu/server.sh`, `scripts/ubuntu/verify-server.sh`
+- Authentication handoff: `scripts/auth-handoff.sh`
+- Machine-readable contract: `config/rldyour-contract.json`
+- Profile/browser decision: `docs/adr/0004-profile-composition-and-cloakbrowser-boundary.md`
+- Operator guide: `README.md`, `docs/install.md`, `SECURITY.md`
+- Product version: `VERSION`, `CHANGELOG.md`
 
-## Scope and Source of Truth
+When prose and implementation disagree, verify the scripts and contract, then
+update the affected documentation in the same change. Do not invent a second
+policy source.
 
-- Entry point: `scripts/bootstrap.sh`
-- Platform installers:
-  - `scripts/macos/install.sh`
-  - `scripts/ubuntu/install.sh`
-- Shared helpers: `scripts/lib/common.sh`
-- Verification scripts:
-  - `scripts/macos/verify.sh`
-  - `scripts/ubuntu/verify.sh`
-- CI workflow: `.github/workflows/ci.yml`
-- Module contract: `config/rldyour-contract.json`
-- Product metadata: `LICENSE`, `NOTICE`, `VERSION`
-- Documentation: `README.md`, `docs/install.md`
+## Contract `0.3.0`
 
-## Verified Dependency Policy
+Ubuntu profile selection is always explicit. Never infer server/rootful Docker
+from `uname=Linux`; require `--profile desktop|server`.
 
-- Installer runs in two modes:
-  - plan (default, dry-run)
-  - apply (`--apply`)
-- Pinned AI runtimes:
-  - `@anthropic-ai/claude-code@2.1.204`
-  - `@openai/codex@0.142.5`
-  - `opencode-ai@1.17.15`
-  - `@mimo-ai/cli@0.1.4`
-  - `agy` (via `https://antigravity.google/cli/install.sh`)
-- Python tooling via `uv tool`:
-  - `pyright` (provides both `pyright` and `pyright-langserver`), `ruff`, `pytest`
-- Multi-language LSPs (Homebrew on macOS, mixed apt/bun/cargo on Ubuntu):
-  - `basedpyright`, `ruff`, `ty` (Python; `ruff server` is the active LSP)
-  - `clangd` (C/C++/Qt via `llvm` + `qt`)
-  - `rust-analyzer` (via `rustup`)
-  - `gopls` (Go)
-  - `dart` Analysis Server (in Dart SDK)
-  - `jdtls` (Java), `kotlin-language-server` (Kotlin; requires JDK)
-  - `postgres-language-server` (Supabase), `sqls` (multi-DB SQL)
-  - R `languageserver` (requires R runtime)
-- Config / docs LSPs:
-  - `@vtsls/language-server` (TS/JS; replaces `typescript-language-server`)
-  - `yaml-language-server`, `bash-language-server`
-  - `dockerfile-language-server-nodejs` (provides `docker-language-server`)
-  - `vscode-langservers-extracted`
-  - `taplo`, `marksman`, `markdown-oxide`
-  - `terraform-ls`, `helm-ls`, `cmake-language-server`
-  - `gh-actions-language-server`
-- Quality-gate CLIs (verified by strict verify):
-  - `shellcheck`, `shfmt` (shell)
-  - `oxlint`, `biome` (JS/TS/JSON)
-  - the security/SAST scanner set (positive inventory lives in the platform install manifests)
-  - `hadolint`, `actionlint`, `yamllint`, `markdownlint-cli2`
-- Shared tools verified by installer:
-  - `node`, `bun`, `python3`, `uv`, `go`, `rustup`, `dart`, `git`, `curl`, `java`, `R`
+Supported compositions:
 
-## Commands
+- Apple Silicon macOS: `desktop`, GUI enabled or disabled, Docker `none`,
+  `source-lsp-only`.
+- Ubuntu 24.04/26.04 `amd64` or `arm64` desktop: GUI enabled or disabled,
+  Docker `none`, `source-lsp-only`.
+- Ubuntu 24.04/26.04 `amd64` or `arm64` server: headless, Docker
+  `none|rootful|rootless`, default `rootful`, `server-build-runtime`.
 
-- Quick check:
-  - `bash scripts/bootstrap.sh --platform macos`
-  - `bash scripts/bootstrap.sh --platform ubuntu`
-- Apply:
-  - `bash scripts/bootstrap.sh --platform macos --apply`
-  - `bash scripts/bootstrap.sh --platform ubuntu --apply`
-- Skip modes:
-  - `--skip-system`, `--skip-ai`, `--skip-lsps`, `--skip-browser`, `--skip-checks`
-- Verification:
-  - `bash scripts/macos/verify.sh --strict --skip-optional`
-  - `bash scripts/ubuntu/verify.sh --strict --skip-optional`
+macOS never accepts the server profile. Desktop profiles never install Docker
+or configure local project build/runtime execution. `--no-gui` removes only
+the GUI overlay; it does not change the desktop execution policy. Server is
+Ubuntu-only and always headless.
 
-## Quality and CI
+## Managed Versions
 
-- GitHub Actions matrix:
-  - `ubuntu-latest`, `macos-latest`
-  - runs `bash scripts/ci/lint.sh`
-  - runs `bash scripts/ci/validate.sh`
-  - runs platform checks with:
-    - `mode=plan`: `--plan --skip-checks`
-    - `mode=apply`: `--apply`
-  - runs cross-check plan for the alternate platform
-- `workflow_dispatch` inputs:
-  - `mode=plan|apply` (default: `plan`)
-  - `platform=both|macos|ubuntu` (default: `both`)
-- Manual CI runs:
-  - `gh workflow run .github/workflows/ci.yml -f mode=plan -f platform=both`
-  - `gh workflow run .github/workflows/ci.yml -f mode=apply -f platform=macos`
-- Always run before merge:
-  - `bash scripts/ci/lint.sh`
-  - `bash scripts/ci/validate.sh`
-  - platform plan runs (`--plan`) for both macOS and Ubuntu
+These values must match both platform installers, the contract, tests, and
+operator documentation:
 
-## Commit Standards
+- Claude Code: `@anthropic-ai/claude-code@2.1.206`
+- Codex: `@openai/codex@0.144.1`
+- OpenCode: `opencode-ai@1.17.18`
+- MiMoCode: `@mimo-ai/cli@0.1.5`
+- Antigravity (`agy`): exact `1.1.0`, self-update disabled
+- RTK: exact `0.43.0`, hash-pinned native artifact
+- CloakBrowser: `0.4.10`
+- Chrome DevTools MCP: `1.5.0`
+- Playwright CLI: `0.1.17`
+- Webwright: `4a46f282ec37f27d6003cc498a977939d62d9015`
+- Ubuntu Node.js/uv/Bun: `24.18.0` / `0.11.28` / `1.3.14`, immutable assets
+  with tracked architecture hashes
 
-- Use Conventional Commits.
-- Commit installer/verification changes separately from docs and policy updates.
-- Do not commit secrets, credentials, runtime markers, local browser artifacts, or caches.
+Use current, source-backed facts before changing a dependency. Preserve exact
+pins and integrity checks unless the change intentionally updates the contract.
+Never reintroduce mutable, unauthenticated remote installer execution or
+unfrozen dependency resolution. Registry-backed AI CLIs use
+`templates/ai-cli/bun.lock` with lifecycle scripts disabled. The Node browser
+providers use `templates/browser/provider/bun.lock`; CloakBrowser and Webwright
+use tracked `uv.lock` files.
 
-## Ownership Notes
+## Non-Negotiable Browser Boundary
 
-- Adapter contract version is tracked in `config/rldyour-contract.json`.
-- Submodule updates in the superproject must only move gitlinks after pushing module changes.
+CloakBrowser is mandatory on every profile. A managed launchd or systemd user
+service owns `http://127.0.0.1:9222`. Chrome DevTools MCP, Playwright CLI, and
+Webwright must use the repository-managed wrappers and this fixed endpoint.
+
+There is no supported `--skip-browser`, `RLDYOUR_SKIP_CLOAKBROWSER`, alternate
+browser executable, alternate endpoint, auto-started stock browser, or stock
+Chromium fallback. Missing or unhealthy browser state must fail closed. Never
+bind the CDP listener beyond loopback.
+
+Preserve unmanaged browser files and fail instead of adopting or replacing
+them. Runtime browser profiles, traces, caches, tokens, and service state must
+never be committed.
+
+## GUI And Integrity Boundaries
+
+- macOS GUI: Ghostty, cmux, ChatGPT, and Claude Desktop.
+- Ubuntu GUI: Claude Desktop; ChatGPT/Codex desktop and cmux have no supported
+  Linux builds.
+- Ubuntu server: no GUI applications.
+
+ZCode `3.3.3` remains manual by default because upstream publishes no checksum
+or signature manifest. On Ubuntu, installation is allowed only when the owner
+supplies a separately verified `RLDYOUR_ZCODE_SHA256`. Do not add a silent
+download, fallback checksum, or integrity bypass.
+
+Authentication is a post-install owner handoff. `scripts/auth-handoff.sh` may
+show instructions and perform non-secret status probes, but bootstrap code must
+not read, print, store, upload, or synthesize credentials.
+
+## Ubuntu Server Safety
+
+Plan mode is the default. Rootful Docker is the composed server default, but
+the installer never grants Docker group membership. Rootless and `none` remain
+explicit alternatives.
+
+The full Ubuntu compositor runs as the non-root sudo-capable developer account
+that owns its home and systemd-user browser service. Root-only automation may
+use the sourceable server layer, not install AI state under `/root`.
+
+UFW, key-only SSH, and Fail2ban are independent explicit opt-ins. Never infer
+them from the server profile. Preserve these safeguards:
+
+- require a non-root account with a readable supported public key before
+  disabling password authentication;
+- require `ssh-keygen` parsing and StrictModes-safe key path metadata;
+- validate OpenSSH syntax and full `sshd -T -C` user/client/local connection
+  contexts before reload, including a separate root context;
+- preserve the active/enabled `ssh.service` versus `ssh.socket` provider and
+  never restart a socket for authentication-only changes;
+- restore the previous managed SSH drop-in after validation or reload failure;
+- add the SSH allow rule before enabling UFW;
+- validate the Fail2ban jail before restart;
+- restore prior Fail2ban file/service state after activation failure;
+- preserve existing synchronized NTP/PTP providers;
+- warn operators to keep the current SSH session open until a second connection
+  succeeds;
+- do not pretend UFW alone contains Docker-published ports;
+- do not add generic sysctl or resource-limit tuning without a separate,
+  host-specific decision.
+- never upgrade apt packages or an existing healthy Docker runtime implicitly;
+  fail on partial/custom Docker state.
+
+Full server validation requires a real supported Ubuntu VM with systemd.
+
+## Implementation Rules
+
+- Keep shell entry points strict, idempotent, plan-aware, and non-interactive
+  unless an explicit owner handoff is the purpose.
+- Never pipe a remote network stream directly into a shell. Download to a
+  temporary file, verify available integrity metadata, then execute.
+- Update managed files atomically. Preserve unmanaged or user-modified files
+  and fail with a clear explanation.
+- Keep shell policy in owned `~/.config/rldyour/` drop-ins. Modify owner shell
+  files only through the delimited, backed-up source blocks and verify a fresh
+  login shell after apply.
+- Ubuntu Node.js, uv, and Bun must retain verified runtime receipts and exact
+  managed links; an external same-version PATH binary is not provenance.
+- APT key validation must reject bundles with more than one primary key.
+- Keep desktop source/LSP manifests free of Docker and general project runtime
+  dependencies.
+- Keep server build/runtime and hardening behavior in the Ubuntu server layer.
+- Prefer existing shared helpers and namespaced server functions over duplicate
+  shell logic.
+- Do not swallow errors, fake successful checks, or downgrade mandatory checks
+  to best-effort behavior.
+- Do not commit credentials, `.env` files, local browser state, caches, traces,
+  diagnostics output, or runtime markers.
+
+## Common Commands
+
+Plan:
+
+```bash
+bash scripts/bootstrap.sh --platform macos
+bash scripts/bootstrap.sh --platform macos --no-gui
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop
+bash scripts/bootstrap.sh --platform ubuntu --profile server
+```
+
+Apply:
+
+```bash
+bash scripts/bootstrap.sh --platform macos --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile server --apply
+```
+
+Supported skip flags are `--skip-system`, `--skip-ai`, `--skip-lsps`, and
+`--skip-checks`. Do not document a browser skip.
+
+Authentication handoff:
+
+```bash
+bash scripts/auth-handoff.sh show
+bash scripts/auth-handoff.sh check
+```
+
+## Verification Gates
+
+Run checks matching the touched scope and report exact commands:
+
+```bash
+bash scripts/ci/lint.sh
+bash scripts/ci/validate.sh
+python3 -m pytest
+```
+
+Use platform verification on real targets when platform behavior changes:
+
+```bash
+bash scripts/macos/verify.sh --strict
+bash scripts/ubuntu/verify.sh --strict
+bash scripts/ubuntu/verify-server.sh --docker-mode rootful
+```
+
+For documentation-only changes, at minimum run `git diff --check` and targeted
+stale-fact scans. Do not claim macOS, Ubuntu GUI, SSH, firewall, systemd, or
+Docker runtime evidence that was not actually produced.
+
+## Git And Delivery
+
+- Preserve unrelated user changes in a dirty worktree.
+- Use atomic Conventional Commits when commits are requested.
+- Keep implementation, tests/validators, docs/policy, and generated metadata
+  independently reviewable when practical.
+- Do not force-push `main` or rewrite pushed history without explicit approval.
+- Move any superproject gitlink only after this repository's changes are pushed
+  and verified.

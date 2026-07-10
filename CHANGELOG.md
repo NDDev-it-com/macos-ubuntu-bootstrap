@@ -4,6 +4,50 @@ All notable changes to this module will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-10
+
+### Added
+
+- Compose macOS desktop, Ubuntu desktop, and Ubuntu server profiles with an
+  explicit GUI overlay and server Docker mode.
+- Add non-secret authentication handoff guidance and safe Ubuntu server
+  baseline/Docker verification for 24.04 and 26.04.
+- Make CloakBrowser the mandatory, health-gated browser boundary for Chrome
+  DevTools MCP, Playwright CLI, and Webwright with no stock-browser fallback.
+- Add frozen AI CLI/Node-provider/CloakBrowser/Webwright dependency locks and
+  immutable, hashed Node.js, uv, Bun, Antigravity, Homebrew, and RTK artifact
+  channels; AI package lifecycle scripts remain disabled.
+
+### Changed
+
+- Refresh AI CLI pins for 2026-07-10 and make exact managed packages update
+  idempotently instead of accepting any binary already found on `PATH`.
+- Restrict desktops to source/LSP tooling; project builds, Docker, and runtime
+  execution belong to Ubuntu servers.
+- Require explicit Ubuntu role selection and disable Antigravity self-update so
+  a verified tool cannot drift outside the tracked contract.
+- Install versioned shell drop-ins through backed-up source blocks and verify
+  managed PATH, browser, and updater policy in a fresh login shell.
+- Guard interactive modern-tool aliases and abbreviations, and select Ubuntu's
+  `batcat`/`fdfind` command names without shadowing working core commands.
+- Disable all Claude Code update paths and preserve the host's existing
+  OpenSSH service-versus-socket activation choice.
+- Add tamper-evident Ubuntu Node.js/uv/Bun receipts and managed-link checks;
+  preserve installed Homebrew/APT package versions, source-tool versions, and
+  healthy Docker workloads instead of implicitly upgrading them on rerun.
+
+### Security
+
+- Preserve conflicting unmanaged configuration, verify repository signing keys,
+  never add users to the root-equivalent Docker group, and require explicit
+  opt-in for UFW or SSH authentication changes.
+- Reject browser trust-root overrides, bind CDP health to the verified binary,
+  preserve existing rootful Docker during rootless setup, and roll back failed
+  managed UFW changes.
+- Run effective SSH-port discovery through a privileged read-only probe and do
+  not restart socket-activated listeners for authentication-only hardening.
+- Validate SSH keys, accepted algorithms, full Match context, and UFW operator
+  CIDR before lockout-sensitive changes; reject multi-primary APT key bundles.
 
 ## [0.2.9] - 2026-07-08
 

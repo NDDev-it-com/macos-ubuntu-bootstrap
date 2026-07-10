@@ -4,12 +4,6 @@ on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version from VERSION (must match the file content)"
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -19,218 +13,74 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build and publish release bundle
+  resolve:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Harden runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
-        with:
-          egress-policy: audit
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-
-      - name: Validate release version
-        shell: bash
-        env:
-          RELEASE_INPUT_VERSION: ${{ inputs.version }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          persist-credentials: false
+      - name: Resolve version
+        id: version
         run: |
           set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            version="$GITHUB_REF_NAME"
-          else
-            version="$RELEASE_INPUT_VERSION"
-          fi
-
-          if [ -z "$version" ]; then
-            echo "release version is empty; tag push or workflow_dispatch input required" >&2
+          version="${GITHUB_REF_NAME}"
+          [ "${GITHUB_REF_TYPE}" = "tag" ] || {
+            echo "release workflow must run from a tag ref" >&2
             exit 1
-          fi
-          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "release version '$version' must be numeric SemVer X.Y.Z" >&2
-            exit 1
-          fi
-
+          }
           file_version="$(tr -d '[:space:]' < VERSION)"
-          if [ "$version" != "$file_version" ]; then
-            echo "release version '$version' does not match VERSION '$file_version'" >&2
+          [ "$version" = "$file_version" ] || {
+            echo "release '$version' does not match VERSION '$file_version'" >&2
             exit 1
-          fi
-
-          if ! grep -q "^## \\[$version\\]" CHANGELOG.md; then
+          }
+          grep -q "^## \[$version\]" CHANGELOG.md || {
             echo "CHANGELOG.md has no release entry for $version" >&2
             exit 1
-          fi
-
-          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
-
-      - name: Build release manifest and SBOM
-        env:
-          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          tar --sort=name \
-            --mtime="$(git log -1 --format=%cI)" \
-            --owner=0 \
-            --group=0 \
-            --numeric-owner \
-            --exclude='.git' \
-            --exclude='.pytest_cache' \
-            --exclude='.serena' \
-            --exclude='dist' \
-            -cf - \
-            CHANGELOG.md \
-            README.md \
-            SECURITY.md \
-            CONTRIBUTING.md \
-            LICENSE \
-            NOTICE \
-            VERSION \
-            .github \
-            config \
-            scripts \
-            templates \
-            docs \
-            | gzip -n > "dist/rldyour-new-mac-or-ubuntu-${RELEASE_VERSION}.tar.gz"
-
-          python3 - <<'PY'
-          import os
-          import json
-          from datetime import datetime
-          from pathlib import Path
-
-          release_version = os.environ["RELEASE_VERSION"]
-          artifact_name = f"rldyour-new-mac-or-ubuntu-{release_version}.tar.gz"
-          manifest = {
-              "package_name": "rldyour-new-mac-or-ubuntu",
-              "version": Path("VERSION").read_text(encoding="utf-8").strip(),
-              "generated_at": datetime.utcnow().isoformat() + "Z",
-              "required_artifacts": [
-                  artifact_name,
-                  "sbom.spdx.json",
-                  "release-manifest.json",
-                  "release-notes.md",
-                  "SHA256SUMS",
-              ],
           }
-          if Path("dist/github-dependency-graph-sbom.spdx.json").exists():
-              manifest["required_artifacts"].append("github-dependency-graph-sbom.spdx.json")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-          Path("dist/release-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-
-          sbom = {
-              "spdxVersion": "SPDX-2.3",
-              "SPDXID": "SPDXRef-DOCUMENT",
-              "name": "rldyour-new-mac-or-ubuntu",
-              "packages": [
-                  {
-                      "SPDXID": "SPDXRef-Package-rldyour-new-mac-or-ubuntu",
-                      "name": "rldyour-new-mac-or-ubuntu",
-                      "versionInfo": manifest["version"],
-                      "downloadLocation": "git+https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu.git",
-                  }
-              ],
-              "creationInfo": {
-                  "created": datetime.utcnow().isoformat() + "Z",
-                  "creators": ["Tool: rldyour-bootstrap-release-workflow"],
-              },
+      - name: Require tag commit on main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "release tag commit must be reachable from origin/main" >&2
+            exit 1
           }
-          Path("dist/sbom.spdx.json").write_text(json.dumps(sbom, indent=2) + "\n", encoding="utf-8")
-          PY
 
-      - name: Export GitHub dependency graph SBOM when available
+      - name: Prepare release validation tools
         run: |
           set -euo pipefail
-          if gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2026-03-10" \
-            "/repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" \
-            --jq '.sbom' \
-            > dist/github-dependency-graph-sbom.spdx.json; then
-            jq -e '.spdxVersion == "SPDX-2.3" and (.packages | length > 0)' \
-              dist/github-dependency-graph-sbom.spdx.json >/dev/null
-          else
-            rm -f dist/github-dependency-graph-sbom.spdx.json
-          fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1
 
-      - name: Generate release notes
-        shell: bash
+      - name: Validate release source snapshot
         run: |
           set -euo pipefail
-          awk -v version="${RELEASE_VERSION}" '
-            $0 ~ "^## \\[" version "\\]" { flag = 1; next }
-            flag && /^## \[/ { exit }
-            flag { print }
-          ' CHANGELOG.md > dist/release-notes.md
-          test -s dist/release-notes.md
+          bash scripts/ci/validate.sh
+          python3 -m pytest -q
 
-      - name: Generate release checksums
-        run: |
-          set -euo pipefail
-          # Checksums must cover EVERY published asset (validated downstream),
-          # so this runs after notes/manifest/SBOMs land in dist and excludes
-          # only the checksum file itself.
-          cd dist
-          rm -f SHA256SUMS
-          mapfile -t assets < <(find . -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)
-          sha256sum "${assets[@]}" > SHA256SUMS
-
-      - name: Attest release bundle
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+      - name: Validate workflow syntax
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7
         with:
-          subject-path: dist/rldyour-new-mac-or-ubuntu-${{ env.RELEASE_VERSION }}.tar.gz
+          args: -color .github/workflows/*.yml
 
-      - name: Attest generated SPDX SBOM
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
-        with:
-          subject-path: dist/sbom.spdx.json
-
-      - name: Attest GitHub dependency graph SBOM
-        if: hashFiles('dist/github-dependency-graph-sbom.spdx.json') != ''
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
-        with:
-          subject-path: dist/github-dependency-graph-sbom.spdx.json
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-${{ env.RELEASE_VERSION }}
-          path: dist
-          retention-days: 30
-
-      - name: Create release tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git rev-parse -q --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
-            echo "Tag ${RELEASE_VERSION} already exists"
-          else
-            git tag "${RELEASE_VERSION}"
-            git push origin "refs/tags/${RELEASE_VERSION}"
-          fi
-
-      - name: Publish GitHub Release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_VERSION" dist/* --clobber
-          else
-            gh release create "$RELEASE_VERSION" \
-              --verify-tag \
-              --title "$RELEASE_VERSION" \
-              --notes-file dist/release-notes.md \
-              dist/*
-          fi
+  supply-chain:
+    needs: resolve
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: NDDev-it-com/nddev-ci-workflows/.github/workflows/release-supply-chain.yml@ac4d1f469f5974741c7449305ffcbd5f05a5a47f # 0.5.1
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      package_name: rldyour-new-mac-or-ubuntu
+      archive_paths: "README.md LICENSE NOTICE SECURITY.md VERSION CHANGELOG.md AGENTS.md .claude .github config scripts templates docs"

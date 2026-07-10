@@ -1,73 +1,169 @@
 # Claude Code Project Memory: rldyour New Mac or Ubuntu Bootstrap
 
-## Purpose
+## Mission
 
-This module provides a unified bootstrap flow for AI CLI toolchains on:
+Maintain one plan-first bootstrap adapter for:
 
-- macOS (`scripts/macos/*`)
-- Ubuntu (`scripts/ubuntu/*`)
+- Apple Silicon macOS desktops, with or without GUI apps;
+- Ubuntu 24.04/26.04 desktops, with or without GUI apps;
+- headless Ubuntu 24.04/26.04 servers.
 
-It is a stand-alone repository submodule used by the superproject `rldyour-ai-cli-tools`
-for dependency and verification parity across workstation classes.
+The public entry point is `scripts/bootstrap.sh`. Treat
+`config/rldyour-contract.json`, the platform installers, verification scripts,
+and tests as the executable contract. Current adapter version: `0.3.0`.
 
-## Repository Layout
+## Composition Invariants
 
-- `scripts/bootstrap.sh` - platform selector and orchestration entrypoint.
-- `scripts/lib/common.sh` - shared shell helpers and command checks.
-- `scripts/macos/install.sh` and `scripts/macos/verify.sh` - macOS baseline setup.
-- `scripts/ubuntu/install.sh` and `scripts/ubuntu/verify.sh` - Ubuntu baseline setup.
-- `scripts/ci/validate.sh` - lint + contract + dry-run matrix preflight.
-- `scripts/ci/lint.sh` - shell syntax + shellcheck for bootstrap scripts.
-- `docs/install.md` - OS dependency matrix and CI notes.
-- `config/rldyour-contract.json` - module contract and adapter metadata.
+Ubuntu profile selection is always explicit. Never infer server/rootful Docker
+from `uname=Linux`; require `--profile desktop|server`.
 
-## Verified Runtime Baseline
+- **macOS desktop (`arm64`):** GUI enabled or disabled, Docker `none`, policy
+  `source-lsp-only`.
+- **Ubuntu desktop (`amd64`/`arm64`):** GUI enabled or disabled, Docker `none`,
+  policy `source-lsp-only`.
+- **Ubuntu server (`amd64`/`arm64`):** headless, Docker `none`, `rootful`, or
+  `rootless`; default `rootful`; policy `server-build-runtime`.
 
-- Claude Code runtime check is resilient to both possible binary names:
-  - `claude` (current installed binary)  
-  - `claude-code` (legacy alias in some environments)
-- AI runtimes installed from pins:
-  - `@anthropic-ai/claude-code@2.1.204`
-  - `@openai/codex@0.142.5`
-  - `opencode-ai@1.17.15`
-  - `@mimo-ai/cli@0.1.4`
-  - `agy` via antigravity installer URL
-- Python tooling is managed through `uv tool`.
-- LSP layer is provisioned via Bun globals where supported.
+Desktop profiles do not provision Docker or configure local project build/runtime
+execution. `--no-gui` is only an overlay switch. macOS cannot be a server
+profile; Ubuntu server is always headless.
 
-## Common Workflows
+## Verified Pins
 
-- Plan only (default):
-  - `bash scripts/bootstrap.sh --platform macos`
-  - `bash scripts/bootstrap.sh --platform ubuntu`
-- Apply:
-  - `bash scripts/bootstrap.sh --platform macos --apply`
-  - `bash scripts/bootstrap.sh --platform ubuntu --apply`
-- Strict verification:
-  - `bash scripts/macos/verify.sh --strict --skip-optional`
-  - `bash scripts/ubuntu/verify.sh --strict --skip-optional`
-- Full CI preflight:
-  - `bash scripts/ci/validate.sh`
-  - `bash scripts/ci/lint.sh`
-- CI workflow dispatch:
-  - `platform=both|macos|ubuntu`
-  - `mode=plan|apply`
-- Manual examples:
-  - `gh workflow run .github/workflows/ci.yml -f mode=plan -f platform=both`
-  - `gh workflow run .github/workflows/ci.yml -f mode=apply -f platform=macos`
+- Claude Code `2.1.206`
+- Codex `0.144.1`
+- OpenCode `1.17.18`
+- MiMoCode `0.1.5`
+- Antigravity (`agy`) exact `1.1.0`, self-update disabled
+- RTK exact `0.43.0`, hash-pinned native artifact
+- CloakBrowser `0.4.10`
+- Chrome DevTools MCP `1.5.0`
+- Playwright CLI `0.1.17`
+- Webwright `4a46f282ec37f27d6003cc498a977939d62d9015`
+- Ubuntu Node.js/uv/Bun `24.18.0` / `0.11.28` / `1.3.14`, immutable assets
+  with tracked architecture hashes
 
-## Troubleshooting Notes
+Keep the contract, both installers, tests, README, install guide, AGENTS, and
+this file synchronized when a pin changes.
+Do not use mutable unauthenticated installer scripts or live-unlocked dependency
+resolution. Keep the AI CLI and Node-provider `bun.lock` files and both Python
+`uv.lock` files frozen. AI package lifecycle scripts remain disabled.
 
-- If a binary is missing after install, rerun with platform-specific apply mode:
-  - ensure base toolchain environment is present (`PATH` includes user-local bins such as
-    `~/.bun/bin`, `~/.cargo/bin`, `~/.local/bin`)
-    and rerun bootstrap with `--apply`.
-- For strict behavior in installer or verify flows use `--strict`.
+## Browser Boundary
 
-## Task Rules
+CloakBrowser is required on every profile. A managed service owns the fixed
+loopback CDP endpoint `http://127.0.0.1:9222`. Repository wrappers force Chrome
+DevTools MCP, Playwright CLI, and Webwright through that endpoint and require
+`cloakbrowser-cdp-health` before browser actions.
 
-- Keep changes scoped to verified facts from this module (`scripts`, `docs`, `config`).
-- Prefer direct shell checks:
-  - `bash -n <script>`
-  - `shellcheck -x <script>`
-- Keep logs and notes concise; avoid committing runtime artifacts.
+Fail closed on missing or unhealthy browser state. Do not add or document:
+
+- `--skip-browser` or `RLDYOUR_SKIP_CLOAKBROWSER`;
+- an alternate executable, endpoint, or provider config;
+- provider auto-start of Chrome/Chromium;
+- a stock or embedded browser fallback;
+- a non-loopback CDP listener.
+
+Managed browser files use ownership markers. Preserve unmanaged files and fail
+instead of replacing them.
+
+## GUI And Authentication
+
+- macOS GUI mode: Ghostty, cmux, ChatGPT, Claude Desktop.
+- Ubuntu GUI mode: Claude Desktop. ChatGPT/Codex desktop and cmux have no
+  supported Linux desktop build.
+- Server: no GUI layer.
+
+ZCode `3.3.3` is manual by default because upstream publishes no checksum or
+signature manifest. Ubuntu may install it only with a separately verified
+`RLDYOUR_ZCODE_SHA256`. Never bypass that integrity gate.
+
+Credentials are outside bootstrap ownership. Use:
+
+```bash
+bash scripts/auth-handoff.sh show
+bash scripts/auth-handoff.sh check
+```
+
+The handoff must remain non-secret. It may describe owner-controlled login and
+query status commands, but it must never read, print, store, or upload
+credentials.
+
+## Ubuntu Server Safety
+
+Rootful Docker is the composed server default, but Docker group membership is
+never automatic. UFW, key-only SSH, and Fail2ban are separate explicit opt-ins.
+
+Preserve authorized-key preflight, `sshd -t` and effective-config checks,
+rollback on validation/reload failure, SSH-rule-before-UFW ordering, Fail2ban
+config validation, and post-apply server verification. Do not add generic
+kernel or resource-limit tuning. Full evidence needs a real Ubuntu VM with
+systemd and an external SSH/network check.
+
+The full Ubuntu compositor must run as the non-root sudo-capable developer
+account that owns the systemd-user CloakBrowser service. Preserve existing apt
+package versions and healthy Docker workloads; fail on partial/custom Docker
+state instead of upgrading over it. Managed Node.js, uv, and Bun require their
+tracked receipts and exact user-local links.
+
+Preserve the host's active/enabled `ssh.service` or `ssh.socket` choice. Do not
+restart a socket-activated listener for authentication-only policy changes.
+Managed shell policy belongs in versioned `~/.config/rldyour/` drop-ins; owner
+dotfiles may only receive the backed-up, delimited source blocks.
+
+## Key Paths
+
+- `scripts/bootstrap.sh` - profile compositor.
+- `scripts/lib/common.sh` - shared helpers and browser provisioning.
+- `scripts/macos/*` - macOS install and verification.
+- `scripts/ubuntu/install.sh` - Ubuntu profile composition.
+- `scripts/ubuntu/server.sh` - sourceable server mutations and safety checks.
+- `scripts/ubuntu/verify-server.sh` - read-only server verification.
+- `scripts/auth-handoff.sh` - post-install authentication boundary.
+- `docs/adr/0004-profile-composition-and-cloakbrowser-boundary.md` - accepted
+  architecture decision.
+- `docs/install.md` - operator guide.
+
+## Workflows
+
+Plan before apply:
+
+```bash
+bash scripts/bootstrap.sh --platform macos
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop
+bash scripts/bootstrap.sh --platform ubuntu --profile server
+```
+
+Apply only after plan review:
+
+```bash
+bash scripts/bootstrap.sh --platform macos --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile server --apply
+```
+
+Supported skip flags: `--skip-system`, `--skip-ai`, `--skip-lsps`, and
+`--skip-checks`. Browser provisioning is mandatory.
+
+Validation:
+
+```bash
+bash scripts/ci/lint.sh
+bash scripts/ci/validate.sh
+python3 -m pytest
+```
+
+Use `bash -n` and `shellcheck -x` for targeted shell changes. Run strict
+platform verification on the corresponding real OS when behavior changes.
+Never claim runtime evidence that was not produced.
+
+## Change Discipline
+
+- Keep changes scoped and preserve unrelated dirty-worktree edits.
+- Reuse shared helpers; keep sourceable server APIs namespaced and side-effect
+  free until their main function is invoked.
+- Never pipe remote code directly to a shell.
+- Update managed files atomically; preserve and reject unmanaged conflicts.
+- Do not weaken mandatory checks into warnings or best-effort fallbacks.
+- Never commit secrets, browser profiles, traces, caches, runtime markers, or
+  local authentication state.

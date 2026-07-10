@@ -7,13 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Run bootstrap as plan (default) or apply."
+        description: "Hosted CI validates plan mode only; apply belongs on a disposable target VM."
         required: true
         default: plan
         type: choice
         options:
           - plan
-          - apply
       platform:
         description: "Run target platform(s) on matrix."
         required: true
@@ -101,11 +100,11 @@ jobs:
       - name: Verify bootstrap entrypoint for target platform
         if: github.event_name != 'workflow_dispatch' || inputs.platform == 'both' || inputs.platform == matrix.platform
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.mode }}" == "apply" ]]; then
-            bash scripts/bootstrap.sh --platform "${{ matrix.platform }}" --apply
-          else
-            bash scripts/bootstrap.sh --platform "${{ matrix.platform }}" --plan --skip-checks
+          args=(--profile desktop)
+          if [ "${{ matrix.platform }}" = "ubuntu" ]; then
+            args+=(--no-gui)
           fi
+          bash scripts/bootstrap.sh --platform "${{ matrix.platform }}" "${args[@]}" --plan --skip-checks
 
   bootstrap-dryrun-crosscheck:
     needs: bootstrap-validate
@@ -131,7 +130,8 @@ jobs:
       - name: Crosscheck other platform installer in plan mode
         if: github.event_name != 'workflow_dispatch' || inputs.platform == 'both' || inputs.platform == matrix.platform
         run: |
-          bash scripts/bootstrap.sh --platform "${{ matrix.cross_platform }}" --plan --skip-system --skip-checks
+          args=(--profile desktop --no-gui)
+          bash scripts/bootstrap.sh --platform "${{ matrix.cross_platform }}" "${args[@]}" --plan --skip-system --skip-checks
 
   workflow-lint:
     runs-on: ubuntu-latest
@@ -145,7 +145,7 @@ jobs:
       - name: Lint GitHub workflow YAML files
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7
         with:
-          args: -color .github/workflows/*.yml .github/workflows/*.yaml
+          args: -color .github/workflows/*.yml
 
   bootstrap-gate:
     needs: [bootstrap-script-lint, bootstrap-validate, bootstrap-dryrun-crosscheck, workflow-lint]
@@ -154,13 +154,8 @@ jobs:
     steps:
       - name: Bootstrap CI gate
         run: |
-          mode="plan"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            mode="${{ inputs.mode }}"
-          fi
-
           echo "Checking required bootstrap workflow jobs"
-          echo "mode=${mode}"
+          echo "mode=plan"
 
           if [[ "${{ needs.bootstrap-script-lint.result }}" != "success" ]]; then
             echo "bootstrap-script-lint: ${{ needs.bootstrap-script-lint.result }}" >&2
@@ -177,7 +172,7 @@ jobs:
             exit 1
           fi
 
-          if [[ "$mode" == "plan" && "${{ needs.bootstrap-dryrun-crosscheck.result }}" != "success" ]]; then
+          if [[ "${{ needs.bootstrap-dryrun-crosscheck.result }}" != "success" ]]; then
             echo "bootstrap-dryrun-crosscheck: ${{ needs.bootstrap-dryrun-crosscheck.result }}" >&2
             exit 1
           fi

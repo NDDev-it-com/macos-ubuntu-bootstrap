@@ -63,33 +63,45 @@ command -v starship >/dev/null && eval "$(starship init zsh)"
 # This section only runs AFTER the section-1 agent gate; zsh never reads
 # .zshrc for non-interactive shells at all. Agents get the tools on PATH
 # under their own names. Shadowing policy (2026-07 verdicts):
-#   alias = view-layer, argument-compatible supersets only (ls, cat, tree).
+#   alias = view-layer, argument-compatible supersets only (ls, cat, tree),
+#           and only when the replacement executable is available.
 #   abbr  = replacements that expand VISIBLY before execution.
 #   never = grep, sed, awk, find, jq (rg is deliberately non-POSIX and skips
 #           ignored/hidden files; sd cannot host sed one-liners).
-alias ls='eza --group-directories-first'
-alias ll='eza -la --git --group-directories-first'
-alias tree='eza --tree'
-alias cat='bat'
-alias lg='lazygit'
+if command -v eza >/dev/null 2>&1; then
+  alias ls='eza --group-directories-first'
+  alias ll='eza -la --git --group-directories-first'
+  alias tree='eza --tree'
+fi
+if command -v bat >/dev/null 2>&1; then
+  alias cat='bat'
+elif command -v batcat >/dev/null 2>&1; then
+  # Ubuntu packages bat as `batcat` to avoid a historical name collision.
+  alias cat='batcat'
+fi
+command -v lazygit >/dev/null 2>&1 && alias lg='lazygit'
 # Harness launchers cl / cx / oc are real executables in ~/.local/bin
 # (installed by rldyour-ai-cli-tools) — not aliases, so agents can exec them.
 if command -v abbr >/dev/null; then
-  abbr -S -qq gs='git status'      2>/dev/null
-  abbr -S -qq gd='git diff'        2>/dev/null
-  abbr -S -qq dft='git dft'        2>/dev/null   # difftastic difftool alias
-  abbr -S -qq jql='jaq'            2>/dev/null   # fast jq sidecar, own name
+  if command -v git >/dev/null 2>&1; then
+    abbr -S -qq gs='git status'     2>/dev/null
+    abbr -S -qq gd='git diff'       2>/dev/null
+  fi
+  command -v difft >/dev/null 2>&1 && abbr -S -qq dft='difft' 2>/dev/null
+  command -v jaq >/dev/null 2>&1 && abbr -S -qq jql='jaq' 2>/dev/null
   # 2026-07 modern-unix wave — human shells only, visible expansion
-  abbr -S -qq du='dust'            2>/dev/null
-  abbr -S -qq dui='dua i'          2>/dev/null
-  abbr -S -qq df='duf'             2>/dev/null
-  abbr -S -qq ps='procs'           2>/dev/null
-  abbr -S -qq top='btop'           2>/dev/null
-  abbr -S -qq htop='btop'          2>/dev/null
-  abbr -S -qq dig='doggo'          2>/dev/null
-  abbr -S -qq ping='gping'         2>/dev/null
-  abbr -S -qq xxd='hexyl'          2>/dev/null
-  abbr -S -qq watch='viddy'        2>/dev/null
+  command -v dust >/dev/null 2>&1 && abbr -S -qq du='dust' 2>/dev/null
+  command -v dua >/dev/null 2>&1 && abbr -S -qq dui='dua i' 2>/dev/null
+  command -v duf >/dev/null 2>&1 && abbr -S -qq df='duf' 2>/dev/null
+  command -v procs >/dev/null 2>&1 && abbr -S -qq ps='procs' 2>/dev/null
+  if command -v btop >/dev/null 2>&1; then
+    abbr -S -qq top='btop'          2>/dev/null
+    abbr -S -qq htop='btop'         2>/dev/null
+  fi
+  command -v doggo >/dev/null 2>&1 && abbr -S -qq dig='doggo' 2>/dev/null
+  command -v gping >/dev/null 2>&1 && abbr -S -qq ping='gping' 2>/dev/null
+  command -v hexyl >/dev/null 2>&1 && abbr -S -qq xxd='hexyl' 2>/dev/null
+  command -v viddy >/dev/null 2>&1 && abbr -S -qq watch='viddy' 2>/dev/null
 fi
 
 # ── 8. fzf keybindings (Ctrl-R handled by atuin; keep Ctrl-T / Alt-C) ───────
@@ -100,5 +112,10 @@ for _fzf in \
   [[ -r $_fzf ]] && { source "$_fzf"; break; }
 done
 unset _fzf
-export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git'
+if command -v fd >/dev/null 2>&1; then
+  export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git'
+elif command -v fdfind >/dev/null 2>&1; then
+  # Ubuntu packages fd as `fdfind`; keep fzf usable without an unmanaged shim.
+  export FZF_DEFAULT_COMMAND='fdfind --type f --hidden --exclude .git'
+fi
 export FZF_DEFAULT_OPTS='--height 40% --layout=reverse'

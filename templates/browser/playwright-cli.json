@@ -1,0 +1,9 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "isolated": false,
+    "remoteEndpoint": null,
+    "cdpEndpoint": "http://127.0.0.1:9222",
+    "cdpTimeout": 5000
+  }
+}

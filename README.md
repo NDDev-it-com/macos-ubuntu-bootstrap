@@ -1,196 +1,250 @@
 # rldyour New Mac / Ubuntu Bootstrap
 
-rldyour module for macOS and Ubuntu workstation bootstrap, dependency installation, and terminal-first AI-CLI setup.
+Plan-first bootstrap automation for Apple Silicon macOS desktops, Ubuntu
+24.04/26.04 desktops, and headless Ubuntu 24.04/26.04 servers.
 
-## Current Baseline
+## Current Contract
 
-| Field | Value |
+The adapter contract version is `0.3.0`.
+
+- **macOS Apple Silicon:** desktop, GUI or no GUI, Docker `none`, source/LSP
+  only.
+- **Ubuntu 24.04/26.04 desktop (`amd64`/`arm64`):** GUI or no GUI, Docker
+  `none`, source/LSP only.
+- **Ubuntu 24.04/26.04 server (`amd64`/`arm64`):** headless, server
+  build/runtime, Docker `none`, `rootful`, or `rootless`; default `rootful`.
+
+Desktop profiles install source-analysis tools, LSPs, quality checks, terminal
+tooling, AI CLIs, and the mandatory browser layer. They do not install Docker
+or configure local project build/runtime execution. Node and Python are tool
+hosts, and the macOS clangd provider arrives in Homebrew's LLVM distribution;
+those supporting binaries do not authorize local project builds.
+
+On Ubuntu, Node.js `24.18.0`, uv `0.11.28`, and Bun `1.3.14` are installed from
+versioned upstream assets with tracked per-architecture SHA-256 values. macOS
+bootstraps Homebrew from its notarized `6.0.9` package. The four registry-backed
+AI CLIs install from a repository-owned Bun lock with lifecycle scripts disabled.
+Antigravity uses a generation-pinned native artifact and disables self-update.
+Browser Node providers, CloakBrowser, and Webwright also use tracked locks with
+frozen artifact hashes.
+
+Ubuntu tool-host artifacts always install into owned versioned directories
+with archive/hash receipts and managed `~/.local/bin` links. A same-version
+binary elsewhere on `PATH` is preserved but never accepted as provenance;
+unmarked or tampered managed destinations fail closed. Existing apt packages,
+Python tools, Bun source tools, and healthy Docker CE installations are not
+implicitly upgraded on a rerun. Existing Homebrew formulae and casks are also
+preserved; macOS installs only missing baseline entries.
+
+The Ubuntu server profile adds the build/runtime baseline and an explicit Docker
+mode. macOS does not support the server profile.
+
+## Managed AI CLI Baseline
+
+| CLI | Managed version |
 | --- | --- |
-| Adapter version | `0.2.9` |
-| Runtime baseline | Claude Code `2.1.204`; Codex `0.142.5`; OpenCode `1.17.15`; MiMoCode `0.1.4`; Antigravity `agy` |
-| GitHub release tag | `0.2.9` |
+| Claude Code | `2.1.206` |
+| Codex | `0.144.1` |
+| OpenCode | `1.17.18` |
+| MiMoCode | `0.1.5` |
+| Antigravity (`agy`) | exact `1.1.0`, self-update disabled |
+| RTK output compressor | exact `0.43.0`, hash-pinned artifact |
 
-Runtime pin sources: `scripts/macos/install.sh`, `scripts/ubuntu/install.sh`, and `config/rldyour-contract.json`.
+The exact sources of truth are `config/rldyour-contract.json`,
+`scripts/macos/install.sh`, and `scripts/ubuntu/install.sh`.
 
-## What This Repository Provides
+Claude's managed launcher and shell environment set both
+`DISABLE_AUTOUPDATER=1` and `DISABLE_UPDATES=1`; Antigravity sets
+`AGY_CLI_DISABLE_AUTO_UPDATE=true`. Exact runtime pins therefore remain under
+repository control instead of drifting through a background or manual updater.
 
-This module is a configuration and bootstrap adapter for local terminals on macOS desktops and Ubuntu workstations/servers. It installs and validates terminal prerequisites for the rldyour AI CLI stack: Node/Bun/uv/Python/Go/Rust/Dart runtimes, AI CLI tools, terminal LSP/runtime helpers, and CI policy enforcement for public-repo quality and security.
+## Managed Terminal Integration
 
-It is not an upstream AI runtime source. It orchestrates pinned installer flows and validations only.
+The bootstrap owns versioned drop-ins under `~/.config/rldyour/` and adds one
+small source block to `~/.zshenv` and `~/.zprofile`. Existing owner content is
+preserved byte-for-byte outside that block and backed up under
+`~/.local/share/rldyour/backups/shell/` before the first change. Symlinks,
+non-regular paths, duplicate markers, and malformed blocks fail closed.
 
-## Native Boundaries
+Post-apply verification starts a fresh `zsh -l -c` and proves that
+`~/.local/bin` has precedence, every managed CLI/browser command resolves from
+that directory, the fixed CloakBrowser endpoint is active, forbidden trust
+overrides are unset, and managed updater policy is present.
 
-This repository exposes these native runtime surfaces:
+## Plan And Apply
 
-- `scripts/bootstrap.sh` - profile switcher (`--platform macos|ubuntu`).
-- `scripts/macos/install.sh`, `scripts/ubuntu/install.sh` - OS-specific dependency installation profiles.
-- `scripts/macos/verify.sh`, `scripts/ubuntu/verify.sh` - per-platform verification gates.
-- `scripts/ci/*.sh` - shell lint/validation driver scripts.
-- `.github/workflows/**` - CI, security, dependency and release controls.
-
-Source-only (not projected into runtime installers): historical docs, contracts, and local agent context.
-
-## Install / Update / ry-repair
-
-**Install / plan mode (default):**
+Plan mode is the default and does not mutate the target:
 
 ```bash
+# macOS desktop with GUI apps
 bash scripts/bootstrap.sh --platform macos
-bash scripts/bootstrap.sh --platform ubuntu
+
+# macOS desktop without GUI apps
+bash scripts/bootstrap.sh --platform macos --no-gui
+
+# Ubuntu server, headless, rootful Docker within the explicit server profile
+bash scripts/bootstrap.sh --platform ubuntu --profile server
+
+# Ubuntu desktop with GUI apps
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop
+
+# Ubuntu desktop without GUI apps
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop --no-gui
 ```
 
-**Apply mode:**
+Apply only after reviewing the plan:
 
 ```bash
 bash scripts/bootstrap.sh --platform macos --apply
-bash scripts/bootstrap.sh --platform ubuntu --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile server --apply
 ```
 
-**Targeted plans:**
+Run the full Ubuntu bootstrap while logged in as the non-root developer account
+that will own `~/.local`, AI configuration, and the CloakBrowser user service;
+the account must have sudo. Root-only/cloud-init administration may run the
+sourceable `scripts/ubuntu/server.sh` baseline separately, but the full composed
+bootstrap rejects `EUID=0` instead of installing user state under `/root` and
+failing late at `systemctl --user`.
+
+Server Docker alternatives are explicit:
 
 ```bash
-bash scripts/bootstrap.sh --platform macos --plan --skip-checks
-bash scripts/bootstrap.sh --platform ubuntu --plan --skip-checks
+bash scripts/bootstrap.sh --platform ubuntu --profile server --docker-mode none
+bash scripts/bootstrap.sh --platform ubuntu --profile server --docker-mode rootless
 ```
 
-**Verification-only:**
+Ubuntu always requires an explicit `--profile desktop|server`; Linux alone is
+not enough information to infer a safe Docker/runtime role. Supported layer
+controls are `--skip-system`, `--skip-ai`, `--skip-lsps`, and `--skip-checks`.
+Browser automation cannot be skipped.
+
+See [docs/install.md](docs/install.md) for the complete profile, GUI, Docker,
+hardening, verification, and authentication handoff guidance.
+
+## Mandatory Browser Boundary
+
+Every profile installs the same fail-closed browser stack:
+
+- CloakBrowser `0.4.10` in an isolated environment;
+- a managed headless service fixed to `http://127.0.0.1:9222`;
+- Chrome DevTools MCP `1.5.0`;
+- Playwright CLI `0.1.17`;
+- Webwright at commit `4a46f282ec37f27d6003cc498a977939d62d9015`.
+
+Managed wrappers force the providers through the fixed loopback CDP endpoint
+and run a health check before browser actions. Alternate executables, endpoints,
+configuration overrides, auto-started stock browsers, and stock Chromium
+fallbacks are rejected. `--skip-browser` and
+`RLDYOUR_SKIP_CLOAKBROWSER=1` are unsupported.
+
+The CDP endpoint must remain loopback-only because CDP grants full control over
+browser pages, cookies, storage, and JavaScript execution.
+
+## GUI Application Support
+
+GUI is an overlay on desktop profiles and can be disabled with `--no-gui`.
+
+- macOS GUI mode installs Ghostty, cmux, ChatGPT, and Claude Desktop.
+- Ubuntu GUI mode installs Claude Desktop. ChatGPT/Codex desktop and cmux do
+  not have supported Linux desktop builds; their managed CLIs remain available.
+- Ubuntu server is always headless.
+
+ZCode is manual by default on both platforms because upstream does not publish
+a checksum or signature manifest. Ubuntu can install tracked ZCode `3.3.3` only
+when the owner supplies a separately verified SHA-256 through
+`RLDYOUR_ZCODE_SHA256`; otherwise use the documented manual handoff. The
+bootstrap does not weaken this integrity gate for convenience.
+
+## Authentication Handoff
+
+The bootstrap never reads, prints, stores, or uploads provider credentials.
+After installation, display the owner-controlled sign-in steps and check the
+non-secret CLI status probes:
 
 ```bash
-bash scripts/macos/verify.sh --strict --skip-optional
-bash scripts/ubuntu/verify.sh --strict --skip-optional
+bash scripts/auth-handoff.sh show
+bash scripts/auth-handoff.sh check
 ```
 
-**Skip layers as needed:**
+The handoff covers GitHub, Codex/OpenAI, Claude Code, OpenCode, MiMoCode,
+Antigravity, supported desktop applications, ZCode, cmux, and the browser health
+boundary.
 
-- `--skip-system`
-- `--skip-ai`
-- `--skip-lsps`
-- `--skip-browser`
-- `--skip-checks`
+## Ubuntu Server Safety
 
-A local repository-level repair/convergence pass is performed via `scripts/ci/validate.sh` and the control-plane repair workflow before merge.
+The default Ubuntu server composition uses rootful Docker, but Docker group
+membership is never granted automatically because it is root-equivalent.
+Rootless Docker is available only when its networking, cgroup, storage, and
+privileged-port limitations are acceptable.
 
-## Active Catalog
-
-- `scripts/`: installer and validation entrypoints.
-- `templates/terminal/`: managed zsh/starship configs installed by the terminal layer.
-- `config/rldyour-contract.json`: module contract.
-- `docs/install.md`: dependency matrix and mode documentation.
-- `.github/workflows/`: 11 security and CI workflows.
-- `AGENTS.md`, `LICENSE`, `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md`.
-
-```text
-Scripts: 8
-Workflows: 11
-OS profiles: 2 (macOS, Ubuntu)
-```
-
-## Browser / Design / DevTools Routing
-
-The bootstrap installs the pinned browser providers that every AI CLI config
-adapter relies on for browser evidence, debugging, and design validation:
-
-- CloakBrowser (`cloakbrowser==0.4.8`, isolated venv) - the default privacy-first
-  Chromium backend. A managed headless CDP daemon runs on `127.0.0.1:9222`
-  (launchd / systemd `--user`); every adapter's Chrome DevTools MCP connects to
-  it via `--browserUrl`, and Webwright/Playwright use the `cloak-chromium`
-  launcher. Free-tier binary is Ed25519-verified; Pro needs an owner-supplied
-  `CLOAKBROWSER_LICENSE_KEY`. Skip with `RLDYOUR_SKIP_CLOAKBROWSER=1`.
-- Chrome DevTools MCP (`chrome-devtools-mcp@1.5.0`, bun global)
-- Playwright CLI (`@playwright/cli@0.1.15`, bun global) plus its bundled skills
-- Microsoft Webwright (pinned GitHub checkout, best-effort venv install)
-
-The two bun-global providers are verified by the strict verify scripts; Webwright
-is best-effort so a slow clone or Chromium download never breaks the deterministic
-base layer. Skip the whole layer with `--skip-browser`. Browser/design *workflow
-skills* still live in the adapter repositories (`rldyour-claudecode`,
-`rldyour-opencode`, `rldyour-codex`, etc.); this module provides the runtime
-providers those workflows need.
-
-## Repository Context / Serena Memory
-
-Public metadata and context are tracked in git. Runtime-only artifacts remain ignored (for example, cache, local traces, markers, and diagnostics output).
-
-- Durable AI-context files are validated through root super-repo contracts and policy checks.
-- Branch updates in super-repo should move the submodule pointer only after module validation and CI pass.
-
-Relevant checks:
+Firewall and SSH mutations are never inferred. These server-only options must
+be selected explicitly on an apply run:
 
 ```bash
-bash scripts/ci/validate.sh
-bash scripts/ci/lint.sh
+bash scripts/bootstrap.sh \
+  --platform ubuntu \
+  --profile server \
+  --apply \
+  --harden-ssh \
+  --enable-ufw \
+  --with-fail2ban
 ```
 
-## Security Boundary
+Before key-only SSH is enabled, the server module requires a non-root account
+with an `ssh-keygen`-parseable key and StrictModes-safe ownership/permissions.
+It evaluates the candidate OpenSSH policy against the full live connection
+tuple (`user`, client host/address, local address/port), checks the root context
+separately, and restores the prior managed drop-in if validation or reload
+fails. Outside an SSH session, explicit Match addresses are required. Keep the
+current session open until a second SSH connection succeeds.
+UFW adds the SSH allow rule before enabling the firewall. Docker-published ports
+still require host-specific exposure review.
 
-No credentials are committed in this module. Only public dependencies and pinned runtime commands are documented.
+The baseline preserves the host's existing `ssh.service` versus `ssh.socket`
+activation choice. Authentication-only hardening reloads an active service;
+for socket-only hosts, future socket-activated processes read the validated
+configuration without restarting the listener or changing its port semantics.
+Existing synchronized, NTP, or PTP time providers are preserved. Fail2ban
+activation validates the live sshd jail and rolls configuration and service
+state back if enablement or restart fails.
 
-Security controls included:
+## Repository Surfaces
 
-- `codeql` + `dependency-review` in CI,
-- secret scanning (`gitleaks`, GitHub secret scanning, push protection),
-- Dependabot alerts + security updates,
-- OSSF Scorecard,
-- branch protection (`main`, required review, required status checks, no force-push/delete,
-  code owners).
-
-The owner executes with explicit terminal risk posture and explicit command boundaries; runtime tools are pinned to explicit versions in install profiles.
+- `scripts/bootstrap.sh` - public profile compositor and entry point.
+- `scripts/macos/install.sh`, `scripts/ubuntu/install.sh` - platform installers.
+- `scripts/ubuntu/server.sh` - sourceable Ubuntu server build/runtime and
+  safety layer.
+- `scripts/macos/verify.sh`, `scripts/ubuntu/verify.sh` - composed target
+  verification.
+- `scripts/ubuntu/verify-server.sh` - read-only server verification.
+- `scripts/auth-handoff.sh` - non-secret post-install sign-in handoff.
+- `config/rldyour-contract.json` - machine-readable target and pin contract.
+- `docs/adr/0004-profile-composition-and-cloakbrowser-boundary.md` - profile
+  and browser decision.
+- `templates/terminal/`, `templates/browser/` - managed runtime templates.
 
 ## Validation
 
-**Static / local:**
-
 ```bash
 bash scripts/ci/lint.sh
 bash scripts/ci/validate.sh
-```
 
-**Per-platform checks:**
-
-```bash
 bash scripts/macos/verify.sh --strict
 bash scripts/ubuntu/verify.sh --strict
+bash scripts/ubuntu/verify-server.sh --docker-mode rootful
 ```
 
-**CI lanes:**
+Full server verification requires a real Ubuntu VM with systemd. Container-only
+CI cannot prove SSH reachability, firewall exposure, time synchronization, or
+Docker daemon state.
 
-- `.github/workflows/ci.yml` (plan/apply)
-- `.github/workflows/validate.yml`
-- `.github/workflows/secret-scan.yml`
-- `.github/workflows/codeql.yml`
-- `.github/workflows/dependency-check.yml`
-- `.github/workflows/dependency-review.yml`
-- `.github/workflows/cross-platform.yml`
-- `.github/workflows/actionlint.yml`
-- `.github/workflows/pytest.yml`
-- `.github/workflows/release.yml`
-- `.github/workflows/scorecard.yml`
+## Security And Support
 
-## Release / Rollback
+No credentials belong in this repository. Runtime-local caches, browser
+profiles, traces, tokens, and authentication state must remain untracked.
 
-Release workflow is tag-driven via `.github/workflows/release.yml`.
-
-- Release version is read from `VERSION` and must match `CHANGELOG.md`.
-- Release artifacts are packaged, checksummed, and attestable.
-
-```bash
-git tag <X.Y.Z>
-git push origin <X.Y.Z>
-```
-
-Rollback is based on git history and prior tags; reinstall the desired release tag from the release page.
-
-## Support / License
-
-**License:** [AGPL-3.0-or-later](LICENSE)
-
-**Author:** Danil Silantyev (github:rldyourmnd), CEO NDDev
-
-**Security:** report via
-https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/security/advisories/new
-
-**Issues:** https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/issues
-
-**Discussions:** https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/discussions
-
-**Releases:** https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/releases
+- License: [AGPL-3.0-or-later](LICENSE)
+- Security reports: [GitHub Security Advisories](https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/security/advisories/new)
+- Issues: [NDDev-it-com/rldyour-new-mac-or-ubuntu](https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/issues)
+- Releases: [release history](https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/releases)

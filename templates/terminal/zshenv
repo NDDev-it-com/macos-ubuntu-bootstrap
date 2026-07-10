@@ -1,3 +1,4 @@
+# Managed by rldyour-new-mac-or-ubuntu: terminal-zshenv-v1
 # ~/.zshenv — sourced by EVERY zsh (interactive, login, and `zsh -c` agent
 # shells). Keep it tiny, side-effect-free, and PATH-complete: Codex/OpenCode
 # run `zsh -l -c` and never read .zshrc, so anything an agent needs lives here.
@@ -6,8 +7,8 @@
 typeset -U path PATH
 
 path=(
-  "$HOME/.local/share/mise/shims"   # mise: shims for non-interactive shells
   "$HOME/.local/bin"                # uv tools, owner launchers (cl/cx/oc)
+  "$HOME/.local/share/mise/shims"   # mise: shims for non-interactive shells
   "$HOME/.bun/bin"
   "$HOME/.cargo/bin"
   /opt/homebrew/bin
@@ -17,15 +18,28 @@ path=(
   $path
 )
 
-# CloakBrowser is the default privacy-first browser backend. Webwright and any
-# Playwright launch read this executable; chrome-devtools-mcp connects to the
-# managed CDP daemon (127.0.0.1:9222) instead. CLOAKBROWSER_LICENSE_KEY (Pro)
-# lives only in ~/.zshenv.secrets, never here.
-export AGENT_BROWSER_EXECUTABLE_PATH="${AGENT_BROWSER_EXECUTABLE_PATH:-$HOME/.local/bin/cloak-chromium}"
-export CLOAKBROWSER_CACHE_DIR="${CLOAKBROWSER_CACHE_DIR:-$HOME/.local/share/rldyour/cloakbrowser/cache}"
-
-# Private secrets (never committed anywhere).
+# Private secrets (never committed anywhere). Load the optional Pro license
+# before reasserting the non-secret, non-overridable routing values below.
 [[ -r "$HOME/.zshenv.secrets" ]] && source "$HOME/.zshenv.secrets"
+
+# Development-only CloakBrowser trust overrides are forbidden for agent runs.
+unset CLOAKBROWSER_BINARY_PATH CLOAKBROWSER_DOWNLOAD_URL
+unset CLOAKBROWSER_SKIP_CHECKSUM CLOAKBROWSER_VERSION CLOAKBROWSER_WIDEVINE_CDM
+
+# CloakBrowser is the mandatory browser backend. Provider wrappers enforce this
+# exact loopback endpoint and refuse stock-Chromium or alternate-CDP fallbacks.
+# CLOAKBROWSER_LICENSE_KEY (Pro) lives only in ~/.zshenv.secrets, never here.
+export RLDYOUR_BROWSER_CDP_ENDPOINT="http://127.0.0.1:9222"
+export PLAYWRIGHT_MCP_CDP_ENDPOINT="$RLDYOUR_BROWSER_CDP_ENDPOINT"
+export LOCAL_BROWSER_CDP_URL="$RLDYOUR_BROWSER_CDP_ENDPOINT"
+export BROWSER_CDP_URL="$RLDYOUR_BROWSER_CDP_ENDPOINT"
+export AGENT_BROWSER_EXECUTABLE_PATH="$HOME/.local/bin/cloak-chromium"
+export CLOAKBROWSER_CACHE_DIR="$HOME/.local/share/rldyour/cloakbrowser/cache"
+export AGY_CLI_DISABLE_AUTO_UPDATE=true
+# Managed Claude Code installations are lockfile-pinned. Disable every update
+# path so the runtime cannot drift away from its verified bundle version.
+export DISABLE_AUTOUPDATER=1
+export DISABLE_UPDATES=1
 
 export EDITOR="${EDITOR:-nano}"
 export LANG="${LANG:-en_US.UTF-8}"

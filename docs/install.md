@@ -1,352 +1,378 @@
-# Установка и матрица зависимостей
+# Installation And Target Matrix
 
-## 1) План установки
+This guide describes adapter contract `0.3.0`. Use `scripts/bootstrap.sh` as the
+public entry point so platform, profile, GUI, Docker, browser, safety, and
+verification settings are composed consistently.
 
-- `bash scripts/bootstrap.sh --platform macos`
-- `bash scripts/bootstrap.sh --platform ubuntu` (профиль по умолчанию: `server`)
-- `bash scripts/bootstrap.sh --platform ubuntu --profile desktop`
-- `bash scripts/bootstrap.sh --platform macos --apply`
-- `bash scripts/bootstrap.sh --platform ubuntu --apply` (server, headless)
-- `bash scripts/bootstrap.sh --platform ubuntu --profile desktop --apply`
-- `bash scripts/ci/validate.sh` (CI-safe check)
-- `bash scripts/ci/lint.sh` (shell syntax + shellcheck for all installer scripts)
+## Supported Targets
 
-## 1a) Профили: server vs desktop (`--profile`, 0.2.8)
+- **macOS Apple Silicon:** `desktop`; GUI enabled by default or disabled with
+  `--no-gui`; Docker `none`; policy `source-lsp-only`.
+- **Ubuntu 24.04/26.04 desktop (`amd64`/`arm64`):** GUI enabled by default or
+  disabled with `--no-gui`; Docker `none`; policy `source-lsp-only`.
+- **Ubuntu 24.04/26.04 server (`amd64`/`arm64`):** headless; Docker `none`,
+  `rootful`, or `rootless`; default `rootful`; policy `server-build-runtime`.
 
-Профиль ортогонален ОС: `--profile server|desktop`. По умолчанию `auto` -
-macOS всегда `desktop` (это GUI-воркстейшн), Ubuntu по умолчанию `server`.
+macOS supports only the desktop profile. Ubuntu requires an explicit
+`--profile desktop|server`; the bootstrap never infers a runtime or Docker role
+from Linux alone. Desktop and server are roles; `--no-gui` removes only the GUI
+overlay and does not turn a desktop into a server.
 
-- **server** (headless Ubuntu): полный terminal-first CLI-стек - shell, `starship`,
-  `atuin`, `tmux`, `zoxide`, `fzf`, `carapace`, все CLI dev-инструменты, LSP, AI CLI,
-  browser/CloakBrowser слой. **Без GUI-приложений.** Сервер полноценно работает в терминале.
-- **desktop**: слой `server` **плюс** GUI-desktop-слой - терминал-эмулятор (Ghostty:
-  на macOS через Homebrew cask, на Ubuntu через snap, best-effort) и Nerd-шрифт
-  (JetBrainsMono Nerd Font). macOS поддерживает только `desktop`.
+Apply mode validates the real target. Ubuntu apply is supported only on exact
+Ubuntu releases `24.04` and `26.04`.
 
-## 2) Наборы зависимостей
+## Plan First
+
+Every invocation defaults to a read-only plan. Review that output before adding
+`--apply`.
+
+```bash
+# Apple Silicon macOS desktop
+bash scripts/bootstrap.sh --platform macos
+bash scripts/bootstrap.sh --platform macos --no-gui
+
+# Ubuntu desktop
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop --no-gui
+
+# Ubuntu server; rootful Docker is the bootstrap default
+bash scripts/bootstrap.sh --platform ubuntu --profile server
+```
+
+Apply examples:
+
+```bash
+bash scripts/bootstrap.sh --platform macos --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile desktop --apply
+bash scripts/bootstrap.sh --platform ubuntu --profile server --apply
+```
+
+The platform can be auto-detected, but explicit `--platform` is preferable in
+automation and reviewable runbooks.
+
+The full Ubuntu composition must run from the non-root developer account that
+will own the managed home and CloakBrowser systemd-user service; that account
+needs sudo. Root/cloud-init automation may invoke `scripts/ubuntu/server.sh`
+for the root-owned baseline only. This separation avoids silently building the
+AI environment under `/root` without a usable user manager.
+
+## Public Options
+
+```text
+--platform macos|ubuntu
+--profile desktop|server
+--gui | --no-gui
+--docker-mode none|rootful|rootless
+--plan | --apply
+--skip-system
+--skip-ai
+--skip-lsps
+--skip-checks
+--strict
+--harden-ssh
+--enable-ufw
+--with-fail2ban
+```
+
+The three hardening flags are Ubuntu-server-only. Desktop profiles reject
+Docker modes other than `none` and reject server hardening flags.
+
+There is no compliant browser skip. `--skip-browser` and
+`RLDYOUR_SKIP_CLOAKBROWSER=1` fail because every supported composition requires
+the managed CloakBrowser boundary.
+
+## Profile Composition
+
+### Desktop: Source/LSP Only
+
+Both desktop platforms receive:
+
+- terminal and source-management utilities;
+- Node/Python tool hosts required by managed CLIs and language tooling (Ubuntu
+  pins the official Node.js `24.18.0` LTS tarball and both architecture hashes);
+- source-analysis, LSP, formatter, linter, quality, and security tools;
+- managed AI CLIs;
+- the mandatory fail-closed browser layer;
+- an optional platform-specific GUI overlay.
+
+Desktop manifests intentionally exclude Docker, project build orchestration,
+language SDKs used as project runtimes, and local project test/runtime
+provisioning. A tool-host runtime that supports an AI CLI or LSP does not change
+that boundary. On macOS, clangd is delivered by Homebrew's LLVM distribution,
+but the bootstrap never invokes its compiler/linker for a project. Build and
+execute projects on an Ubuntu server profile or another explicit runtime host.
+
+### Ubuntu Server: Build/Runtime
+
+The Ubuntu server profile is headless and adds the server build baseline,
+OpenSSH and update/time-service safeguards, server verification, and the
+selected Docker mode. It also retains the terminal, LSP, AI CLI, quality, and
+mandatory browser layers.
+
+Docker choices:
+
+- `rootful` - bootstrap default; installs Docker Engine and plugins but never
+  adds a user to the root-equivalent `docker` group;
+- `rootless` - explicit alternative for a non-root user after reviewing its
+  networking, cgroup, storage, and privileged-port limitations;
+- `none` - leaves Docker state unmanaged.
+
+Examples:
+
+```bash
+bash scripts/bootstrap.sh --platform ubuntu --profile server --docker-mode rootful
+bash scripts/bootstrap.sh --platform ubuntu --profile server --docker-mode rootless
+bash scripts/bootstrap.sh --platform ubuntu --profile server --docker-mode none
+```
+
+## Managed AI CLI Versions
+
+The installers and `config/rldyour-contract.json` must agree on these values:
+
+| CLI | Package or channel | Version policy |
+| --- | --- | --- |
+| Claude Code | `@anthropic-ai/claude-code` | exact `2.1.206` |
+| Codex | `@openai/codex` | exact `0.144.1` |
+| OpenCode | `opencode-ai` | exact `1.17.18` |
+| MiMoCode | `@mimo-ai/cli` | exact `0.1.5` |
+| Antigravity | generation-pinned native artifact | exact `1.1.0` |
+
+Antigravity is installed from a generation-pinned platform artifact whose
+SHA-512 is tracked in the contract. The managed launcher exports
+`AGY_CLI_DISABLE_AUTO_UPDATE=true`, so the verified binary cannot silently move
+away from `1.1.0`.
+
+Claude Code is also update-locked: both `DISABLE_AUTOUPDATER=1` and
+`DISABLE_UPDATES=1` are exported by its managed wrapper and the managed shell
+drop-in. A reviewed lock/contract update is the only supported upgrade path.
+
+## Mandatory Browser Automation
+
+Browser automation is a required platform layer, not an optional desktop app.
+
+| Component | Pin | Contract |
+| --- | --- | --- |
+| CloakBrowser | `0.4.10` | only supported browser backend |
+| Managed CDP service | `http://127.0.0.1:9222` | fixed loopback endpoint |
+| Chrome DevTools MCP | `1.5.0` | wrapper supplies the fixed browser URL |
+| Playwright CLI | `0.1.17` | wrapper supplies the managed CDP config |
+| Webwright | pinned commit below | managed `local_cdp` overlay, no auto-start |
+
+The exact Webwright commit is
+`4a46f282ec37f27d6003cc498a977939d62d9015`.
+
+CloakBrowser is installed in an isolated environment. launchd on macOS or a
+systemd user service on Ubuntu owns the persistent headless process and its
+managed profile. `cloakbrowser-cdp-health` validates process ownership, command
+line, loopback binding, discovery response, and WebSocket endpoint.
+
+Provider wrappers run that health check before browser actions and reject:
+
+- alternate CDP or WebSocket endpoints;
+- alternate executables, channels, browser names, or configuration files;
+- provider auto-start of stock Chrome or Chromium;
+- embedded or stock-browser fallback.
+
+A missing or unhealthy endpoint is a hard failure. Keep port `9222` bound to
+`127.0.0.1`; exposing CDP remotely exposes browser pages, cookies, storage, and
+JavaScript execution.
+
+## GUI Overlay
 
 ### macOS
 
-#### Системный слой
+GUI mode installs the verified Homebrew casks for:
 
-- `git`
-- `curl`
-- `ca-certificates`
-- `brew` (Homebrew)
-- `node` (target >=22)
-- `go`
-- `shellcheck`, `shfmt`
-- `llvm` (для `clangd`)
-- `cmake`, `qt` (заголовки Qt для clangd C++/Qt LSP)
-- `openjdk` (JDK для jdtls/Kotlin LSP; линкуется через `brew link --force`)
-- `vscode-langservers-extracted`
-- `docker-language-server`
-- `taplo`, `marksman`, `markdown-oxide`
-- `terraform-ls`, `helm-ls`, `cmake-language-server`
-- `libxml2`, `xmlstarlet`
-- `uv`
-- `bun`
-- `python3`
-- `rustup` + `rust-analyzer`
-- `dart`
-- `r` (R runtime для R languageserver)
+- Ghostty;
+- cmux;
+- ChatGPT, which is the supported OpenAI desktop surface and includes Codex
+  mode;
+- Claude Desktop.
 
-#### Python tooling (через `uv tool`)
+`--no-gui` skips these applications while preserving the desktop source/LSP,
+AI CLI, terminal, and browser layers.
 
-- `pyright` (поставляет оба бинарника: `pyright` и `pyright-langserver`)
-- `pytest`
+### Ubuntu Desktop
 
-#### Расширенные языковые LSP (Homebrew)
+GUI mode installs Claude Desktop through its verified package channel and the
+desktop font support used by the terminal environment. ChatGPT/Codex desktop
+and cmux do not have supported Linux desktop builds, so their managed CLI
+surfaces remain the supported Ubuntu path.
 
-- `basedpyright` (улучшенный форк pyright, фичи Pylance вне VS Code)
-- `ruff` (LSP-режим встроен; lint + format для Python)
-- `ty` (опционально; beta type-checker от Astral на Rust)
-- `jdtls` (Java LSP, Eclipse JDT-LS)
-- `kotlin-language-server` (Kotlin LSP, требует JDK)
-- `gopls` (Go LSP)
+Ubuntu server never installs GUI applications.
 
-#### Расширенные SQL LSP
+### ZCode Integrity Gate
 
-- `postgres-language-server` (Supabase; ставится через `brew install postgres-language-server`)
-- `sqls` (multi-DB SQL LSP; ставится через `go install github.com/sqls-server/sqls@latest`)
+ZCode `3.3.3` is not installed automatically by default because upstream does
+not publish a checksum or signature manifest.
 
-#### Quality-gate CLI (Homebrew)
+- macOS: use the manual installation link from `scripts/auth-handoff.sh` after
+  independently checking the artifact.
+- Ubuntu GUI: either use the same manual path or provide a separately verified
+  SHA-256 as `RLDYOUR_ZCODE_SHA256`. The installer verifies that value before
+  installing the tracked package and fails on a mismatch.
 
-- `shfmt`, `shellcheck` (shell lint + format)
-- `oxlint`, `biome` (JS/TS/JSON/CSS lint + format)
-- `osv-scanner` (уязвимости зависимостей, универсально)
-- `gitleaks` (секреты в коде/git)
-- `semgrep` (SAST, мультиязычный)
-- `hadolint` (Dockerfile lint, без Docker daemon)
-- `actionlint` (GitHub Actions workflows)
-- `yamllint`, `markdownlint-cli2` (YAML / Markdown)
+Do not source the checksum from the same unverified artifact URL. The absence of
+an upstream integrity manifest is a real trust boundary, not a best-effort
+warning to bypass.
 
-#### Базовые утилиты (Homebrew)
+## Explicit Ubuntu Server Hardening
 
-- `fd`, `eza`, `bat`, `xh`, `git-delta` (delta)
-- `watchexec`, `hyperfine`, `just`
-- `jq`, `prettier`, `pandoc`, `kubeconform`, `mise`
-- search / data / http / repo (0.2.8): `ripgrep` (rg), `yq`, `dasel`, `miller` (mlr),
-  `httpie`, `ghq`, `cargo-nextest`, `github-mcp-server`
-- Deno JS/TS runtime (0.2.8): `deno`
+No firewall, SSH authentication, Fail2ban, generic sysctl, resource-limit, or
+Docker access change is inferred automatically. Plan mode remains the default.
 
-#### Терминальный слой (0.2.3)
-
-- shell-стек: `antidote`, `zsh-completions`, `olets/tap/zsh-abbr`, `starship`,
-  `atuin`, `fzf`, `zoxide`, `carapace`
-- Ghostty (Homebrew cask; только macOS)
-- TUI/CLI: `gh`, `lazygit`, `yazi`, `jaq`, `jnv`, `duckdb`, `ast-grep`, `scc`,
-  `difftastic`, `tmux`
-- modern-unix волна: `dust`, `dua-cli`, `duf`, `procs`, `btop`, `doggo`,
-  `gping`, `hexyl`, `sd`, `viddy`, `tealdeer`
-- managed zsh-шаблоны из `templates/terminal/`: `~/.zshenv`, `~/.zprofile`,
-  `~/.zshrc`, `~/.zsh_plugins.txt`, `~/.config/starship.toml` - первым идёт
-  agent-gate (нейтрализация интерактива для AI-агентов); установщик никогда
-  не перезаписывает файлы, изменённые пользователем (предупреждает и оставляет)
-- глобальные git-ключи производительности (`core.fsmonitor`,
-  `core.untrackedCache`, `fetch.writeCommitGraph`) и конфиг пейджера `delta`
-  (ставится только если `delta` присутствует)
-
-#### AI CLI рантаймы
-
-- `claude-code` -> `@anthropic-ai/claude-code@2.1.204`
-- `codex` -> `@openai/codex@0.142.5`
-- `opencode` -> `opencode-ai@1.17.15`
-- `agy` -> `https://antigravity.google/cli/install.sh`
-- `mimo` -> `@mimo-ai/cli@0.1.4`
-
-#### LSP / терминальные language-серверы (bun global)
-
-- `typescript`
-- `@vtsls/language-server` (замена `typescript-language-server`; выбран Zed/LazyVim)
-- `yaml-language-server`
-- `bash-language-server`
-- `dockerfile-language-server-nodejs` (команда `docker-langserver`)
-- `vscode-langservers-extracted` (HTML/CSS/JSON servers)
-- `gh-actions-language-server`
-- `taplo`, `marksman`, `markdown-oxide`
-- `rust-analyzer`, `gopls`, `clangd`
-
-#### R language server
-
-- `languageserver` (R package; ставится через `R -e install.packages('languageserver')`)
-
-#### Браузер-провайдеры
-
-- `chrome-devtools-mcp` -> `chrome-devtools-mcp@1.5.0` (bun global)
-- `playwright-cli` -> `@playwright/cli@0.1.15` (bun global) + `playwright-cli install --skills`
-- Microsoft Webwright -> pinned GitHub checkout (`4a46f282...`, best-effort venv install)
-
-#### CloakBrowser (default privacy-first Chromium)
-
-- `cloakbrowser==0.4.8` (Python wrapper) в изолированном venv под
-  `~/.local/share/rldyour/cloakbrowser/.venv`; free-tier бинарь Chromium (линия
-  v146) скачивается и проверяется по Ed25519-подписи (`ensure_binary`).
-- managed-лаунчеры на PATH: `cloak-chromium` (резолвит и exec'ает реальный
-  версионный бинарь) и `cloak-chromium-stealth` (+ дефолтные stealth-аргументы).
-- managed CDP-демон на `127.0.0.1:9222` (launchd на macOS, systemd `--user` на
-  Linux, `KeepAlive`) - headless CloakBrowser, к которому каждый адаптерный
-  `chrome-devtools-mcp` подключается через `--browserUrl`; Webwright/Playwright
-  используют `cloak-chromium` как executable (`AGENT_BROWSER_EXECUTABLE_PATH`).
-- Pro (v148+) активируется только `CLOAKBROWSER_LICENSE_KEY` из
-  `~/.zshenv.secrets`, никогда не коммитится. Пропустить весь слой:
-  `RLDYOUR_SKIP_CLOAKBROWSER=1`.
-
-### Ubuntu / server
-
-#### Системный слой (apt)
-
-- `ca-certificates`
-- `build-essential`
-- `clang`, `clangd`, `cmake`
-- `curl`
-- `gpg`
-- `git`
-- `jq`, `yamllint`, `pandoc`, `fd-find`, `bat` (бинарь `batcat`), `xmlstarlet`, `libxml2-utils`
-- `eza` (best-effort: есть в Debian 13 / Ubuntu 24.10+; на старых LTS пропускается с предупреждением)
-- `lsb-release`
-- `node` (target >=22 via NodeSource)
-- `python3`, `python3-pip`
-- `shellcheck`, `shfmt`
-- `unzip`, `wget`, `zip`, `gnupg`
-- `uv`
-- `bun`
-- `rustup` + `rust-analyzer`
-- `dart`
-- `go` (`golang-go`)
-- `default-jdk` (JDK для jdtls/Kotlin LSP)
-- `r-base` (R runtime для R languageserver)
-
-#### Терминальный слой (0.2.3)
-
-- apt-подмножество: `fzf`, `zoxide`, `tmux`, `btop`, `duf`, `hexyl`, `gh`
-- официальные установщики: `starship` (starship.rs), `atuin` (setup.atuin.sh),
-  `xh` (ducaale/xh install.sh)
-- `antidote` через `git clone --depth=1` в `~/.antidote`
-- те же managed zsh-шаблоны (`templates/terminal/`) и git-ключи
-  производительности/delta-конфиг, что и на macOS
-
-#### AI CLI рантаймы
-
-- `claude-code` -> `@anthropic-ai/claude-code@2.1.204`
-- `codex` -> `@openai/codex@0.142.5`
-- `opencode` -> `opencode-ai@1.17.15`
-- `agy` -> `https://antigravity.google/cli/install.sh`
-- `mimo` -> `@mimo-ai/cli@0.1.4`
-
-#### Python tooling (через `uv tool`)
-
-- `pyright` (поставляет оба бинарника: `pyright` и `pyright-langserver`)
-- `ruff`
-- `pytest`
-- `ty` (Astral type-checker; macOS-паритет, 0.2.8)
-- `cmake-language-server` (macOS-паритет, 0.2.8)
-
-#### LSP / терминальные language-серверы (bun global)
-
-- `typescript`
-- `@vtsls/language-server` (замена `typescript-language-server`)
-- `yaml-language-server`
-- `bash-language-server`
-- `dockerfile-language-server-nodejs` (команда `docker-langserver`)
-- `vscode-langservers-extracted` (HTML/CSS/JSON servers)
-- `@taplo/cli` (taplo для Ubuntu)
-- `gh-actions-language-server`
-- `marksman` (pinned GitHub release)
-- `rust-analyzer` (через `rustup component add`)
-- `gopls` (через apt)
-- `clangd` (через apt)
-
-#### macOS-паритет modern-unix (0.2.8)
-
-- apt: `ripgrep`, `httpie`, `miller` (mlr), `qtbase5-dev` (Qt-заголовки для clangd C++/Qt)
-- cargo (best-effort, `ensure_cargo_parity_tools`): `dust`, `procs`, `sd`, `difftastic`
-  (difft), `jaq`, `hyperfine`, `just`, `tealdeer` (tldr), `ast-grep`, `watchexec`,
-  `gping`, `cargo-nextest`, `markdown-oxide` (LSP)
-- официальные install-скрипты (best-effort, `ensure_extra_runtimes`): `deno`
-  (deno.land), `mise` (mise.run), `carapace` (carapace.sh)
-- **gitlab-ci-ls удалён в 0.2.8** (владелец не использует GitLab; паритет с macOS,
-  где он не ставился).
-
-#### Desktop-слой (только `--profile desktop`, 0.2.8)
-
-- Ghostty terminal emulator через `snap install ghostty --classic` (best-effort;
-  на snapless-хостах ставьте kitty/alacritty вручную).
-- JetBrainsMono Nerd Font -> `~/.local/share/fonts` (+ `fc-cache`).
-- Профиль `server` этот слой пропускает намеренно (headless), но получает полный
-  terminal-first CLI-стек.
-
-#### Полный LSP-паритет Ubuntu (0.2.8) - пробел закрыт
-
-Ранее отсутствовавшие LSP теперь ставятся `ensure_parity_lsps` по проверенным
-официальным каналам (best-effort, идемпотентно, dry-run-aware):
-
-- `terraform-ls` - HashiCorp apt repo (`apt.releases.hashicorp.com`).
-- `helm_ls` - GitHub release `helm_ls_linux_<arch>` (mrjosh/helm-ls, pin `v0.5.4`) → `~/.local/bin`.
-- `jdtls` - Eclipse tarball (`download.eclipse.org/jdtls/snapshots`) → `~/.local/share/jdtls`
-  (+ `openjdk-21-jdk`, `python3`).
-- `kotlin-language-server` - GitHub release `server.zip` (fwcd, pin `1.3.13`) → `~/.local/share`
-  (+ `openjdk-21-jre`).
-- `postgres-language-server` - GitHub release binary (supabase-community, pin `0.25.5`) → `~/.local/bin`
-  (LSP-команда `postgres-language-server lsp-proxy`).
-
-Остаются `optional` в `ubuntu/verify.sh` (установка - best-effort загрузка бинарников,
-может транзиентно упасть на конкретном хосте/арх), но ставятся автоматически.
-
-#### Google Cloud CLI (0.2.8)
-
-- macOS: `brew install --cask gcloud-cli` (`ensure_gcloud`).
-- Ubuntu: официальный apt repo `packages.cloud.google.com`, пакет `google-cloud-cli`.
-- Бинарь: `gcloud` (+ `gsutil`, `bq`).
-
-#### Опциональные личные приложения (desktop, 0.2.8)
-
-- macOS: casks `discord`, `obs` (`ensure_personal_apps`).
-- Ubuntu desktop: snap `discord`, `obs-studio` (только `--profile desktop`).
-- Отключить: `RLDYOUR_SKIP_PERSONAL_APPS=1`.
-
-#### Quality-gate CLI (bun global, где нет apt-пакета)
-
-- `biome`, `oxlint` (JS/TS/JSON lint + format)
-- `markdownlint-cli2`, `prettier`
-- `@ansible/language-server`
-
-#### Security / quality scanners (verify.sh required, ставятся отдельными каналами)
-
-- `basedpyright` (через `uv tool install basedpyright`)
-- `osv-scanner` (binary install script от Google)
-- `gitleaks` (binary install script от GitHub)
-- `semgrep` (через `pip3 install --user semgrep`)
-- `hadolint` (статический binary с GitHub releases)
-- `actionlint` (binary install script от rhysd)
-- `yamllint`, `shellcheck`, `shfmt` (через apt)
-
-#### Расширенные SQL/R LSP (best-effort)
-
-- `sqls` (через `go install github.com/sqls-server/sqls@latest`)
-- R `languageserver` (через `R install.packages`)
-
-#### Cargo-hosted LSPs (best-effort)
-
-- `gitlab-ci-ls` (через `cargo install gitlab-ci-ls`)
-
-#### Браузер-провайдеры
-
-- `chrome-devtools-mcp` -> `chrome-devtools-mcp@1.5.0` (bun global)
-- `playwright-cli` -> `@playwright/cli@0.1.15` (bun global) + `playwright-cli install --skills`
-- Microsoft Webwright -> pinned GitHub checkout (`4a46f282...`, best-effort venv install)
-
-## 3) CI/CD
-
-CI для модуля:
-
-- workflow: `.github/workflows/ci.yml`
-- триггеры: `push` в `main`, `pull_request`, `workflow_dispatch`
-- матрица: `ubuntu-latest`, `macos-latest`
-- шаги:
-  - `bash scripts/ci/lint.sh`
-  - `bash scripts/ci/validate.sh` (syntax + shellcheck + contract + plan-run)
-  - запуск `bootstrap.sh` через матричный шаг для `${{ matrix.platform }}`:
-    - `mode=plan`: `bash scripts/bootstrap.sh --platform ${{matrix.platform}} --plan --skip-checks`
-    - `mode=apply`: `bash scripts/bootstrap.sh --platform ${{matrix.platform}} --apply`
-  - cross-check "нецелевой" платформы в plan-режиме
-- параметризация workflow:
-  - `mode: plan|apply` (по умолчанию `plan`)
-  - `platform: both|macos|ubuntu` (по умолчанию `both`)
-- примеры ручного запуска:
-  - `gh workflow run .github/workflows/ci.yml -f mode=plan -f platform=both`
-  - `gh workflow run .github/workflows/ci.yml -f mode=apply -f platform=macos`
-- cross-platform parity:
-  - при ручном `mode=plan` и `platform=both` второй job выполняет плановый cross-check целевой ОС.
-- Security hardening workflows:
-  - `.github/workflows/codeql.yml` - GitHub CodeQL
-  - `.github/workflows/secret-scan.yml` - Gitleaks по git history
-  - `.github/workflows/scorecard.yml` - OSSF Scorecard
-  - `.github/workflows/dependency-review.yml` - проверка зависимостей в PR
-  - `.github/workflows/dependency-check.yml` - проверка pin-совпадений между macOS и Ubuntu профилями
-  - `.github/workflows/validate.yml` - базовая валидация bootstrap скриптов и контракта
-  - `.github/workflows/pytest.yml` - smoke-тесты bootstrap entrypoint
-  - `.github/workflows/actionlint.yml` - lint GitHub Actions workflow
-  - `.github/workflows/cross-platform.yml` - валидация структуры в Linux/macOS/Windows раннерах
-  - `.github/workflows/release.yml` - release manifest/SBOM/attestations/теги
-- Дополнительно в репозитории включены:
-  - Secret scanning + push protection
-  - Dependabot security alerts + Dependabot security updates
-  - Branch protection на `main` (1 review, запрет force push/delete, required code owner review, `bootstrap-gate`)
-
-`Advanced Security`/security-oriented capabilities включены в пределах возможностей публичного режима GitHub и требований policy:
-secret scanning, push protection, CodeQL, OSSF Scorecard, Dependabot alerts/updates, secret scanning, dependency review, branch protection и CI-аттестации релизов.
-
-## 4) Проверка после установки
+The composed bootstrap exposes three independent opt-ins:
 
 ```bash
-bash scripts/macos/verify.sh --strict --skip-optional
-bash scripts/ubuntu/verify.sh --strict --skip-optional
+bash scripts/bootstrap.sh \
+  --platform ubuntu \
+  --profile server \
+  --apply \
+  --harden-ssh \
+  --enable-ufw \
+  --with-fail2ban
 ```
 
-Если хочется проверить со всеми опциональными runtime:
+For an explicit SSH user, port, or UFW source CIDR, use the sourceable server
+entry point after reviewing the composed bootstrap plan:
+
+```bash
+bash scripts/ubuntu/server.sh \
+  --apply \
+  --docker-mode rootful \
+  --harden-ssh \
+  --ssh-user deploy \
+  --ssh-match-address 203.0.113.25 \
+  --ssh-local-address 203.0.113.10 \
+  --ssh-match-host admin.example.net \
+  --ssh-port 22 \
+  --enable-ufw \
+  --ssh-allow-cidr 203.0.113.0/24 \
+  --enable-fail2ban
+```
+
+Safety behavior:
+
+- key-only SSH requires an existing non-root user and a readable supported
+  public key in `authorized_keys`; `ssh-keygen` parsing plus StrictModes-safe
+  owner/mode checks must pass;
+- the managed OpenSSH drop-in is checked with `sshd -t` and effective settings
+  are verified for the complete live connection tuple before reload;
+- an SSH session supplies client/local addresses and local port automatically;
+  console/cloud-init hardening must provide the explicit Match context shown
+  above;
+- a validation or reload failure restores the prior managed drop-in;
+- an already active or enabled `ssh.service`/`ssh.socket` provider is preserved;
+- authentication-only changes do not restart a socket-activated listener;
+- UFW creates the SSH allow rule before enabling the firewall;
+- Fail2ban validates the sshd jail before service restart;
+- failed Fail2ban enable/restart/live-jail checks restore the prior file and
+  service enable/active state;
+- post-apply verification runs unless the low-level server module is explicitly
+  invoked with `--skip-verify`.
+
+An already synchronized clock or active NTP/PTP provider is preserved. The
+bootstrap only installs Chrony when no provider is detected; verification still
+requires the clock to reach a synchronized state.
+
+Keep the current SSH session open until a second key-authenticated connection
+works. Docker-published ports can bypass ordinary UFW input policy, so validate
+exposure from outside the host and apply a host-specific network design.
+
+## Authentication Handoff
+
+Installation and authentication are intentionally separate. The repository
+never manages credentials.
+
+```bash
+bash scripts/auth-handoff.sh show
+bash scripts/auth-handoff.sh check
+```
+
+`show` documents owner-controlled sign-in for GitHub CLI, Codex/OpenAI, Claude
+Code, OpenCode, MiMoCode, Antigravity, supported desktop applications, ZCode,
+browser health, and cmux. `check` performs only non-secret CLI status probes and
+reports `ok` or `pending`; it does not print account secrets.
+
+Headless Codex authentication uses `codex login --device-auth`. Claude Code and
+Antigravity can hand an OAuth URL/code exchange to a trusted desktop while the
+original SSH terminal remains open.
+
+## Ownership And Idempotency
+
+Managed files are updated atomically and carry repository ownership markers.
+Existing unmanaged files, symlinks, directories, or dirty managed-source
+checkouts are preserved and cause a failure instead of being adopted or
+overwritten. Existing global package installations outside the managed browser
+prefix are not removed.
+
+Shell integration uses owned `~/.config/rldyour/zshenv` and `zprofile` drop-ins
+plus narrowly delimited source blocks in the owner's existing `~/.zshenv` and
+`~/.zprofile`. Content outside those blocks is retained, the original file is
+backed up before mutation, and a clean second apply makes no further backup or
+change. Fresh-login verification proves managed PATH precedence, tool
+resolution, CloakBrowser routing, trust-override removal, and updater policy.
+Interactive modern-tool aliases and abbreviations are enabled only when their
+target executable exists; Ubuntu's `batcat` and `fdfind` command names are
+selected automatically.
+
+Ubuntu Node.js, uv, and Bun use immutable versioned release assets plus tracked
+per-architecture SHA-256 values. Each extracted Ubuntu runtime carries an owned
+receipt binding the tracked archive digest to hashes of its managed
+executables; strict verification also requires the owned `~/.local/bin` links.
+External same-version PATH binaries are never accepted as provenance. Homebrew
+uses a hash-verified, signed, and
+notarized package. Claude Code, Codex, OpenCode, and MiMoCode install from a
+tracked `bun.lock` with `--frozen-lockfile --ignore-scripts`; OpenCode runs its
+locked native optional dependency directly instead of executing its fallback
+postinstall. Antigravity uses generation-pinned native archives with tracked
+SHA-512 values and a no-auto-update wrapper. RTK `0.43.0` uses a hash-pinned
+native artifact and tamper-evident launcher. Chrome DevTools MCP and Playwright
+CLI install from a separate tracked `bun.lock` with `--frozen-lockfile`.
+CloakBrowser and Webwright dependencies come from tracked universal locks and
+install with `uv sync --frozen`. Digest drift is a hard failure that requires a
+reviewed contract update.
+
+APT uses `--no-upgrade` for already present baseline packages. Existing uv/Bun
+source tools and a complete healthy Docker CE installation are preserved on
+rerun; partial, unhealthy, custom, or unowned Docker state causes a fail-closed
+handoff instead of an automatic install/upgrade over live workloads.
+Existing Homebrew formulae and casks are also preserved: the macOS profile
+installs missing entries but never runs an implicit `brew upgrade`.
+
+Secrets belong in owner-controlled credential stores or local secret files,
+never in tracked templates, logs, CI artifacts, or repository history.
+
+## Verification
+
+Repository checks:
+
+```bash
+bash scripts/ci/lint.sh
+bash scripts/ci/validate.sh
+```
+
+Platform checks:
 
 ```bash
 bash scripts/macos/verify.sh --strict
 bash scripts/ubuntu/verify.sh --strict
 ```
+
+Independent Ubuntu server checks:
+
+```bash
+bash scripts/ubuntu/verify-server.sh --docker-mode rootful
+```
+
+Browser runtime checks:
+
+```bash
+cloakbrowser-cdp-health
+chrome-devtools-mcp --version
+playwright-cli --version
+```
+
+Full server evidence requires an Ubuntu 24.04/26.04 VM with systemd. A container
+cannot prove SSH reachability, UFW behavior, time synchronization, Docker daemon
+mode, or externally observable port exposure.

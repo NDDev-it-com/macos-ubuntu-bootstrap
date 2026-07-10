@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 0ea9b5b fix(release): reserve tag creation for root
+Last commit: 8631dd0 feat(browser): enforce exact fail-closed runtime integrity
 Scope: .gitignore, .serena/project.yml, README.md, AGENTS.md, .claude/CLAUDE.md, scripts/**
 Area: TECHDEBT
 -->
@@ -39,7 +39,8 @@ Operational watchpoints and boundaries for the bootstrap module.
 - Managed shell integration edits only delimited source blocks, backs up pre-existing files, and verifies a fresh login shell. Interactive aliases activate only when their target executable exists.
 - ZCode remains an explicit integrity handoff because upstream publishes no checksum/signature manifest. Ubuntu can install it only with an independently supplied SHA-256.
 - Full apply evidence still requires representative Apple Silicon macOS and Ubuntu 24.04/26.04 hosts with launchd/systemd, real user sessions, and the chosen Docker mode. Container-only CI does not prove SSH reachability, UFW behavior, desktop app launch, or Docker daemon health.
-- No current bootstrap contract/version drift: `VERSION`, contract, scripts, frozen locks, docs, SECURITY, and tests agree on release 0.3.5 and its exact runtime pins.
+- No current bootstrap contract/version drift: `VERSION`, contract, scripts, frozen locks, docs, SECURITY, and tests agree on release 0.3.6 and its exact runtime pins.
+- Historical Webwright runtimes may remain on previously configured devices for preservation, but no managed command, dependency, or config path can execute them.
 
 ## Evidence
 - path:.gitignore
@@ -60,6 +61,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - commit:c7fc734
 - commit:7b31369
 - commit:0ea9b5b
+- commit:8631dd0
 
 ## Do Not Infer
 - Do not infer full workstation installation success from plan-mode scripts; strict verification and optional runtime checks must run on the target machine.

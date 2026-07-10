@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 0ea9b5b fix(release): reserve tag creation for root
+Last commit: 42658c2 ci(pytest): cancel superseded workflow runs
 Scope: README.md, VERSION, CHANGELOG.md, config/rldyour-contract.json, scripts/**, templates/**, tests/**, .github/workflows/**
 Area: RELEASE
 -->
@@ -38,15 +38,17 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Runtime pins stay synchronized across README, installer scripts, and contract.
 - Release automation accepts numeric tag pushes or an exact numeric manual dispatch; both must match `VERSION` plus `CHANGELOG.md` and resolve an immutable exact tag.
 - Public security workflows remain enabled for the public repository posture.
-- Browser automation always resolves through the managed CloakBrowser endpoint; stock-browser fallback and alternate endpoints are rejected.
+- Browser automation always resolves through the managed CloakBrowser endpoint; stock-browser fallback, alternate endpoints, and Playwright arbitrary code/file execution are rejected.
+- Playwright CLI and Chrome DevTools MCP are the only active providers. Webwright is retired fail-closed behind an exact wrapper that exits `78` without Python or browser execution.
+- Successful apply publishes an owner-only canonical receipt binding exact runtimes, binaries, wrappers, service definition, repository policies, and rigorous live health. `scripts/verify-browser-runtime.sh` is the installed-state authority.
 - Existing unmanaged state is preserved. Managed runtime and service publication is content-addressed, health-gated, and rollback-aware.
 
 ## Current State
-- Current product/config version is `0.3.5`.
+- Current product/config version is `0.3.6`.
 - Supported targets are Apple Silicon macOS desktop and Ubuntu 24.04/26.04 desktop/server on amd64 or arm64. Desktop Docker mode is always `none`; server Docker is explicit `none`, `rootful`, or `rootless`.
 - Exact AI pins are Claude Code `2.1.206`, Codex CLI `0.144.1`, OpenCode `1.17.18`, MiMoCode `0.1.5`, and Antigravity `1.1.0` with self-update disabled.
-- The mandatory browser baseline is CloakBrowser `0.4.10`, Chrome DevTools MCP `1.5.0`, Playwright CLI `0.1.17`, and Webwright commit `4a46f282ec37f27d6003cc498a977939d62d9015` on loopback CDP `127.0.0.1:9222`.
-- AI, browser Node, CloakBrowser, and Webwright runtimes install from repository-owned frozen locks into content-addressed directories before an atomic wrapper/service handoff.
+- The mandatory browser baseline is CloakBrowser `0.4.10`, Chrome DevTools MCP `1.5.0`, and Playwright CLI `0.1.17` on loopback CDP `127.0.0.1:9222`; Webwright has no installed runtime or dependency tree.
+- AI, browser Node, and CloakBrowser runtimes install from repository-owned frozen locks into content-addressed directories before an atomic wrapper/service/receipt handoff.
 - Ubuntu server hardening is opt-in. SSH key/algorithm/Match context, UFW operator CIDR, Docker ownership, APT key identity, time service, Fail2ban, systemd linger, and rollback state are validated fail closed.
 - Existing Homebrew/APT packages and healthy Docker workloads are preserved instead of implicitly upgraded.
 - `--skip-system` bypasses both the Ubuntu workstation package layer and the composed server baseline/Docker layer before any host inventory probes; normal server plan/apply paths retain their fail-closed checks.
@@ -54,14 +56,17 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Local CI entrypoints are `bash scripts/ci/lint.sh` and `bash scripts/ci/validate.sh`.
 - Managed shell scripts use explicit conditionals for compound control flow; a static regression test rejects the ambiguous `[ A ] && [ B ] || { fallback; }` form before hosted ShellCheck runs.
 - Pinned `raven-actions/actionlint` steps rely on supported default workflow discovery. Regression coverage scans every Raven actionlint use and rejects the unsupported `args` input that GitHub would annotate.
+- The dedicated pytest workflow cancels superseded runs for the same workflow/ref while keeping different refs isolated.
 - Manual release dispatch maps its version input through the environment, rejects non-canonical numeric SemVer, requires the exact current `origin/main` commit and its successful `bootstrap-gate`, and verifies an already existing exact non-rewritten tag in a read-only job. Root release automation is the sole tag creator; the pinned reusable workflow owns immutable publication.
-- The verified 0.3.5 implementation gate is 61 pytest tests plus lint, validate, ShellCheck, actionlint, gitleaks, root release-policy contract checks, and diff checks. Hosted validation/release jobs provision ShellCheck and ripgrep, while every hosted pytest surface provisions Zsh for terminal portability coverage.
+- The verified 0.3.6 local implementation gate is 66 pytest tests plus lint, validate, Ruff, Pyright, ShellCheck, actionlint, and diff checks. Hosted validation/release jobs provision ShellCheck and ripgrep, while every hosted pytest surface provisions Zsh for terminal portability coverage. Live hosted GitHub status remains a separate check before publication.
 
 ## Evidence
 - path:VERSION
 - path:CHANGELOG.md
 - path:config/rldyour-contract.json
 - path:scripts/bootstrap.sh
+- path:scripts/browser_runtime_integrity.py
+- path:scripts/verify-browser-runtime.sh
 - path:scripts/ci/validate.sh
 - path:scripts/macos/install.sh
 - path:scripts/ubuntu/install.sh
@@ -78,6 +83,8 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - commit:c7fc734
 - commit:7b31369
 - commit:0ea9b5b
+- commit:8631dd0
+- commit:42658c2
 
 ## Do Not Infer
 - Do not infer a successful live GitHub Actions run or release publication from local files. Check GitHub Actions and Releases before claiming live release readiness.
@@ -89,6 +96,8 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - `bash scripts/ci/lint.sh`
 - `bash scripts/ci/validate.sh`
 - `python3 -m pytest -q`
+- `ruff check scripts/browser_runtime_integrity.py tests/test_browser_runtime_integrity.py`
+- `pyright scripts/browser_runtime_integrity.py tests/test_browser_runtime_integrity.py`
 - `find scripts -type f -name '*.sh' -print0 | xargs -0 shellcheck`
 - `actionlint`
 - `bash scripts/macos/verify.sh --strict --skip-optional`

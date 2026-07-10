@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 7b31369 fix(release): restore safe manual dispatch
+Last commit: 0ea9b5b fix(release): reserve tag creation for root
 Scope: README.md, VERSION, CHANGELOG.md, config/rldyour-contract.json, scripts/**, templates/**, tests/**, .github/workflows/**
 Area: RELEASE
 -->
@@ -54,7 +54,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Local CI entrypoints are `bash scripts/ci/lint.sh` and `bash scripts/ci/validate.sh`.
 - Managed shell scripts use explicit conditionals for compound control flow; a static regression test rejects the ambiguous `[ A ] && [ B ] || { fallback; }` form before hosted ShellCheck runs.
 - Pinned `raven-actions/actionlint` steps rely on supported default workflow discovery. Regression coverage scans every Raven actionlint use and rejects the unsupported `args` input that GitHub would annotate.
-- Manual release dispatch maps its version input through the environment, rejects non-canonical numeric SemVer, requires the exact current `origin/main` commit and its successful `bootstrap-gate`, and creates or reuses only an exact non-rewritten tag in a separate least-privilege job. The pinned reusable workflow owns immutable publication; a tag pushed with the scoped `GITHUB_TOKEN` continues in the same dispatch run without recursively triggering the tag-push workflow.
+- Manual release dispatch maps its version input through the environment, rejects non-canonical numeric SemVer, requires the exact current `origin/main` commit and its successful `bootstrap-gate`, and verifies an already existing exact non-rewritten tag in a read-only job. Root release automation is the sole tag creator; the pinned reusable workflow owns immutable publication.
 - The verified 0.3.5 implementation gate is 61 pytest tests plus lint, validate, ShellCheck, actionlint, gitleaks, root release-policy contract checks, and diff checks. Hosted validation/release jobs provision ShellCheck and ripgrep, while every hosted pytest surface provisions Zsh for terminal portability coverage.
 
 ## Evidence
@@ -77,6 +77,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - commit:03419cc
 - commit:c7fc734
 - commit:7b31369
+- commit:0ea9b5b
 
 ## Do Not Infer
 - Do not infer a successful live GitHub Actions run or release publication from local files. Check GitHub Actions and Releases before claiming live release readiness.

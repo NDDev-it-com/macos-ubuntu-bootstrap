@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 7b31369 fix(release): restore safe manual dispatch
+Last commit: 0ea9b5b fix(release): reserve tag creation for root
 Scope: README.md, AGENTS.md, .claude/CLAUDE.md, .serena/project.yml, .serena/memories/**
 Area: CORE
 -->
@@ -50,6 +50,7 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 - commit:03419cc
 - commit:c7fc734
 - commit:7b31369
+- commit:0ea9b5b
 
 ## Do Not Infer
 - Do not infer current dependency versions, release state, GitHub settings, or CI status from this index; read the source files and live GitHub state.

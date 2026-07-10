@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 7b31369 fix(release): restore safe manual dispatch
+Last commit: 0ea9b5b fix(release): reserve tag creation for root
 Scope: .gitignore, .serena/project.yml, README.md, AGENTS.md, .claude/CLAUDE.md, scripts/**
 Area: TECHDEBT
 -->
@@ -59,6 +59,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - commit:03419cc
 - commit:c7fc734
 - commit:7b31369
+- commit:0ea9b5b
 
 ## Do Not Infer
 - Do not infer full workstation installation success from plan-mode scripts; strict verification and optional runtime checks must run on the target machine.

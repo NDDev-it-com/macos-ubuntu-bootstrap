@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-10
 Last verified: 2026-07-10
-Last commit: 25e5b7bbf07ca90192022ac8fb9f300d443b9410 chore(release): new-mac-or-ubuntu 0.3.7 (other)
+Last commit: 9f8f97792500a7af4787448a1478fbe5c9ca12cc chore(release): new-mac-or-ubuntu 0.3.9 (other)
 Scope: CLI runtime and package baselines
 Area: RUNTIME
 -->
@@ -13,18 +13,26 @@ CLI runtime and package baselines
 
 ## Current source of truth
 - `path:README.md`
+- `path:scripts/lib/common.sh`
+- `path:config/rldyour-contract.json`
 
 ## Last verified
 - date: 2026-07-10
-- commit: `25e5b7bbf07ca90192022ac8fb9f300d443b9410`
-- checked by: Codex final consistency sync
+- commit: `9f8f97792500a7af4787448a1478fbe5c9ca12cc`
+- checked by: native Codex launcher convergence
 
 ## Facts
 - Current runtime pins and supported platforms are derived from config/rldyour-contract.json, frozen locks, installer scripts, and verification scripts.
+- Managed Codex wrappers execute the frozen platform-native binary directly and
+  clear npm/Bun/pnpm package-manager provenance so diagnostics and update paths
+  cannot escape into another global prefix.
 
 ## Evidence
 - `commit:25e5b7bbf07ca90192022ac8fb9f300d443b9410`
+- `commit:9f8f97792500a7af4787448a1478fbe5c9ca12cc`
 - `path:README.md`
+- `path:scripts/lib/common.sh`
+- `path:config/rldyour-contract.json`
 
 ## Known pitfalls
 - Treat this memory as derived context. Current code, configuration, runtime output, and GitHub state override stale memory text.

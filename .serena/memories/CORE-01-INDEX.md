@@ -32,7 +32,7 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 
 ## Current State
 - This module has three tracked memories: `CORE-01-INDEX.md`, `RELEASE-01-VALIDATION.md`, and `TECHDEBT-01-NOW.md`.
-- The 0.3.9 contract composes Apple Silicon macOS desktop, Ubuntu 24.04/26.04 desktop, and Ubuntu 24.04/26.04 server roles. Desktop roles are source/LSP-only; the Ubuntu server role owns build/runtime and explicit Docker modes.
+- The 0.3.10 contract composes Apple Silicon macOS desktop, Ubuntu 24.04/26.04 desktop, and Ubuntu 24.04/26.04 server roles. Desktop roles are source/LSP-only; the Ubuntu server role owns build/runtime and explicit Docker modes.
 - GUI is an optional desktop overlay. Ubuntu server is always headless.
 - The module owns exact AI CLI installation, terminal integration, language-server/tooling installation, and the mandatory CloakBrowser runtime. Native AI CLI configuration remains in sibling adapter repositories.
 - Serena indexes Bash and Python because the implementation is shell-first with Python validators and fault-injection tests.

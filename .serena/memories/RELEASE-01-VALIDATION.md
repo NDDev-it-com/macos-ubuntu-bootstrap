@@ -46,7 +46,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - launchd forward and rollback handoffs use bounded loaded/unloaded state convergence instead of treating an immediate `launchctl` exit status as proof.
 
 ## Current State
-- Current product/config version is `0.3.9`.
+- Current product/config version is `0.3.10`.
 - Supported targets are Apple Silicon macOS desktop and Ubuntu 24.04/26.04 desktop/server on amd64 or arm64. Desktop Docker mode is always `none`; server Docker is explicit `none`, `rootful`, or `rootless`.
 - Exact AI pins are Claude Code `2.1.206`, Codex CLI `0.144.1`, OpenCode `1.17.18`, MiMoCode `0.1.5`, and Antigravity `1.1.1` with self-update disabled.
 - The mandatory browser baseline is CloakBrowser `0.4.10`, Chrome DevTools MCP `1.5.0`, and Playwright CLI `0.1.17` on loopback CDP `127.0.0.1:9222`; Webwright has no installed runtime or dependency tree.

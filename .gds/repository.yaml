@@ -1,0 +1,63 @@
+schema_version: 1
+
+repository:
+  id: "repo_01KX8PR825YW0SJWHW63B3PB8H"
+  display_name: "rldyour-new-mac-or-ubuntu"
+  roles:
+    - "module"
+  lifecycle: "active"
+
+provider:
+  type: "github"
+  installation: "installation:github-organization"
+  repository_id: 1288547027
+  owner: "NDDev-it-com"
+  name: "rldyour-new-mac-or-ubuntu"
+
+classification:
+  portfolios:
+    - "portfolio:organization-projects"
+    - "portfolio:public-modules"
+  visibility_contract: "public"
+  data_classification: "public"
+
+policy:
+  profiles:
+    - "repository-default"
+    - "organization-default"
+    - "public-module"
+  rollout_ring: "canary-modules"
+
+git:
+  default_branch: "main"
+  integration: "pull-request"
+  branch_model: "task-branches"
+  handoff_pr: "preferred"
+  cleanup: "merged-only"
+
+verification:
+  commands:
+    test:
+      - "bash scripts/ci/validate.sh"
+  required:
+    - "test"
+
+agent:
+  context_profile: "public-module"
+  generated_agents: false
+  serena:
+    enabled: true
+    provenance_required: true
+
+module:
+  contract: "public"
+  consumption:
+    - "git-submodule"
+  compatibility: "semver"
+  pin_policy: "default-branch-commit"
+  publication:
+    registry: "none"
+    github_release: "required"
+
+release:
+  mode: "github-release"

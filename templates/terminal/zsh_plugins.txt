@@ -1,6 +1,6 @@
 # antidote manifest — order matters. `antidote load` compiles this into one
 # static file; regenerate after edits with: antidote bundle <this file.
-# Managed template: rldyour-new-mac-or-ubuntu (templates/terminal/zsh_plugins.txt).
+# Managed template: macos-ubuntu-bootstrap (templates/terminal/zsh_plugins.txt).
 romkatv/zsh-defer
 Aloxaf/fzf-tab
 zsh-users/zsh-completions kind:fpath

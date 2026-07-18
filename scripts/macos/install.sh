@@ -246,7 +246,7 @@ if [ "$RLDYOUR_DRY_RUN" -eq 0 ]; then
   fi
 fi
 
-rldyour::section "rldyour-new-mac-or-ubuntu (macOS) installer"
+rldyour::section "macos-ubuntu-bootstrap (macOS) installer"
 rldyour::log "info" "mode: $([ "$RLDYOUR_DRY_RUN" -eq 1 ] && echo dry-run || echo apply); gui: $GUI_ENABLED; policy: $LOCAL_EXECUTION_POLICY"
 
 if [ "$SKIP_SYSTEM" -eq 0 ]; then

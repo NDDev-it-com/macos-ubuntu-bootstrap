@@ -414,7 +414,7 @@ rldyour::install_ai_cli_bundle() {
   local runtime_label content_id runtime_name destination runtime_marker stage=""
   local opencode_relative codex_relative claude_bin codex_bin opencode_bin mimo_bin actual
   local source_path provider wrapper_spec wrapper_name provider_q wrapper_env
-  local wrapper_stage="" wrapper_marker="# Managed by rldyour-new-mac-or-ubuntu: ai-cli-runtime-v1"
+  local wrapper_stage="" wrapper_marker="# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1"
   common_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   root_dir="$(cd "$common_dir/../.." && pwd)"
   template_dir="$root_dir/templates/ai-cli"
@@ -443,7 +443,7 @@ rldyour::install_ai_cli_bundle() {
     return 1
   fi
   if [ -e "$marker" ] && { [ ! -f "$marker" ] || [ -L "$marker" ] || \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: ai-cli-runtime-v1" "$marker"; }; then
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1" "$marker"; }; then
     rldyour::log "error" "AI CLI runtime ownership marker is invalid; preserved: ${marker}"
     return 1
   fi
@@ -464,7 +464,7 @@ rldyour::install_ai_cli_bundle() {
   chmod 0700 "$home" "$runtimes" || return 1
   rldyour::_install_managed_browser_file \
     "$marker" "$wrapper_marker" 0600 <<'MARKER' || return 1
-# Managed by rldyour-new-mac-or-ubuntu: ai-cli-runtime-v1
+# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1
 # Frozen AI CLI packages; user configuration and credentials live elsewhere.
 MARKER
 
@@ -512,7 +512,7 @@ MARKER
     install -m 0600 "$manifest_source" "$stage/package.json" || return 1
     install -m 0600 "$lock_source" "$stage/bun.lock" || return 1
     cat >"$stage/.rldyour-runtime" <<RUNTIME
-# Managed by rldyour-new-mac-or-ubuntu: ai-cli-runtime-v2
+# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v2
 identity=${content_id}
 claude=${claude_version}
 codex=${codex_version}
@@ -566,7 +566,7 @@ RUNTIME
   fi
 
   if [ ! -f "$runtime_marker" ] || [ -L "$runtime_marker" ] || \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: ai-cli-runtime-v2" "$runtime_marker" || \
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v2" "$runtime_marker" || \
     ! grep -Fxq "identity=${content_id}" "$runtime_marker" || \
     ! cmp -s "$manifest_source" "$destination/package.json" || \
     ! cmp -s "$lock_source" "$destination/bun.lock"; then
@@ -623,7 +623,7 @@ RUNTIME
     fi
     cat >"$wrapper_stage/$wrapper_name" <<WRAPPER
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: ai-cli-runtime-v1
+# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1
 set -euo pipefail
 ${wrapper_env}
 provider=${provider_q}
@@ -671,7 +671,7 @@ rldyour::install_antigravity_artifact() {
   if [ -e "$destination" ] || [ -L "$destination" ]; then
     if [ ! -f "$destination" ] || [ ! -x "$destination" ] || \
       [ ! -f "$receipt" ] || [ -L "$receipt" ] || \
-      ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1" "$receipt"; then
+      ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: antigravity-v1" "$receipt"; then
       rldyour::log "error" "managed Antigravity destination or receipt is invalid; preserved: ${destination}"
       return 1
     fi
@@ -719,8 +719,8 @@ rldyour::install_antigravity_artifact() {
     # between these operations, the next run can safely reuse the managed
     # receipt and finish; a binary can never exist without its receipt.
     rldyour::_install_managed_browser_file \
-      "$receipt" "# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1" 0600 <<RECEIPT || return 1
-# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1
+      "$receipt" "# Managed by macos-ubuntu-bootstrap: antigravity-v1" 0600 <<RECEIPT || return 1
+# Managed by macos-ubuntu-bootstrap: antigravity-v1
 version=${version}
 sha256=${binary_sha256}
 RECEIPT
@@ -732,7 +732,7 @@ RECEIPT
 
   binary_sha256="$(rldyour::sha256_file "$destination")" || return 1
   if [ -e "$launcher" ] && [ ! -L "$launcher" ] && \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1" "$launcher"; then
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: antigravity-v1" "$launcher"; then
     existing_version="$("$launcher" --version 2>/dev/null | head -n 1 || true)"
     if ! printf '%s' "$existing_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
       rldyour::log "error" "unmanaged agy launcher is not a recognized Antigravity binary; preserved: ${launcher}"
@@ -750,9 +750,9 @@ RECEIPT
   fi
 
   rldyour::_install_managed_browser_file \
-    "$launcher" "# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1" 0755 <<LAUNCHER || return 1
+    "$launcher" "# Managed by macos-ubuntu-bootstrap: antigravity-v1" 0755 <<LAUNCHER || return 1
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1
+# Managed by macos-ubuntu-bootstrap: antigravity-v1
 set -euo pipefail
 export AGY_CLI_DISABLE_AUTO_UPDATE=true
 binary="${destination}"
@@ -865,7 +865,7 @@ fi
 exec "$bin" "$@"
 ''',
         f'''#!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu. Resolve + exec the CloakBrowser Chromium.
+# Managed by macos-ubuntu-bootstrap. Resolve + exec the CloakBrowser Chromium.
 # The .app bundle resolves Frameworks via @executable_path, so exec the REAL
 # versioned path (never a symlink to Contents/MacOS/Chromium).
 set -euo pipefail
@@ -887,7 +887,7 @@ exec "$HOME/.local/bin/cloak-chromium" \\
   --no-first-run --no-default-browser-check "$@"
 ''',
         f'''#!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu. CloakBrowser + default stealth args.
+# Managed by macos-ubuntu-bootstrap. CloakBrowser + default stealth args.
 exec "{bin_dir}/cloak-chromium" \\
   --no-sandbox --fingerprint-platform="${{CLOAK_FP_PLATFORM:-{fp}}}" \\
   --no-first-run --no-default-browser-check "$@"
@@ -910,7 +910,7 @@ rldyour::_is_current_managed_cloak_launcher_set() {
   stealth="$bin_dir/cloak-chromium-stealth"
   for launcher in "$chromium" "$stealth"; do
     [ -f "$launcher" ] && [ ! -L "$launcher" ] || return 1
-    [ "$(grep -Fxc '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' "$launcher")" -eq 1 ] || return 1
+    [ "$(grep -Fxc '# Managed by macos-ubuntu-bootstrap: browser-stack-v1' "$launcher")" -eq 1 ] || return 1
   done
   [ "$(grep -Fxc "CLOAKBROWSER_CACHE_DIR=\"${cache}\"" "$chromium")" -eq 1 ] || return 1
   [ "$(grep -c '^bin=' "$chromium")" -eq 1 ] || return 1
@@ -936,7 +936,7 @@ import sys
 path = pathlib.Path(sys.argv[1])
 bin_dir, fingerprint = sys.argv[2:]
 expected = f'''#!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 # CloakBrowser with safe default fingerprint flags. The Chromium sandbox stays on.
 set -euo pipefail
 exec "{bin_dir}/cloak-chromium" \\
@@ -955,7 +955,7 @@ import pathlib
 import sys
 
 expected = (
-    b"# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
+    b"# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
     b"playwright-cli.json is owned by the managed browser stack.\n"
 )
 raise SystemExit(0 if pathlib.Path(sys.argv[1]).read_bytes() == expected else 1)
@@ -1026,7 +1026,7 @@ rldyour::_install_cloak_runtime() {
     install -m 0600 "$project_source" "$stage/pyproject.toml" || return 1
     install -m 0600 "$lock_source" "$stage/uv.lock" || return 1
     cat >"$stage/.rldyour-runtime" <<RUNTIME
-# Managed by rldyour-new-mac-or-ubuntu: cloakbrowser-runtime-v2
+# Managed by macos-ubuntu-bootstrap: cloakbrowser-runtime-v2
 identity=${content_id}
 cloakbrowser=${pin}
 RUNTIME
@@ -1046,7 +1046,7 @@ RUNTIME
   fi
 
   if [ ! -f "$runtime_marker" ] || [ -L "$runtime_marker" ] || \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: cloakbrowser-runtime-v2" "$runtime_marker" || \
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: cloakbrowser-runtime-v2" "$runtime_marker" || \
     ! grep -Fxq "identity=${content_id}" "$runtime_marker" || \
     ! cmp -s "$project_source" "$destination/pyproject.toml" || \
     ! cmp -s "$lock_source" "$destination/uv.lock" || \
@@ -1117,7 +1117,7 @@ rldyour::install_cloakbrowser() {
   done
 
   if { [ -e "$marker_file" ] || [ -L "$marker_file" ]; } && \
-    { [ ! -f "$marker_file" ] || [ -L "$marker_file" ] || ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" "$marker_file"; }; then
+    { [ ! -f "$marker_file" ] || [ -L "$marker_file" ] || ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" "$marker_file"; }; then
     rldyour::log "error" "CloakBrowser ownership marker is invalid; preserved: ${marker_file}"
     return 1
   fi
@@ -1147,8 +1147,8 @@ rldyour::install_cloakbrowser() {
 
   mkdir -p "$home" "$cache" "$bin_dir" || return 1
   chmod 0700 "$home" "$cache" || return 1
-  rldyour::_install_managed_browser_file "$marker_file" "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" 0600 <<'MARKER' || return 1
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+  rldyour::_install_managed_browser_file "$marker_file" "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" 0600 <<'MARKER' || return 1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 # This dedicated directory may be updated only by the browser bootstrap layer.
 MARKER
 
@@ -1156,7 +1156,7 @@ MARKER
   python_bin="$runtime_home/.venv/bin/python"
   if [ -e "$receipt" ]; then
     if [ ! -f "$receipt" ] || [ -L "$receipt" ] || \
-      ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" "$receipt"; then
+      ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" "$receipt"; then
       rldyour::log "error" "CloakBrowser binary receipt is invalid; preserved: ${receipt}"
       return 1
     fi
@@ -1204,8 +1204,8 @@ PY
   fi
   resolved_sha256="$(rldyour::sha256_file "$resolved_binary")" || return 1
   rldyour::_install_managed_browser_file \
-    "$receipt" "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" 0600 <<RECEIPT || return 1
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+    "$receipt" "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" 0600 <<RECEIPT || return 1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 package=cloakbrowser@${pin}
 path=${resolved_binary}
 sha256=${resolved_sha256}
@@ -1219,9 +1219,9 @@ RECEIPT
     legacy_owned=1
     rldyour::log "info" "adopting exact legacy rldyour launcher: ${bin_dir}/cloak-chromium"
   fi
-  rldyour::_install_managed_browser_file "$bin_dir/cloak-chromium" "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" 0755 "" "$legacy_owned" <<RESOLVE || return 1
+  rldyour::_install_managed_browser_file "$bin_dir/cloak-chromium" "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" 0755 "" "$legacy_owned" <<RESOLVE || return 1
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 # Resolve through CloakBrowser's verified wrapper; never fall back to stock Chrome.
 # The .app bundle resolves Frameworks via @executable_path, so exec the REAL
 # versioned path (never a symlink to Contents/MacOS/Chromium).
@@ -1259,9 +1259,9 @@ RESOLVE
     legacy_owned=1
     rldyour::log "info" "adopting exact legacy rldyour launcher: ${bin_dir}/cloak-chromium-stealth"
   fi
-  rldyour::_install_managed_browser_file "$bin_dir/cloak-chromium-stealth" "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" 0755 "" "$legacy_owned" <<STEALTH || return 1
+  rldyour::_install_managed_browser_file "$bin_dir/cloak-chromium-stealth" "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" 0755 "" "$legacy_owned" <<STEALTH || return 1
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 # CloakBrowser with safe default fingerprint flags. The Chromium sandbox stays on.
 set -euo pipefail
 exec "${bin_dir}/cloak-chromium" \\
@@ -1269,9 +1269,9 @@ exec "${bin_dir}/cloak-chromium" \\
   --no-first-run --no-default-browser-check "\$@"
 STEALTH
 
-  rldyour::_install_managed_browser_file "$bin_dir/cloakbrowser-cdp-health" "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" 0755 <<HEALTH || return 1
+  rldyour::_install_managed_browser_file "$bin_dir/cloakbrowser-cdp-health" "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" 0755 <<HEALTH || return 1
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 set -euo pipefail
 endpoint="http://127.0.0.1:9222"
 profile="${home}/daemon-profile"
@@ -1316,9 +1316,9 @@ profile = sys.argv[3]
 raw = path.read_bytes()
 text = raw.decode("utf-8")
 marker = (
-    "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->"
+    "<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->"
     if platform == "Darwin"
-    else "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+    else "# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
 )
 if marker not in text:
     raise SystemExit("managed service marker is missing")
@@ -1515,7 +1515,7 @@ rldyour::_verified_cloak_binary_from_receipt() {
   local receipt="$home/.verified-binary" binary expected_sha256 actual_sha256
 
   if [ ! -f "$receipt" ] || [ -L "$receipt" ] || \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" "$receipt"; then
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" "$receipt"; then
     rldyour::log "error" "verified CloakBrowser binary receipt is unavailable: ${receipt}"
     return 1
   fi
@@ -1563,12 +1563,12 @@ path = pathlib.Path(raw_path)
 raw = path.read_bytes()
 text = raw.decode("utf-8")
 if kind == "launchd":
-    marker = "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->"
+    marker = "<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->"
     hashes = re.findall(r"<!-- rldyour-binary-sha256: ([0-9a-f]{64}) -->", text)
     arguments = plistlib.loads(raw).get("ProgramArguments")
     fingerprint = "macos"
 else:
-    marker = "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+    marker = "# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
     hashes = re.findall(r"^# rldyour-binary-sha256=([0-9a-f]{64})$", text, re.MULTILINE)
     exec_lines = re.findall(r"^ExecStart=(.+)$", text, re.MULTILINE)
     if len(exec_lines) != 1:
@@ -1647,7 +1647,7 @@ rldyour::_active_cloak_service_binary() {
 
 rldyour::_rollback_cloak_launchd_service() {
   local plist=$1 snapshot=$2 prior_present=$3 prior_active=$4 domain=$5
-  local marker="<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->"
+  local marker="<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->"
   local failed=0 service_target="${domain}/com.rldyour.cloakbrowser"
 
   launchctl bootout "$service_target" >/dev/null 2>&1 || true
@@ -1686,7 +1686,7 @@ rldyour::_wait_launchd_service_state() {
 
 rldyour::_rollback_cloak_systemd_service() {
   local unit=$1 snapshot=$2 prior_present=$3 prior_active=$4 prior_enabled=$5
-  local marker="# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+  local marker="# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
   local service="rldyour-cloakbrowser.service" failed=0
 
   systemctl --user stop "$service" >/dev/null 2>&1 || failed=1
@@ -1851,7 +1851,7 @@ rldyour::install_cloakbrowser_daemon() {
     service_file="$HOME/Library/LaunchAgents/com.rldyour.cloakbrowser.plist"
     service_domain="gui/$(id -u)"
     service_target="${service_domain}/com.rldyour.cloakbrowser"
-    service_marker="<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->"
+    service_marker="<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->"
     command -v launchctl >/dev/null 2>&1 || {
       rldyour::log "error" "launchctl is required for the mandatory CloakBrowser daemon"
       return 1
@@ -1939,7 +1939,7 @@ if source.count(old) > 1:
     raise SystemExit("ambiguous stable CloakBrowser launcher in launchd snapshot")
 source = source.replace(old, new)
 source = re.sub(r"\n?<!-- rldyour-binary-sha256: [0-9a-f]{64} -->", "", source)
-marker = "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->"
+marker = "<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->"
 if marker not in source:
     raise SystemExit("managed launchd marker missing from rollback snapshot")
 source = source.replace(marker, marker + f"\n<!-- rldyour-binary-sha256: {sys.argv[4]} -->", 1)
@@ -1953,7 +1953,7 @@ PY
     trap '[ -z "${service_snapshot:-}" ] || rm -f "$service_snapshot"; trap - RETURN' RETURN
     rldyour::_install_managed_browser_file "$service_file" "$service_marker" 0600 "" "$legacy_owned" <<PLIST || return 1
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->
+<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->
 <!-- rldyour-binary-sha256: ${service_sha256} -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -2009,7 +2009,7 @@ PLIST
   else
     service_kind="systemd"
     service_file="$HOME/.config/systemd/user/rldyour-cloakbrowser.service"
-    service_marker="# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+    service_marker="# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
     command -v systemctl >/dev/null 2>&1 || {
       rldyour::log "error" "systemd --user is required for the mandatory CloakBrowser daemon"
       return 1
@@ -2105,7 +2105,7 @@ if source.count(old) > 1:
     raise SystemExit("ambiguous stable CloakBrowser launcher in systemd snapshot")
 source = source.replace(old, new)
 source = re.sub(r"\n?# rldyour-binary-sha256=[0-9a-f]{64}", "", source)
-marker = "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+marker = "# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
 if marker not in source:
     raise SystemExit("managed systemd marker missing from rollback snapshot")
 source = source.replace(marker, marker + f"\n# rldyour-binary-sha256={sys.argv[4]}", 1)
@@ -2118,7 +2118,7 @@ PY
     fi
     trap '[ -z "${service_snapshot:-}" ] || rm -f "$service_snapshot"; trap - RETURN' RETURN
     rldyour::_install_managed_browser_file "$service_file" "$service_marker" 0600 "" "$legacy_owned" <<UNIT || return 1
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 # rldyour-binary-sha256=${service_sha256}
 [Unit]
 Description=rldyour CloakBrowser headless CDP endpoint
@@ -2311,7 +2311,7 @@ rldyour::install_rtk() {
   if [ -e "$destination" ] || [ -L "$destination" ]; then
     if [ ! -f "$destination" ] || [ ! -x "$destination" ] || \
       [ ! -f "$receipt" ] || [ -L "$receipt" ] || \
-      ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: rtk-v1" "$receipt"; then
+      ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: rtk-v1" "$receipt"; then
       rldyour::log "error" "managed RTK destination or receipt is invalid; preserved: ${destination}"
       return 1
     fi
@@ -2346,8 +2346,8 @@ rldyour::install_rtk() {
     # Receipt-first publication makes an interrupted install resumable while
     # preserving the invariant that no managed binary exists without identity.
     rldyour::_install_managed_browser_file \
-      "$receipt" "# Managed by rldyour-new-mac-or-ubuntu: rtk-v1" 0600 <<RECEIPT || return 1
-# Managed by rldyour-new-mac-or-ubuntu: rtk-v1
+      "$receipt" "# Managed by macos-ubuntu-bootstrap: rtk-v1" 0600 <<RECEIPT || return 1
+# Managed by macos-ubuntu-bootstrap: rtk-v1
 version=${pin}
 sha256=${binary_sha256}
 RECEIPT
@@ -2358,7 +2358,7 @@ RECEIPT
   fi
 
   if [ -e "$launcher" ] && [ ! -L "$launcher" ] && \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: rtk-v1" "$launcher"; then
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: rtk-v1" "$launcher"; then
     existing_version="$("$launcher" --version 2>/dev/null | head -n 1 || true)"
     if ! printf '%s' "$existing_version" | grep -Eq '^rtk[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+'; then
       rldyour::log "error" "unmanaged ~/.local/bin/rtk is not a recognized RTK binary; preserved"
@@ -2377,9 +2377,9 @@ RECEIPT
 
   binary_sha256="$(rldyour::sha256_file "$destination")" || return 1
   rldyour::_install_managed_browser_file \
-    "$launcher" "# Managed by rldyour-new-mac-or-ubuntu: rtk-v1" 0755 <<LAUNCHER || return 1
+    "$launcher" "# Managed by macos-ubuntu-bootstrap: rtk-v1" 0755 <<LAUNCHER || return 1
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: rtk-v1
+# Managed by macos-ubuntu-bootstrap: rtk-v1
 set -euo pipefail
 binary="${destination}"
 expected="${binary_sha256}"
@@ -2408,7 +2408,7 @@ LAUNCHER
   elif [ ! -f "$cfg" ]; then
     mkdir -p "$cfg_home"
     cat > "$cfg" <<'RTKCFG'
-# Managed by rldyour-new-mac-or-ubuntu (token-economy standard; control-plane
+# Managed by macos-ubuntu-bootstrap (token-economy standard; control-plane
 # config/token-economy-policy.json / ADR 0004). Safe to edit.
 [hooks]
 # Never rewrite commands whose output other hooks match on or that scripts parse
@@ -2492,7 +2492,7 @@ PY
     chmod 0700 "$stage" || return 1
     install -m 0600 "$playwright_source" "$stage/playwright-cli.json" || return 1
     cat >"$stage/.rldyour-runtime" <<RUNTIME
-# Managed by rldyour-new-mac-or-ubuntu: browser-config-runtime-v3
+# Managed by macos-ubuntu-bootstrap: browser-config-runtime-v3
 identity=${content_id}
 RUNTIME
     chmod 0600 "$stage/.rldyour-runtime" || return 1
@@ -2500,7 +2500,7 @@ RUNTIME
     stage=""
   fi
   if [ ! -f "$runtime_marker" ] || [ -L "$runtime_marker" ] || \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: browser-config-runtime-v3" "$runtime_marker" || \
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: browser-config-runtime-v3" "$runtime_marker" || \
     ! grep -Fxq "identity=${content_id}" "$runtime_marker" || \
     ! cmp -s "$playwright_source" "$destination/playwright-cli.json"; then
     rldyour::log "error" "content-addressed browser config runtime identity is invalid; preserved: ${destination}"
@@ -2585,7 +2585,7 @@ rldyour::_install_browser_node_bundle() {
   fi
   if [ -d "$destination" ]; then
     if [ ! -f "$runtime_marker" ] || [ -L "$runtime_marker" ] || \
-      ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: browser-node-runtime-v2" "$runtime_marker" || \
+      ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: browser-node-runtime-v2" "$runtime_marker" || \
       ! grep -Fxq "identity=${content_id}" "$runtime_marker" || \
       ! cmp -s "$manifest_source" "$destination/package.json" || \
       ! cmp -s "$lock_source" "$destination/bun.lock"; then
@@ -2604,7 +2604,7 @@ rldyour::_install_browser_node_bundle() {
     install -m 0600 "$manifest_source" "$stage/package.json" || return 1
     install -m 0600 "$lock_source" "$stage/bun.lock" || return 1
     cat >"$stage/.rldyour-runtime" <<RUNTIME
-# Managed by rldyour-new-mac-or-ubuntu: browser-node-runtime-v2
+# Managed by macos-ubuntu-bootstrap: browser-node-runtime-v2
 identity=${content_id}
 chrome_devtools_mcp=${chrome_version}
 playwright_cli=${playwright_version}
@@ -2654,7 +2654,7 @@ RUNTIME
   fi
 
   if [ ! -f "$runtime_marker" ] || [ -L "$runtime_marker" ] || \
-    ! grep -Fxq "# Managed by rldyour-new-mac-or-ubuntu: browser-node-runtime-v2" "$runtime_marker" || \
+    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: browser-node-runtime-v2" "$runtime_marker" || \
     ! grep -Fxq "identity=${content_id}" "$runtime_marker" || \
     ! cmp -s "$manifest_source" "$destination/package.json" || \
     ! cmp -s "$lock_source" "$destination/bun.lock"; then
@@ -2877,8 +2877,8 @@ rldyour::_prepare_legacy_cloak_home() {
   fi
   marker="$home/.rldyour-browser-stack"
   if ! rldyour::_install_managed_browser_file \
-    "$marker" "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1" 0600 <<'MARKER'
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+    "$marker" "# Managed by macos-ubuntu-bootstrap: browser-stack-v1" 0600 <<'MARKER'
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 # This dedicated directory may be updated only by the browser bootstrap layer.
 MARKER
   then
@@ -2895,7 +2895,7 @@ MARKER
 
 rldyour::_restore_legacy_cloak_home() {
   local home=$1 backup=$2 legacy_was_active=$3 bin_dir=$4 failed snapshot wrapper
-  local destination restore_tmp marker="# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+  local destination restore_tmp marker="# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
   [ -n "$backup" ] && [ -d "$backup" ] && [ ! -L "$backup" ] || return 1
   if [ -e "$home" ] || [ -L "$home" ]; then
     failed="${home}-failed-$(date -u +%Y%m%dT%H%M%SZ)"
@@ -2955,7 +2955,7 @@ rldyour::_install_browser_providers_impl() {
   local common_dir root_dir template_dir
   local provider_manifest provider_lock provider_source
   local chrome_bin playwright_bin node_version
-  local wrapper_stage="" wrapper_marker="# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+  local wrapper_stage="" wrapper_marker="# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
   local command_name template wrapper_name
   session_home="$browser_home/playwright-sessions"
   marker_file="$browser_home/.rldyour-browser-stack"
@@ -3059,7 +3059,7 @@ PY
   mkdir -p "$browser_home" "$session_home" "$playwright_global_root" "$bin_dir" || return 1
   chmod 0700 "$browser_home" "$session_home" "$playwright_global_root" || return 1
   rldyour::_install_managed_browser_file "$marker_file" "$wrapper_marker" 0600 <<'MARKER' || return 1
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 # Isolated npm packages and provider configs for the fail-closed browser stack.
 MARKER
   rldyour::_install_browser_node_bundle \
@@ -3074,7 +3074,7 @@ MARKER
   }
   if ! cat >"$wrapper_stage/chrome-devtools-mcp" <<CHROME
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 set -euo pipefail
 endpoint="${endpoint}"
 health="${bin_dir}/cloakbrowser-cdp-health"
@@ -3134,7 +3134,7 @@ CHROME
 
   if ! cat >"$wrapper_stage/playwright-cli" <<PLAYWRIGHT
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 set -euo pipefail
 endpoint="${endpoint}"
 health="${bin_dir}/cloakbrowser-cdp-health"
@@ -3211,7 +3211,7 @@ PLAYWRIGHT
 
   if ! cat >"$wrapper_stage/webwright" <<'WEBWRIGHT'
 #!/usr/bin/env bash
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 set -euo pipefail
 echo "webwright: retired by the fail-closed browser policy; arbitrary Python/browser objects are NOT_PROVEN" >&2
 exit 78
@@ -3351,8 +3351,8 @@ rldyour::install_config_template() {
 # mutation. Symlinks and non-regular paths are never followed or replaced.
 rldyour::_ensure_managed_shell_source() {
   local dest=$1 dropin=$2 label=$3
-  local begin="# >>> rldyour-new-mac-or-ubuntu managed ${label} >>>"
-  local end="# <<< rldyour-new-mac-or-ubuntu managed ${label} <<<"
+  local begin="# >>> macos-ubuntu-bootstrap managed ${label} >>>"
+  local end="# <<< macos-ubuntu-bootstrap managed ${label} <<<"
   local parent tmp backup_root
 
   if [ -L "$dest" ] || { [ -e "$dest" ] && [ ! -f "$dest" ]; }; then
@@ -3499,11 +3499,11 @@ rldyour::install_terminal_configs() {
   rldyour::section "Install terminal shell configs (zsh-first, agent-gated)"
   rldyour::_install_managed_browser_file \
     "$HOME/.config/rldyour/zshenv" \
-    "# Managed by rldyour-new-mac-or-ubuntu: terminal-zshenv-v1" 0644 \
+    "# Managed by macos-ubuntu-bootstrap: terminal-zshenv-v1" 0644 \
     <"$tpl_dir/zshenv"
   rldyour::_install_managed_browser_file \
     "$HOME/.config/rldyour/zprofile" \
-    "# Managed by rldyour-new-mac-or-ubuntu: terminal-zprofile-v1" 0644 \
+    "# Managed by macos-ubuntu-bootstrap: terminal-zprofile-v1" 0644 \
     <"$tpl_dir/zprofile"
   rldyour::_ensure_managed_shell_source \
     "$HOME/.zshenv" ".config/rldyour/zshenv" "zshenv-v1"

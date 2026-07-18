@@ -1,4 +1,4 @@
-# rldyour New Mac / Ubuntu Bootstrap
+# macOS / Ubuntu Bootstrap
 
 Plan-first bootstrap automation for Apple Silicon macOS desktops, Ubuntu
 24.04/26.04 desktops, and headless Ubuntu 24.04/26.04 servers.
@@ -295,6 +295,6 @@ the CDP boundary, and Ubuntu server hardening constraints.
 ## Support / License
 
 - License: [AGPL-3.0-or-later](LICENSE)
-- Security reports: [GitHub Security Advisories](https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/security/advisories/new)
-- Issues: [NDDev-it-com/rldyour-new-mac-or-ubuntu](https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/issues)
-- Releases: [release history](https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/releases)
+- Security reports: [GitHub Security Advisories](https://github.com/NDDev-it-com/macos-ubuntu-bootstrap/security/advisories/new)
+- Issues: [NDDev-it-com/macos-ubuntu-bootstrap](https://github.com/NDDev-it-com/macos-ubuntu-bootstrap/issues)
+- Releases: [release history](https://github.com/NDDev-it-com/macos-ubuntu-bootstrap/releases)

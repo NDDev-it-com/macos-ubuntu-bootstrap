@@ -1,4 +1,4 @@
-# Claude Code Project Memory: rldyour New Mac or Ubuntu Bootstrap
+# Claude Code Project Memory: rldyour macOS or Ubuntu Bootstrap
 
 ## Mission
 

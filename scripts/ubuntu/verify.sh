@@ -25,7 +25,7 @@ rldyour::ubuntu_verify::runtime_receipt() {
   shift 4
 
   [ ! -L "$root" ] && [ -d "$root" ] && [ -f "$receipt" ] && [ ! -L "$receipt" ] || return 1
-  [ "$(grep -Fxc '# Managed by rldyour-new-mac-or-ubuntu: ubuntu-runtime-v1' "$receipt")" -eq 1 ] || return 1
+  [ "$(grep -Fxc '# Managed by macos-ubuntu-bootstrap: ubuntu-runtime-v1' "$receipt")" -eq 1 ] || return 1
   [ "$(grep -Fxc "runtime=${runtime}" "$receipt")" -eq 1 ] || return 1
   [ "$(grep -Fxc "version=${version}" "$receipt")" -eq 1 ] || return 1
   [ "$(grep -Fxc "archive_sha256=${archive_sha256}" "$receipt")" -eq 1 ] || return 1

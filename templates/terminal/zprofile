@@ -1,7 +1,7 @@
-# Managed by rldyour-new-mac-or-ubuntu: terminal-zprofile-v1
+# Managed by macos-ubuntu-bootstrap: terminal-zprofile-v1
 # ~/.zprofile — login shells only (terminal tabs, `zsh -l -c`).
 # brew shellenv completes PATH/MANPATH/INFOPATH where Homebrew exists.
-# Managed template: rldyour-new-mac-or-ubuntu (templates/terminal/zprofile).
+# Managed template: macos-ubuntu-bootstrap (templates/terminal/zprofile).
 
 for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
   if [[ -x $_brew ]]; then

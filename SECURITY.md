@@ -17,7 +17,7 @@ supported artifact is always the exact numeric tag named above.
 ## Reporting A Vulnerability
 
 Report vulnerabilities privately through
-[GitHub Security Advisories](https://github.com/NDDev-it-com/rldyour-new-mac-or-ubuntu/security/advisories/new).
+[GitHub Security Advisories](https://github.com/NDDev-it-com/macos-ubuntu-bootstrap/security/advisories/new).
 Do not open a public issue for a confirmed vulnerability.
 
 Include:

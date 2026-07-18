@@ -143,7 +143,7 @@ rldyour::ubuntu_server_verify::docker_repo_source_current() (
   expected=$(mktemp)
   trap 'rm -f -- "$expected"' EXIT
   cat >"$expected" <<EOF
-# Managed by rldyour-new-mac-or-ubuntu; exact ownership is recorded in a sidecar.
+# Managed by macos-ubuntu-bootstrap; exact ownership is recorded in a sidecar.
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
 Suites: $RLDYOUR_SERVER_OS_CODENAME

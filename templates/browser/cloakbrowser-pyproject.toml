@@ -1,4 +1,4 @@
-# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1
+# Managed by macos-ubuntu-bootstrap: browser-stack-v1
 [project]
 name = "rldyour-cloakbrowser-runtime"
 version = "0.3.10"

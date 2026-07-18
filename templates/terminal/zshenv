@@ -1,8 +1,8 @@
-# Managed by rldyour-new-mac-or-ubuntu: terminal-zshenv-v1
+# Managed by macos-ubuntu-bootstrap: terminal-zshenv-v1
 # ~/.zshenv — sourced by EVERY zsh (interactive, login, and `zsh -c` agent
 # shells). Keep it tiny, side-effect-free, and PATH-complete: Codex/OpenCode
 # run `zsh -l -c` and never read .zshrc, so anything an agent needs lives here.
-# Managed template: rldyour-new-mac-or-ubuntu (templates/terminal/zshenv).
+# Managed template: macos-ubuntu-bootstrap (templates/terminal/zshenv).
 
 typeset -U path PATH
 

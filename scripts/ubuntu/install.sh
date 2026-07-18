@@ -209,7 +209,7 @@ rldyour::ubuntu::write_runtime_receipt() {
   local relative key
   shift 4
   {
-    printf '%s\n' '# Managed by rldyour-new-mac-or-ubuntu: ubuntu-runtime-v1'
+    printf '%s\n' '# Managed by macos-ubuntu-bootstrap: ubuntu-runtime-v1'
     printf 'runtime=%s\nversion=%s\narchive_sha256=%s\n' "$runtime" "$version" "$archive_sha256"
     for relative in "$@"; do
       [ -x "$root/$relative" ] || return 1
@@ -226,7 +226,7 @@ rldyour::ubuntu::validate_runtime_receipt() {
   shift 4
 
   [ ! -L "$root" ] && [ -d "$root" ] && [ -f "$receipt" ] && [ ! -L "$receipt" ] || return 1
-  [ "$(grep -Fxc '# Managed by rldyour-new-mac-or-ubuntu: ubuntu-runtime-v1' "$receipt")" -eq 1 ] || return 1
+  [ "$(grep -Fxc '# Managed by macos-ubuntu-bootstrap: ubuntu-runtime-v1' "$receipt")" -eq 1 ] || return 1
   [ "$(grep -Fxc "runtime=${runtime}" "$receipt")" -eq 1 ] || return 1
   [ "$(grep -Fxc "version=${version}" "$receipt")" -eq 1 ] || return 1
   [ "$(grep -Fxc "archive_sha256=${archive_sha256}" "$receipt")" -eq 1 ] || return 1
@@ -591,7 +591,7 @@ fi
 rldyour::assert_root "$REPO_ROOT"
 rldyour::ensure_path
 validate_target
-rldyour::section "rldyour-new-mac-or-ubuntu (Ubuntu) installer"
+rldyour::section "macos-ubuntu-bootstrap (Ubuntu) installer"
 rldyour::log "info" "mode: $([ "$RLDYOUR_DRY_RUN" -eq 1 ] && echo dry-run || echo apply); profile: $PROFILE; gui: $GUI_ENABLED; docker: $DOCKER_MODE; policy: $LOCAL_EXECUTION_POLICY"
 
 if [ "$SKIP_SYSTEM" -eq 0 ]; then

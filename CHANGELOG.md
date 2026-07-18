@@ -4,6 +4,14 @@ All notable changes to this module will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Rename the module and adapter identity from `new-mac-or-ubuntu` to
+  `macos-ubuntu-bootstrap` across the GitHub repository, the adapter contract
+  id, generated GDS anchor, documentation, and managed drop-in markers. Old
+  repository URLs redirect automatically. Machines provisioned under the
+  previous marker keep their existing managed blocks until they are
+  re-provisioned under the new marker.
 
 ## [0.3.10] - 2026-07-10
 

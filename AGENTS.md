@@ -1,4 +1,4 @@
-# rldyour New Mac or Ubuntu Bootstrap
+# rldyour macOS or Ubuntu Bootstrap
 
 ## Purpose
 

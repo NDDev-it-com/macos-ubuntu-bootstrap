@@ -1,5 +1,5 @@
 # ~/.zshrc — interactive shells only. Managed template:
-# rldyour-new-mac-or-ubuntu (templates/terminal/zshrc).
+# macos-ubuntu-bootstrap (templates/terminal/zshrc).
 # Architecture: agent gate first, cached compinit, antidote static plugins,
 # deferred tool inits, syntax highlighting last. Target: <50 ms to prompt.
 

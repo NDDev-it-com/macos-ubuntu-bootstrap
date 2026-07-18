@@ -177,5 +177,5 @@ jobs:
     uses: NDDev-it-com/nddev-ci-workflows/.github/workflows/release-supply-chain.yml@ac4d1f469f5974741c7449305ffcbd5f05a5a47f # 0.5.1
     with:
       version: ${{ needs.resolve.outputs.version }}
-      package_name: rldyour-new-mac-or-ubuntu
+      package_name: macos-ubuntu-bootstrap
       archive_paths: "README.md LICENSE NOTICE SECURITY.md VERSION CHANGELOG.md AGENTS.md .claude .github config scripts templates docs"

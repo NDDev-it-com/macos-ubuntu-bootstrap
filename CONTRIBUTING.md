@@ -1,4 +1,4 @@
-# Contributing to rldyour New Mac or Ubuntu
+# Contributing to rldyour macOS or Ubuntu
 
 Thanks for contributing to this module.
 The module provides bootstrap automation and validation for:

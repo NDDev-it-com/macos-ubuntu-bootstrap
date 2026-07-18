@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "adapter": {
-    "id": "new-mac-or-ubuntu",
+    "id": "macos-ubuntu-bootstrap",
     "version": "0.3.10"
   },
   "verified_on": "2026-07-10",

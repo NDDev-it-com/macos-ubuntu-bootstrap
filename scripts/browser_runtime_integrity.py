@@ -16,10 +16,10 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parents[1]
-OWNER = "rldyour-new-mac-or-ubuntu"
+OWNER = "macos-ubuntu-bootstrap"
 SCHEMA = "rldyour-browser-runtime-receipt-v1"
 BOOTSTRAP_VERSION = "0.3.10"
-MARKER = "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+MARKER = "# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
 ENDPOINT = "http://127.0.0.1:9222"
 CHROME_VERSION = "1.5.0"
 PLAYWRIGHT_VERSION = "0.1.17"
@@ -346,7 +346,7 @@ def collect_state(
         fail("CloakBrowser content-addressed runtime path is wrong")
     cloak_values = parse_exact_kv_marker(
         cloak_marker,
-        marker="# Managed by rldyour-new-mac-or-ubuntu: cloakbrowser-runtime-v2",
+        marker="# Managed by macos-ubuntu-bootstrap: cloakbrowser-runtime-v2",
         expected_keys={"identity", "cloakbrowser"},
     )
     if cloak_values != {"identity": cloak_identity, "cloakbrowser": CLOAK_VERSION}:
@@ -373,7 +373,7 @@ def collect_state(
         fail("browser Node content-addressed runtime path is wrong")
     node_values = parse_exact_kv_marker(
         node_marker,
-        marker="# Managed by rldyour-new-mac-or-ubuntu: browser-node-runtime-v2",
+        marker="# Managed by macos-ubuntu-bootstrap: browser-node-runtime-v2",
         expected_keys={"identity", "chrome_devtools_mcp", "playwright_cli"},
     )
     expected_node_values = {
@@ -423,7 +423,7 @@ def collect_state(
         fail("browser config content-addressed runtime path is wrong")
     config_values = parse_exact_kv_marker(
         config_marker,
-        marker="# Managed by rldyour-new-mac-or-ubuntu: browser-config-runtime-v3",
+        marker="# Managed by macos-ubuntu-bootstrap: browser-config-runtime-v3",
         expected_keys={"identity"},
     )
     if config_values != {"identity": config_identity}:
@@ -461,7 +461,7 @@ def collect_state(
     regular_owned(service_file)
     service_lines = exact_lines(service_file)
     service_marker = (
-        "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->"
+        "<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->"
         if platform.system() == "Darwin"
         else MARKER
     )

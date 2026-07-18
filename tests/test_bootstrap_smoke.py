@@ -375,7 +375,7 @@ def test_browser_managed_file_repairs_mode_and_rejects_marker_substrings(
     tmp_path: Path,
 ) -> None:
     common_path = ROOT / "scripts/lib/common.sh"
-    marker = "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+    marker = "# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
     managed = tmp_path / "managed"
     managed_content = f"{marker}\npayload\n"
     managed.write_text(managed_content, encoding="utf-8")
@@ -459,7 +459,7 @@ cp "$FAKE_ARCHIVE" "$destination"
     interrupted = home / ".local/share/rldyour/antigravity/1.1.1"
     interrupted.mkdir(parents=True)
     (interrupted / "agy.sha256").write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: antigravity-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: antigravity-v1\n"
         "version=1.1.1\n"
         f"sha256={hashlib.sha256(payload.read_bytes()).hexdigest()}\n",
         encoding="utf-8",
@@ -566,7 +566,7 @@ cp "$FAKE_ARCHIVE" "$destination"
     interrupted = home / ".local/share/rldyour/rtk/0.43.0"
     interrupted.mkdir(parents=True)
     (interrupted / "rtk.sha256").write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: rtk-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: rtk-v1\n"
         "version=0.43.0\n"
         f"sha256={hashlib.sha256(payload.read_bytes()).hexdigest()}\n",
         encoding="utf-8",
@@ -792,7 +792,7 @@ rldyour::install_terminal_configs "$2"
     )
     managed = home / ".config/rldyour/zshenv"
     assert managed.read_text(encoding="utf-8").startswith(
-        "# Managed by rldyour-new-mac-or-ubuntu: terminal-zshenv-v1"
+        "# Managed by macos-ubuntu-bootstrap: terminal-zshenv-v1"
     )
     backups = list((home / ".local/share/rldyour/backups/shell").rglob(".zshenv"))
     assert len(backups) == 1

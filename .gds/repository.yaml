@@ -2,7 +2,7 @@ schema_version: 1
 
 repository:
   id: "repo_01KX8PR825YW0SJWHW63B3PB8H"
-  display_name: "rldyour-new-mac-or-ubuntu"
+  display_name: "macos-ubuntu-bootstrap"
   roles:
     - "module"
   lifecycle: "active"
@@ -12,7 +12,7 @@ provider:
   installation: "installation:github-organization"
   repository_id: 1288547027
   owner: "NDDev-it-com"
-  name: "rldyour-new-mac-or-ubuntu"
+  name: "macos-ubuntu-bootstrap"
 
 classification:
   portfolios:

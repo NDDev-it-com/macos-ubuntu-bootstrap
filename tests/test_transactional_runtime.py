@@ -55,7 +55,7 @@ def test_browser_provider_apply_preserves_corrupt_runtime_receipt(
     browser_home = home / ".local/share/rldyour/browser-stack"
     browser_home.mkdir(parents=True)
     (browser_home / ".rldyour-browser-stack").write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n",
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n",
         encoding="utf-8",
     )
     receipt = browser_home / "browser-runtime-receipt.json"
@@ -134,11 +134,11 @@ def test_exact_legacy_cloak_home_migration_is_transactional(
         rldyour::_install_browser_providers_impl() {{
           [ -f "$HOME/.local/share/rldyour/cloakbrowser/.rldyour-browser-stack" ] || return 64
           [ "$(cat "$HOME/.local/share/rldyour/cloakbrowser/daemon-profile/owner-state")" = preserve ] || return 65
-          printf '%s\n%s\n' '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' managed \
+          printf '%s\n%s\n' '# Managed by macos-ubuntu-bootstrap: browser-stack-v1' managed \
             >"$HOME/.local/bin/cloak-chromium"
-          printf '%s\n%s\n' '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' managed \
+          printf '%s\n%s\n' '# Managed by macos-ubuntu-bootstrap: browser-stack-v1' managed \
             >"$HOME/.local/bin/chrome-devtools-mcp"
-          printf '%s\n%s\n' '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' managed \
+          printf '%s\n%s\n' '# Managed by macos-ubuntu-bootstrap: browser-stack-v1' managed \
             >"$HOME/.local/bin/playwright-cli"
           {failure}
         }}
@@ -316,7 +316,7 @@ def install_verified_cloak_receipt(home: Path) -> Path:
     receipt = cloak_home / ".verified-binary"
     receipt.parent.mkdir(parents=True, exist_ok=True)
     receipt.write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
         "package=cloakbrowser@0.4.10\n"
         f"path={binary}\n"
         f"sha256={digest}\n",
@@ -333,7 +333,7 @@ def test_wrapper_set_publish_rolls_back_after_mid_set_rename_failure(
     destination = home / ".local/bin"
     stage = destination / ".wrapper-stage"
     stage.mkdir(parents=True)
-    marker = "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1"
+    marker = "# Managed by macos-ubuntu-bootstrap: browser-stack-v1"
     names = ("chrome-devtools-mcp", "playwright-cli", "webwright")
     for name in names:
         write_executable(
@@ -367,7 +367,7 @@ def test_wrapper_set_publish_rolls_back_after_mid_set_rename_failure(
         r"""
           if rldyour::_publish_managed_wrapper_set \
             "$HOME/.local/bin/.wrapper-stage" "$HOME/.local/bin" \
-            '# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1' \
+            '# Managed by macos-ubuntu-bootstrap: browser-stack-v1' \
             chrome-devtools-mcp playwright-cli webwright; then
             exit 99
           fi
@@ -682,13 +682,13 @@ def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(
     wrapper = home / ".local/bin/cloak-chromium"
     wrapper.parent.mkdir(parents=True)
     wrapper.write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\nold\n",
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\nold\n",
         encoding="utf-8",
     )
     before_wrapper = wrapper.read_bytes()
     marker = home / "cloak/.rldyour-browser-stack"
     marker.write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
         "# This dedicated directory may be updated only by the browser bootstrap layer.\n",
         encoding="utf-8",
     )
@@ -723,7 +723,7 @@ def test_cloak_install_rejects_symlinked_cache_before_uv_or_download(
     cloak_home = home / ".local/share/rldyour/cloakbrowser"
     cloak_home.mkdir(parents=True)
     (cloak_home / ".rldyour-browser-stack").write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n",
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n",
         encoding="utf-8",
     )
     external = tmp_path / "external-cache"
@@ -907,7 +907,7 @@ def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
     unit = home / ".config/systemd/user/rldyour-cloakbrowser.service"
     profile = home / ".local/share/rldyour/cloakbrowser/daemon-profile"
     stable_old_unit = (
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
         "[Unit]\nDescription=prior working unit\n"
         "[Service]\n"
         f'ExecStart="{bin_dir / "cloak-chromium"}" --headless=new '
@@ -916,8 +916,8 @@ def test_cloak_systemd_handoff_failure_restores_prior_unit_and_active_state(
         "--fingerprint-platform=linux\n"
     )
     expected_stable_rollback = stable_old_unit.replace(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1",
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1",
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
         f"# rldyour-binary-sha256={prior_sha256}",
     ).replace(str(bin_dir / "cloak-chromium"), str(prior_binary))
     legacy_old_unit = (
@@ -1068,7 +1068,7 @@ def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(
     profile = home / ".local/share/rldyour/cloakbrowser/daemon-profile"
     old_plist = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->\n"
+        "<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->\n"
         '<plist version="1.0"><dict><key>Label</key><string>prior</string>'
         f'<key>ProgramArguments</key><array><string>{bin_dir / "cloak-chromium"}</string>'
         "<string>--headless=new</string>"
@@ -1080,8 +1080,8 @@ def test_cloak_launchd_bootstrap_failure_restores_prior_plist_and_loaded_state(
         "</dict></plist>\n"
     )
     expected_rollback_plist = old_plist.replace(
-        "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->",
-        "<!-- Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1 -->\n"
+        "<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->",
+        "<!-- Managed by macos-ubuntu-bootstrap: browser-stack-v1 -->\n"
         f"<!-- rldyour-binary-sha256: {prior_sha256} -->",
     ).replace(str(bin_dir / "cloak-chromium"), str(prior_binary))
     if legacy_owned:
@@ -1180,7 +1180,7 @@ def test_cloak_health_accepts_restored_prior_binary_with_managed_provenance(
     )
     write_executable(prior_binary, "#!/usr/bin/env bash\nexit 23\n")
     (home / ".local/share/rldyour/cloakbrowser/.rldyour-browser-stack").write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
         "# This dedicated directory may be updated only by the browser bootstrap layer.\n",
         encoding="utf-8",
     )
@@ -1202,7 +1202,7 @@ def test_cloak_health_accepts_restored_prior_binary_with_managed_provenance(
     unit = home / ".config/systemd/user/rldyour-cloakbrowser.service"
     unit.parent.mkdir(parents=True)
     unit.write_text(
-        "# Managed by rldyour-new-mac-or-ubuntu: browser-stack-v1\n"
+        "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
         f"# rldyour-binary-sha256={prior_sha256}\n"
         "[Service]\n"
         f'ExecStart="{prior_binary}" --headless=new '

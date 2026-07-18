@@ -292,7 +292,7 @@ rldyour::ubuntu_server::configure_unattended_upgrades() (
   previous=$(mktemp)
   trap 'rm -f -- "$candidate" "$previous" 2>/dev/null || rldyour::ubuntu_server::as_root rm -f -- "$candidate" "$previous"' EXIT
   cat >"$candidate" <<'EOF'
-// Managed by rldyour-new-mac-or-ubuntu.
+// Managed by macos-ubuntu-bootstrap.
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 EOF
@@ -426,7 +426,7 @@ rldyour::ubuntu_server::check_docker_conflicts() {
 
 rldyour::ubuntu_server::docker_repo_owner_marker() {
   local kind=$1
-  printf 'rldyour-new-mac-or-ubuntu docker-apt-%s v1\n' "$kind"
+  printf 'macos-ubuntu-bootstrap docker-apt-%s v1\n' "$kind"
 }
 
 rldyour::ubuntu_server::validate_owned_docker_path() (
@@ -546,7 +546,7 @@ rldyour::ubuntu_server::configure_docker_repo() (
   tmp_source=$(mktemp)
   trap 'rm -f -- "${tmp_key:-}" "$tmp_source"' EXIT
   cat >"$tmp_source" <<EOF
-# Managed by rldyour-new-mac-or-ubuntu; exact ownership is recorded in a sidecar.
+# Managed by macos-ubuntu-bootstrap; exact ownership is recorded in a sidecar.
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
 Suites: $RLDYOUR_SERVER_OS_CODENAME
@@ -1430,7 +1430,7 @@ rldyour::ubuntu_server::harden_ssh() (
   previous=$(mktemp)
   trap 'rm -f -- "$candidate" "$previous" 2>/dev/null || rldyour::ubuntu_server::as_root rm -f -- "$candidate" "$previous"' EXIT
   cat >"$candidate" <<'EOF'
-# Managed by rldyour-new-mac-or-ubuntu.
+# Managed by macos-ubuntu-bootstrap.
 PermitRootLogin no
 PubkeyAuthentication yes
 PasswordAuthentication no
@@ -1510,7 +1510,7 @@ rldyour::ubuntu_server::configure_fail2ban() (
   previous=$(mktemp)
   trap 'rm -f -- "$candidate" "$previous" 2>/dev/null || rldyour::ubuntu_server::as_root rm -f -- "$candidate" "$previous"' EXIT
   cat >"$candidate" <<EOF
-# Managed by rldyour-new-mac-or-ubuntu.
+# Managed by macos-ubuntu-bootstrap.
 [sshd]
 enabled = true
 backend = systemd

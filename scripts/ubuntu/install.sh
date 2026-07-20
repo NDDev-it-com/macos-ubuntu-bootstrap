@@ -19,7 +19,7 @@ SKIP_LSPS="${RLDYOUR_SKIP_LSPS:-0}"
 SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
 GUI_ENABLED="${RLDYOUR_GUI_ENABLED:-0}"
 DOCKER_MODE="${RLDYOUR_DOCKER_MODE:-rootful}"
-LOCAL_EXECUTION_POLICY="${RLDYOUR_LOCAL_EXECUTION_POLICY:-server-build-runtime}"
+LOCAL_EXECUTION_POLICY="${RLDYOUR_LOCAL_EXECUTION_POLICY:-container-execution-only}"
 HARDEN_SSH="${RLDYOUR_HARDEN_SSH:-0}"
 ENABLE_UFW="${RLDYOUR_ENABLE_UFW:-0}"
 WITH_FAIL2BAN="${RLDYOUR_WITH_FAIL2BAN:-0}"
@@ -38,15 +38,15 @@ ZCODE_VERSION="3.3.3"
 NODE_VERSION="24.18.0"
 NODE_SHA256_X64="55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742"
 NODE_SHA256_ARM64="58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6"
-UV_VERSION="0.11.28"
-UV_SHA256_X64="e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0224"
-UV_SHA256_ARM64="03e9fe0a81b0718d0bc84625de3885df6cc3f89a8b6af6121d6b9f6113fb6533"
+UV_VERSION="0.11.29"
+UV_SHA256_X64="04f8b82f5d47f0512dcd32c67a4a6f16a0ea27c81537c338fd0ad6b23cebe829"
+UV_SHA256_ARM64="94500fb064ae3c971a873cba64d94694c50677e0a4dbf78735c80509e7429919"
 BUN_VERSION="1.3.14"
 BUN_SHA256_X64="951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f"
 BUN_SHA256_ARM64="a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b"
 
 APT_SOURCE_PACKAGES=(
-  ca-certificates curl gpg gnupg git jq python3 python3-venv python3-pip
+  ca-certificates curl gpg gnupg git jq python3 python3-venv
   shellcheck shfmt clangd zsh unzip xz-utils wget zip lsb-release yamllint
   fd-find bat fzf zoxide tmux btop duf hexyl gh ripgrep httpie miller
 )
@@ -124,7 +124,7 @@ is_supported_ubuntu() {
 validate_target() {
   case "$PROFILE:$LOCAL_EXECUTION_POLICY:$DOCKER_MODE:$GUI_ENABLED" in
     desktop:source-lsp-only:none:0|desktop:source-lsp-only:none:1) ;;
-    server:server-build-runtime:none:0|server:server-build-runtime:rootful:0|server:server-build-runtime:rootless:0) ;;
+    server:container-execution-only:none:0|server:container-execution-only:rootful:0|server:container-execution-only:rootless:0) ;;
     *)
       rldyour::log "error" "invalid Ubuntu composition: profile=$PROFILE policy=$LOCAL_EXECUTION_POLICY docker=$DOCKER_MODE gui=$GUI_ENABLED"
       return 2
@@ -146,9 +146,10 @@ install_apt_baseline() {
   rldyour::ubuntu::as_root apt-get update
   apt_install software-properties-common \
     "${APT_SOURCE_PACKAGES[@]}" "${APT_CLOAK_RUNTIME_PACKAGES[@]}"
-  if [ "$PROFILE" = "server" ]; then
-    apt_install build-essential pkg-config
-  fi
+  # The server profile is a container-execution host: project builds/tests run
+  # inside Docker, never on the host. It therefore installs no host build
+  # toolchain (build-essential, pkg-config, language SDKs). Docker Engine is
+  # provisioned separately by scripts/ubuntu/server.sh.
 }
 
 ensure_node_link() {
@@ -242,7 +243,7 @@ rldyour::ubuntu::validate_runtime_receipt() {
 
 ensure_node() {
   rldyour::section "Ensure Node.js LTS ${NODE_VERSION}"
-  local arch sha filename url archive stage destination command_name parent
+  local arch sha filename url archive stage destination parent
   case "$(uname -m)" in
     x86_64|amd64) arch="x64"; sha="$NODE_SHA256_X64" ;;
     aarch64|arm64) arch="arm64"; sha="$NODE_SHA256_ARM64" ;;
@@ -282,12 +283,11 @@ ensure_node() {
     rm -f "$archive"
     trap - RETURN
   fi
-  for command_name in node npm npx corepack; do
-    rldyour::ubuntu::preflight_managed_link "$command_name" "$HOME/.local/share/rldyour/node"
-  done
-  for command_name in node npm npx corepack; do
-    ensure_node_link "$command_name" "$destination/bin/$command_name"
-  done
+  # Node is a pinned runtime only. npm/npx/corepack ship inside the verified
+  # tarball (their integrity is recorded in the receipt) but are deliberately
+  # NOT published to the managed PATH: uv and bun are the only package managers.
+  rldyour::ubuntu::preflight_managed_link node "$HOME/.local/share/rldyour/node"
+  ensure_node_link node "$destination/bin/node"
   rldyour::ensure_path
   [ "$("$HOME/.local/bin/node" --version)" = "v${NODE_VERSION}" ] || {
     rldyour::log "error" "managed Node.js launcher did not resolve to ${NODE_VERSION}"

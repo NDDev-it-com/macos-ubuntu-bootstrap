@@ -50,7 +50,7 @@
             "rootless"
           ],
           "default_docker_mode": "rootful",
-          "execution_policy": "server-build-runtime"
+          "execution_policy": "container-execution-only"
         }
       }
     }
@@ -68,10 +68,10 @@
       "x64": "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742",
       "arm64": "58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6"
     },
-    "ubuntu_uv": "0.11.28",
+    "ubuntu_uv": "0.11.29",
     "ubuntu_uv_sha256": {
-      "x64": "e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0224",
-      "arm64": "03e9fe0a81b0718d0bc84625de3885df6cc3f89a8b6af6121d6b9f6113fb6533"
+      "x64": "04f8b82f5d47f0512dcd32c67a4a6f16a0ea27c81537c338fd0ad6b23cebe829",
+      "arm64": "94500fb064ae3c971a873cba64d94694c50677e0a4dbf78735c80509e7429919"
     },
     "ubuntu_bun": "1.3.14",
     "ubuntu_bun_sha256": {

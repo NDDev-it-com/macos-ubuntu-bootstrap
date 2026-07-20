@@ -11,7 +11,8 @@ verification settings are composed consistently.
 - **Ubuntu 24.04/26.04 desktop (`amd64`/`arm64`):** GUI enabled by default or
   disabled with `--no-gui`; Docker `none`; policy `source-lsp-only`.
 - **Ubuntu 24.04/26.04 server (`amd64`/`arm64`):** headless; Docker `none`,
-  `rootful`, or `rootless`; default `rootful`; policy `server-build-runtime`.
+  `rootful`, or `rootless`; default `rootful`; policy `container-execution-only`
+  (project builds/tests run inside Docker; no host build toolchain is installed).
 
 macOS supports only the desktop profile. Ubuntu requires an explicit
 `--profile desktop|server`; the bootstrap never infers a runtime or Docker role

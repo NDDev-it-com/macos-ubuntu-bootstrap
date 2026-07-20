@@ -38,7 +38,8 @@ Supported compositions:
 - Ubuntu 24.04/26.04 `amd64` or `arm64` desktop: GUI enabled or disabled,
   Docker `none`, `source-lsp-only`.
 - Ubuntu 24.04/26.04 `amd64` or `arm64` server: headless, Docker
-  `none|rootful|rootless`, default `rootful`, `server-build-runtime`.
+  `none|rootful|rootless`, default `rootful`, `container-execution-only` (project
+  builds/tests run inside Docker; the host installs no build toolchain or SDKs).
 
 macOS never accepts the server profile. Desktop profiles never install Docker
 or configure local project build/runtime execution. `--no-gui` removes only

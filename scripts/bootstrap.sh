@@ -231,7 +231,7 @@ export RLDYOUR_WITH_FAIL2BAN=$WITH_FAIL2BAN
 if [ "$PROFILE" = "desktop" ]; then
   export RLDYOUR_LOCAL_EXECUTION_POLICY="source-lsp-only"
 else
-  export RLDYOUR_LOCAL_EXECUTION_POLICY="server-build-runtime"
+  export RLDYOUR_LOCAL_EXECUTION_POLICY="container-execution-only"
 fi
 
 "$RUNNER_SCRIPT"

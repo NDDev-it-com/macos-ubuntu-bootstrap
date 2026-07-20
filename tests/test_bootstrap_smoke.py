@@ -134,7 +134,7 @@ def test_contract_version_and_profile_matrix() -> None:
     assert {"chatgpt", "codex-app"}.issubset(contract["gui"]["macos"])
     assert contract["runtime_support"]["ubuntu_node_lts"] == "24.18.0"
     assert set(contract["runtime_support"]["ubuntu_node_sha256"]) == {"x64", "arm64"}
-    assert contract["runtime_support"]["ubuntu_uv"] == "0.11.28"
+    assert contract["runtime_support"]["ubuntu_uv"] == "0.11.29"
     assert contract["runtime_support"]["ubuntu_bun"] == "1.3.14"
     assert contract["safety"]["ubuntu_profile_selection"] == "explicit"
 
@@ -908,7 +908,7 @@ def test_no_gui_mode_is_distinct_from_server_role() -> None:
     assert "export RLDYOUR_GUI_ENABLED=1" in bootstrap
     assert "export RLDYOUR_GUI_ENABLED=0" in bootstrap
     assert 'RLDYOUR_LOCAL_EXECUTION_POLICY="source-lsp-only"' in bootstrap
-    assert 'RLDYOUR_LOCAL_EXECUTION_POLICY="server-build-runtime"' in bootstrap
+    assert 'RLDYOUR_LOCAL_EXECUTION_POLICY="container-execution-only"' in bootstrap
     install_gui = re.search(
         r"^install_gui_apps\(\) \{(.*?)(?=^\w[^\n]*\(\) \{)",
         macos,

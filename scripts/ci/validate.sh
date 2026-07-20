@@ -55,11 +55,15 @@ if (
     browser.get('disabled_wrapper'),
 ) != ('retired-fail-closed', False, 'webwright'):
     raise SystemExit('Webwright retirement contract is incomplete')
-supply_chain = data.get('supply_chain', {})
-if supply_chain.get('codex_launcher') != 'native-platform-binary':
-    raise SystemExit('Codex must launch the frozen platform-native binary')
-if supply_chain.get('codex_package_manager_update_context') is not False:
-    raise SystemExit('Codex package-manager update provenance must be disabled')
+# One owner per harness (RVR-P1-004): codex and zcode are the active set and are
+# owned by their authoritative NDDev modules, referenced by module-path env vars.
+harnesses = data.get('harnesses', {})
+if harnesses.get('policy') != 'one-owner-per-harness':
+    raise SystemExit('harness policy must be one-owner-per-harness')
+if harnesses.get('active') != ['codex', 'zcode']:
+    raise SystemExit('active harness set must be exactly codex and zcode')
+if 'ai_cli' in data:
+    raise SystemExit('the inline ai_cli pin block must be removed')
 print(f'contract-ok:{adapter_id}')
 PY
 
@@ -87,8 +91,6 @@ require_file "$REPO_ROOT/scripts/ubuntu/install.sh"
 require_file "$REPO_ROOT/scripts/ubuntu/server.sh"
 require_file "$REPO_ROOT/scripts/ubuntu/verify.sh"
 require_file "$REPO_ROOT/scripts/ubuntu/verify-server.sh"
-require_file "$REPO_ROOT/templates/ai-cli/package.json"
-require_file "$REPO_ROOT/templates/ai-cli/bun.lock"
 require_file "$REPO_ROOT/templates/browser/playwright-cli.json"
 require_file "$REPO_ROOT/templates/browser/cloakbrowser-pyproject.toml"
 require_file "$REPO_ROOT/templates/browser/cloakbrowser-uv.lock"

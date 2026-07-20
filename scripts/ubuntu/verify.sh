@@ -101,7 +101,7 @@ required_cmds=(
   pyright pyright-langserver basedpyright ruff
   tsc vtsls yaml-language-server bash-language-server docker-langserver
   vscode-html-language-server vscode-css-language-server vscode-json-language-server taplo
-  claude codex opencode mimo agy rtk
+  codex zcode rtk
   cloak-chromium cloakbrowser-cdp-health chrome-devtools-mcp playwright-cli
 )
 for cmd in "${required_cmds[@]}"; do
@@ -115,30 +115,13 @@ done
   rldyour::log "missing" "Bun exact managed Ubuntu version 1.3.14"
   exit 1
 }
-uv --version 2>/dev/null | head -n 1 | grep -Eq '^uv 0\.11\.28([[:space:]]|$)' || {
+uv --version 2>/dev/null | head -n 1 | grep -Eq '^uv 0\.11\.29([[:space:]]|$)' || {
   rldyour::log "missing" "uv exact managed Ubuntu version 0.11.29"
   exit 1
 }
-[ "$(claude --version 2>/dev/null | head -n 1)" = "2.1.206 (Claude Code)" ] || {
-  rldyour::log "missing" "Claude Code exact managed version 2.1.206"
-  exit 1
-}
-[ "$(codex --version 2>/dev/null | head -n 1)" = "codex-cli 0.144.1" ] || {
-  rldyour::log "missing" "Codex exact managed version 0.144.1"
-  exit 1
-}
-[ "$(opencode --version 2>/dev/null | head -n 1)" = "1.17.18" ] || {
-  rldyour::log "missing" "OpenCode exact managed version 1.17.18"
-  exit 1
-}
-[ "$(mimo --version 2>/dev/null | head -n 1)" = "0.1.5" ] || {
-  rldyour::log "missing" "MiMoCode exact managed version 0.1.5"
-  exit 1
-}
-[ "$(agy --version 2>/dev/null | head -n 1)" = "1.1.1" ] || {
-  rldyour::log "missing" "agy exact managed version 1.1.1"
-  exit 1
-}
+# The active harness set (codex, zcode) is owned by its GDS modules. Deep harness
+# proof (exact CLI/app versions, setup catalog) is delegated to each module's own
+# status; here we only require the CLIs to resolve on PATH (checked above).
 rtk --version 2>/dev/null | head -n 1 | grep -Eq '^rtk[[:space:]]+0\.43\.0([[:space:]]|$)' || {
   rldyour::log "missing" "rtk exact managed version 0.43.0"
   exit 1
@@ -157,10 +140,9 @@ if [ "$PROFILE" = "desktop" ]; then
     rldyour::log "ok" "desktop policy: Docker is absent"
   fi
   if [ "$GUI_ENABLED" -eq 1 ]; then
-    dpkg-query -W -f='${Status}' claude-desktop 2>/dev/null | grep -Fq "install ok installed" || {
-      rldyour::log "missing" "Claude Desktop package"
-      exit 1
-    }
+    # Harness desktop apps (e.g. ZCode) are owned and verified by their GDS
+    # modules; this bootstrap installs no GUI harness package to check here.
+    rldyour::log "ok" "desktop GUI harness apps are owned by their GDS modules"
   fi
 else
   args=(--docker-mode "$DOCKER_MODE")

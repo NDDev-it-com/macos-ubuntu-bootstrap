@@ -27,75 +27,61 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Validate pinned AI installer manifest
+      - name: Validate one-owner-per-harness delegation
         shell: bash
         run: |
           set -euo pipefail
 
           python3 - <<'PY'
-          import ast
-          import json
           from pathlib import Path
 
-          files = [
+          installers = [
               Path("scripts/macos/install.sh"),
               Path("scripts/ubuntu/install.sh"),
           ]
+          common = Path("scripts/lib/common.sh")
 
-          variable_matrix = [
-              ("CLAUDE_CODE_VERSION", "@anthropic-ai/claude-code"),
-              ("CODEX_VERSION", "@openai/codex"),
-              ("OPENCODE_VERSION", "opencode-ai"),
-              ("MIMOCODE_VERSION", "@mimo-ai/cli"),
+          # The active harness set is codex and zcode; each is installed by its
+          # authoritative NDDev module, never inline and never through a
+          # bun/npm global path or a frozen AI-CLI bundle.
+          removed_globals = [
+              "@anthropic-ai/claude-code",
+              "opencode-ai",
+              "@mimo-ai/cli",
+              "install_ai_cli_bundle",
+              "install_antigravity_artifact",
           ]
-
-          values = {name: [] for name, _ in variable_matrix}
-          for path in files:
-              namespace = {}
-              for line in path.read_text(encoding="utf-8").splitlines():
-                  if "=" not in line:
-                      continue
-                  if not line.split("=", 1)[0].isupper():
-                      continue
-                  key, raw_value = line.split("=", 1)
-                  if key not in values:
-                      continue
-                  try:
-                      namespace[key] = ast.literal_eval(raw_value.strip())
-                  except Exception:
-                      continue
-              for var, _ in variable_matrix:
-                  if var not in namespace:
-                      raise SystemExit(f"{var} missing in {path}")
-                  values[var].append(namespace[var])
-
-          for var, package in variable_matrix:
-              pins = values[var]
-              if len(set(pins)) != 1:
-                  raise SystemExit(f"{package} pin mismatch between install profiles: {pins}")
-
-          manifest = json.loads(Path("templates/ai-cli/package.json").read_text(encoding="utf-8"))
-          dependencies = manifest.get("dependencies", {})
-          for var, package in variable_matrix:
-              if dependencies.get(package) != values[var][0]:
-                  raise SystemExit(
-                      f"{package} lock-manifest pin mismatch: "
-                      f"{dependencies.get(package)!r} != {values[var][0]!r}"
-                  )
-
-          streamed_installer = "antigravity.google/cli/install.sh"
-          for path in files:
+          for path in installers + [common]:
               data = path.read_text(encoding="utf-8")
-              if streamed_installer in data:
-                  raise SystemExit(f"streamed Antigravity installer is forbidden in {path}")
-              if "install_antigravity_artifact" not in data:
-                  raise SystemExit(f"verified Antigravity artifact installer missing in {path}")
-              if "ANTIGRAVITY_ARTIFACT_SHA512" not in data:
-                  raise SystemExit(f"Antigravity SHA-512 trust root missing in {path}")
+              for marker in removed_globals:
+                  if marker in data:
+                      raise SystemExit(f"removed harness install path present in {path}: {marker}")
 
-          print("dependency manifest pins are aligned:")
-          for var, package in variable_matrix:
-              print(f"  {package}: {values[var][0]}")
+          if Path("templates/ai-cli").exists():
+              raise SystemExit("the frozen AI-CLI bundle template must be removed")
+
+          for path in installers:
+              data = path.read_text(encoding="utf-8")
+              if "install_ai_runtimes" not in data:
+                  raise SystemExit(f"harness entrypoint missing in {path}")
+          common_data = common.read_text(encoding="utf-8")
+          for func in (
+              "rldyour::install_selected_harnesses",
+              "rldyour::install_codex_harness",
+              "rldyour::install_zcode_harness",
+              "RLDYOUR_CODEX_MODULE",
+              "RLDYOUR_ZCODE_MODULE",
+          ):
+              if func not in common_data:
+                  raise SystemExit(f"harness delegation symbol missing in {common}: {func}")
+
+          # A streamed Antigravity installer was always forbidden and stays gone.
+          streamed_installer = "antigravity.google/cli/install.sh"
+          for path in installers:
+              if streamed_installer in path.read_text(encoding="utf-8"):
+                  raise SystemExit(f"streamed installer is forbidden in {path}")
+
+          print("harness delegation is one-owner-per-harness: codex + zcode via GDS modules")
           PY
 
       - name: Validate dependency-check intent

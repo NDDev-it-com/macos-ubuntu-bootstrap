@@ -26,17 +26,9 @@ WITH_FAIL2BAN="${RLDYOUR_WITH_FAIL2BAN:-0}"
 # Login shell change is explicit opt-in only; never mutated silently.
 SET_LOGIN_SHELL="${RLDYOUR_SET_LOGIN_SHELL:-0}"
 
-CLAUDE_CODE_VERSION="2.1.206"
-CODEX_VERSION="0.144.1"
-OPENCODE_VERSION="1.17.18"
-MIMOCODE_VERSION="0.1.5"
-ANTIGRAVITY_VERSION="1.1.1"
-ANTIGRAVITY_ARTIFACT_URL_X64="https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.1-6269367663591424/linux-x64/cli_linux_x64.tar.gz"
-ANTIGRAVITY_ARTIFACT_SHA512_X64="fcebad8247e0453097e2b26d839371c88df040e6fb18fac3fd8072851194739cf4624041469b57f529bc9c2e1140a6ce4cd5e7144e64e6efc5605a9f10a862b7"
-ANTIGRAVITY_ARTIFACT_URL_ARM64="https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.1-6269367663591424/linux-arm/cli_linux_arm64.tar.gz"
-ANTIGRAVITY_ARTIFACT_SHA512_ARM64="6d3d89c7b88d4e22e2eef937ce731345299657ac7a14236a93a5f9dce67eb7251845ccc9804b0ab1881125ff6165311ce73c6933c1376ec3b966659a94753e60"
-CLAUDE_DESKTOP_KEY_FINGERPRINT="31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE" # gitleaks:allow - public Anthropic apt signing-key fingerprint
-ZCODE_VERSION="3.3.3"
+# One owner per harness (RVR-P1-004): the active harness set is codex and zcode,
+# each installed by its dedicated authoritative NDDev module via
+# rldyour::install_selected_harnesses. Bootstrap pins no AI CLI versions here.
 NODE_VERSION="24.18.0"
 NODE_SHA256_X64="55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742"
 NODE_SHA256_ARM64="58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6"
@@ -574,122 +566,9 @@ install_bun_lsps() {
 }
 
 install_ai_runtimes() {
-  rldyour::section "Install exact AI CLI versions"
-  rldyour::install_ai_cli_bundle \
-    "$CLAUDE_CODE_VERSION" "$CODEX_VERSION" \
-    "$OPENCODE_VERSION" "$MIMOCODE_VERSION"
-  local agy_url agy_sha512
-  case "$(uname -m)" in
-    x86_64|amd64)
-      agy_url="$ANTIGRAVITY_ARTIFACT_URL_X64"
-      agy_sha512="$ANTIGRAVITY_ARTIFACT_SHA512_X64"
-      ;;
-    aarch64|arm64)
-      agy_url="$ANTIGRAVITY_ARTIFACT_URL_ARM64"
-      agy_sha512="$ANTIGRAVITY_ARTIFACT_SHA512_ARM64"
-      ;;
-    *)
-      rldyour::log "error" "Antigravity ${ANTIGRAVITY_VERSION} has no tracked artifact for $(uname -m)"
-      return 1
-      ;;
-  esac
-  rldyour::install_antigravity_artifact \
-    "$ANTIGRAVITY_VERSION" "$agy_url" "$agy_sha512"
-}
-
-rldyour::ubuntu::single_primary_key_fingerprint() {
-  gpg --batch --show-keys --with-colons "$1" | awk -F: '
-    $1 == "pub" { primary_count++; awaiting_primary_fpr=1; next }
-    $1 == "fpr" && awaiting_primary_fpr { primary_fpr=toupper($10); awaiting_primary_fpr=0 }
-    END {
-      if (primary_count != 1 || primary_fpr == "") exit 1
-      print primary_fpr
-    }
-  '
-}
-
-install_claude_desktop() {
-  if dpkg-query -W -f='${Status}' claude-desktop 2>/dev/null | grep -Fq "install ok installed"; then
-    rldyour::log "ok" "Claude Desktop already installed"
-    return 0
-  fi
-  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
-    rldyour::log "info" "[DRY-RUN] verify Anthropic apt key fingerprint and install claude-desktop"
-    return 0
-  fi
-  local key_tmp source_tmp fingerprint existing_fingerprint key_path source_path
-  key_tmp="$(mktemp)"; source_tmp="$(mktemp)"
-  trap 'rm -f "$key_tmp" "$source_tmp"' RETURN
-  key_path="/usr/share/keyrings/claude-desktop-archive-keyring.asc"
-  source_path="/etc/apt/sources.list.d/claude-desktop.list"
-  curl -fsSL https://downloads.claude.ai/claude-desktop/key.asc -o "$key_tmp"
-  fingerprint="$(rldyour::ubuntu::single_primary_key_fingerprint "$key_tmp")" || {
-    rldyour::log "error" "Claude Desktop key bundle must contain exactly one primary key"
-    return 1
-  }
-  [ "$fingerprint" = "$CLAUDE_DESKTOP_KEY_FINGERPRINT" ] || {
-    rm -f "$key_tmp" "$source_tmp"
-    rldyour::log "error" "Claude Desktop signing-key fingerprint mismatch"
-    return 1
-  }
-  printf '%s\n' "deb [signed-by=$key_path] https://downloads.claude.ai/claude-desktop/apt/stable stable main" >"$source_tmp"
-  if [ -L "$key_path" ] || { [ -e "$key_path" ] && [ ! -f "$key_path" ]; }; then
-    rldyour::log "error" "Claude Desktop apt key path is not a regular file; preserved: $key_path"
-    return 1
-  elif [ -f "$key_path" ]; then
-    existing_fingerprint="$(rldyour::ubuntu::single_primary_key_fingerprint "$key_path")" || {
-      rldyour::log "error" "existing Claude Desktop key bundle contains multiple or invalid primary keys"
-      return 1
-    }
-    [ "$existing_fingerprint" = "$CLAUDE_DESKTOP_KEY_FINGERPRINT" ] || {
-      rldyour::log "error" "existing Claude Desktop apt key fingerprint differs; preserved: $key_path"
-      return 1
-    }
-  else
-    rldyour::ubuntu::as_root install -m 0644 "$key_tmp" "$key_path"
-  fi
-  if [ -L "$source_path" ] || { [ -e "$source_path" ] && [ ! -f "$source_path" ]; }; then
-    rldyour::log "error" "Claude Desktop apt definition is not a regular file; preserved: $source_path"
-    return 1
-  elif [ -f "$source_path" ]; then
-    rldyour::ubuntu::as_root cmp -s "$source_tmp" "$source_path" || {
-      rldyour::log "error" "unmanaged Claude Desktop apt definition differs; preserved: $source_path"
-      return 1
-    }
-  else
-    rldyour::ubuntu::as_root install -m 0644 "$source_tmp" "$source_path"
-  fi
-  rldyour::ubuntu::as_root apt-get update
-  rldyour::ubuntu::as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y claude-desktop
-  rm -f "$key_tmp" "$source_tmp"
-  trap - RETURN
-}
-
-install_zcode_desktop() {
-  if [ -z "${RLDYOUR_ZCODE_SHA256:-}" ]; then
-    rldyour::log "warn" "ZCode ${ZCODE_VERSION} is not auto-installed: upstream publishes no checksum manifest. Set a separately verified RLDYOUR_ZCODE_SHA256 or use scripts/auth-handoff.sh."
-    return 0
-  fi
-  local arch url deb
-  case "$(dpkg --print-architecture)" in
-    amd64) arch="x64" ;;
-    arm64) arch="arm64" ;;
-    *) rldyour::log "warn" "ZCode has no tracked package for this architecture"; return 0 ;;
-  esac
-  url="https://cdn-zcode.z.ai/zcode/electron/releases/${ZCODE_VERSION}/ZCode-${ZCODE_VERSION}-linux-${arch}.deb"
-  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
-    rldyour::log "info" "[DRY-RUN] verify supplied ZCode SHA-256 and install ${url##*/}"
-    return 0
-  fi
-  deb="$(mktemp --suffix=.deb)"
-  curl -fsSL "$url" -o "$deb"
-  printf '%s  %s\n' "$RLDYOUR_ZCODE_SHA256" "$deb" | sha256sum --check --status || {
-    rm -f "$deb"
-    rldyour::log "error" "ZCode SHA-256 verification failed"
-    return 1
-  }
-  rldyour::ubuntu::as_root apt-get install -y "$deb"
-  rm -f "$deb"
+  # Delegate the active harness set (codex, zcode) to their authoritative NDDev
+  # modules; no AI CLI is installed inline or through a bun/npm global path.
+  rldyour::install_selected_harnesses
 }
 
 install_gui_apps() {
@@ -699,9 +578,9 @@ install_gui_apps() {
   fi
   rldyour::section "Install verified Ubuntu GUI applications"
   apt_install fonts-jetbrains-mono || rldyour::log "warn" "fonts-jetbrains-mono unavailable"
-  install_claude_desktop
-  install_zcode_desktop
-  rldyour::log "info" "ChatGPT, Codex, and cmux have no supported Linux desktop build; managed CLIs are installed."
+  # The active harness set (codex, zcode) is owned by its GDS modules; the ZCode
+  # desktop app is installed by nddev-zcode-app, not by this bootstrap.
+  rldyour::log "info" "harness desktop apps are owned by their GDS modules; no GUI harness is installed here."
 }
 
 run_server_layer() {

@@ -36,9 +36,8 @@ export LOCAL_BROWSER_CDP_URL="$RLDYOUR_BROWSER_CDP_ENDPOINT"
 export BROWSER_CDP_URL="$RLDYOUR_BROWSER_CDP_ENDPOINT"
 export AGENT_BROWSER_EXECUTABLE_PATH="$HOME/.local/bin/cloak-chromium"
 export CLOAKBROWSER_CACHE_DIR="$HOME/.local/share/rldyour/cloakbrowser/cache"
-export AGY_CLI_DISABLE_AUTO_UPDATE=true
-# Managed Claude Code installations are lockfile-pinned. Disable every update
-# path so the runtime cannot drift away from its verified bundle version.
+# The codex harness is update-locked so its module-owned standalone artifact
+# cannot drift. Disable every self-update path.
 export DISABLE_AUTOUPDATER=1
 export DISABLE_UPDATES=1
 

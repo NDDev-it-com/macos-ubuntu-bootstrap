@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-AI_VERSIONS = ("2.1.206", "0.144.1", "1.17.18", "0.1.5")
 
 
 def write_executable(path: Path, body: str) -> None:
@@ -36,7 +35,6 @@ def runtime_fixture(tmp_path: Path) -> Path:
     shutil.copy2(
         ROOT / "config/rldyour-contract.json", fixture / "config/rldyour-contract.json"
     )
-    shutil.copytree(ROOT / "templates/ai-cli", fixture / "templates/ai-cli")
     shutil.copytree(ROOT / "templates/browser", fixture / "templates/browser")
     return fixture
 
@@ -379,10 +377,9 @@ def test_wrapper_set_publish_rolls_back_after_mid_set_rename_failure(
     assert not stage.exists()
 
 
-@pytest.mark.parametrize("tool", ("antigravity", "rtk"))
 @pytest.mark.parametrize("unsafe_state", ("namespace-symlink", "dangling-destination"))
 def test_native_artifact_installers_reject_unsafe_managed_paths_before_download(
-    tmp_path: Path, tool: str, unsafe_state: str
+    tmp_path: Path, unsafe_state: str
 ) -> None:
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
@@ -397,9 +394,9 @@ def test_native_artifact_installers_reject_unsafe_managed_paths_before_download(
         exit 77
         """,
     )
-    namespace = home / f".local/share/rldyour/{tool}"
-    version = "1.1.1" if tool == "antigravity" else "0.43.0"
-    binary_name = "agy" if tool == "antigravity" else "rtk"
+    namespace = home / ".local/share/rldyour/rtk"
+    version = "0.43.0"
+    binary_name = "rtk"
     if unsafe_state == "namespace-symlink":
         namespace.parent.mkdir(parents=True)
         external = tmp_path / "external-owner-data"
@@ -409,126 +406,93 @@ def test_native_artifact_installers_reject_unsafe_managed_paths_before_download(
         version_dir = namespace / version
         version_dir.mkdir(parents=True)
         (version_dir / binary_name).symlink_to(tmp_path / "missing-unmanaged-target")
-    command = (
-        "rldyour::install_antigravity_artifact 1.1.1 https://example.invalid/agy.tgz "
-        + "0" * 128
-        if tool == "antigravity"
-        else "rldyour::install_rtk"
-    )
     result = run_bash(
         fixture,
         home,
         fake_bin,
-        command,
+        "rldyour::install_rtk",
         extra_env={"DOWNLOAD_LOG": str(download_log)},
     )
     assert result.returncode != 0
     assert not download_log.exists()
 
 
-def test_ai_bundle_is_idempotent_and_bun_failure_preserves_runtime_and_wrappers(
+def test_harness_delegation_skips_cleanly_when_module_paths_are_unset(
     tmp_path: Path,
 ) -> None:
+    # With no module paths provided, delegation must succeed as a standalone run
+    # and must never touch a bun/npm global path.
     fixture = runtime_fixture(tmp_path)
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
-    install_fake_bun(fake_bin)
     bun_log = tmp_path / "bun.log"
-    provider_log = tmp_path / "provider.log"
-    env = {"FAKE_BUN_LOG": str(bun_log), "FAKE_PROVIDER_LOG": str(provider_log)}
-    command = 'rldyour::install_ai_cli_bundle "2.1.206" "0.144.1" "1.17.18" "0.1.5"'
-
-    first = run_bash(fixture, home, fake_bin, command, extra_env=env)
-    assert first.returncode == 0, first.stdout + first.stderr
-    wrappers = home / ".local/bin"
-    before = {
-        name: (wrappers / name).read_bytes()
-        for name in ("claude", "codex", "opencode", "mimo")
-    }
-    codex_wrapper = (wrappers / "codex").read_text(encoding="utf-8")
-    assert "vendor/" in codex_wrapper
-    assert "/bin/codex" in codex_wrapper
-    assert (
-        "unset CODEX_MANAGED_BY_NPM CODEX_MANAGED_BY_BUN "
-        "CODEX_MANAGED_BY_PNPM CODEX_MANAGED_PACKAGE_ROOT"
-    ) in codex_wrapper
-    poisoned_env = os.environ.copy()
-    poisoned_env.update(
-        {
-            "CODEX_MANAGED_BY_NPM": "1",
-            "CODEX_MANAGED_BY_BUN": "1",
-            "CODEX_MANAGED_BY_PNPM": "1",
-            "CODEX_MANAGED_PACKAGE_ROOT": "/unmanaged/codex",
-        }
+    write_executable(
+        fake_bin / "bun",
+        f'#!/usr/bin/env bash\nprintf called >>"{bun_log}"\nexit 1\n',
     )
-    native_probe = subprocess.run(
-        [str(wrappers / "codex"), "--version"],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=poisoned_env,
-    )
-    assert native_probe.returncode == 0, native_probe.stdout + native_probe.stderr
-    assert native_probe.stdout.strip() == "codex-cli 0.144.1"
-    runtimes = home / ".local/share/rldyour/ai-cli/runtimes"
-    first_runtime = visible_runtimes(runtimes)
-    assert len(first_runtime) == 1
-    assert len(bun_log.read_text(encoding="utf-8").splitlines()) == 1
-
-    second = run_bash(
-        fixture,
-        home,
-        fake_bin,
-        command,
-        extra_env={**env, "FAKE_BUN_FAIL": "1"},
-    )
-    assert second.returncode == 0, second.stdout + second.stderr
-    assert len(bun_log.read_text(encoding="utf-8").splitlines()) == 1
-    assert before == {name: (wrappers / name).read_bytes() for name in before}
-
-    lock = fixture / "templates/ai-cli/bun.lock"
-    lock.write_text(
-        lock.read_text(encoding="utf-8") + "\n# fault-injection\n", encoding="utf-8"
-    )
-    failed_upgrade = run_bash(
-        fixture,
-        home,
-        fake_bin,
-        command,
-        extra_env={**env, "FAKE_BUN_FAIL": "1"},
-    )
-    assert failed_upgrade.returncode != 0
-    assert before == {name: (wrappers / name).read_bytes() for name in before}
-    assert visible_runtimes(runtimes) == first_runtime
-    assert not list(runtimes.glob(".*.staging.*"))
-
-
-def test_ai_bundle_rejects_unmanaged_namespace_without_running_bun(
-    tmp_path: Path,
-) -> None:
-    fixture = runtime_fixture(tmp_path)
-    home = tmp_path / "home"
-    unmanaged = home / ".local/share/rldyour/ai-cli"
-    unmanaged.mkdir(parents=True)
-    sentinel = unmanaged / "owner-data"
-    sentinel.write_text("preserve\n", encoding="utf-8")
-    fake_bin = tmp_path / "fake-bin"
-    fake_bin.mkdir()
-    install_fake_bun(fake_bin)
     result = run_bash(
         fixture,
         home,
         fake_bin,
-        'rldyour::install_ai_cli_bundle "2.1.206" "0.144.1" "1.17.18" "0.1.5"',
+        "rldyour::install_selected_harnesses",
+        extra_env={"RLDYOUR_DRY_RUN": "1"},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "skipping bootstrap-side delegation" in result.stdout
+    assert not bun_log.exists()
+
+
+def test_harness_delegation_fails_closed_on_invalid_module_path(
+    tmp_path: Path,
+) -> None:
+    fixture = runtime_fixture(tmp_path)
+    home = tmp_path / "home"
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    result = run_bash(
+        fixture,
+        home,
+        fake_bin,
+        "rldyour::install_codex_harness",
         extra_env={
-            "FAKE_BUN_LOG": str(tmp_path / "bun.log"),
-            "FAKE_PROVIDER_LOG": str(tmp_path / "provider.log"),
+            "RLDYOUR_DRY_RUN": "1",
+            "RLDYOUR_CODEX_MODULE": str(tmp_path / "does-not-exist"),
         },
     )
     assert result.returncode != 0
-    assert sentinel.read_text(encoding="utf-8") == "preserve\n"
-    assert not (tmp_path / "bun.log").exists()
+    assert "is not a readable directory" in result.stdout
+
+
+def test_harness_delegation_logs_exact_codex_commands_in_dry_run(
+    tmp_path: Path,
+) -> None:
+    fixture = runtime_fixture(tmp_path)
+    home = tmp_path / "home"
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    module = tmp_path / "codex-module"
+    (module / "cli-tools").mkdir(parents=True)
+    (module / "cli-tools/nddev_codex.py").write_text("# entry\n", encoding="utf-8")
+    result = run_bash(
+        fixture,
+        home,
+        fake_bin,
+        "rldyour::install_codex_harness",
+        extra_env={
+            "RLDYOUR_DRY_RUN": "1",
+            "RLDYOUR_CODEX_MODULE": str(module),
+            "HOME": str(home),
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    codex_home = str(home / ".codex")
+    assert (
+        f"install-cli --target {codex_home}" in result.stdout
+        or "install-cli" in result.stdout
+    )
+    assert "apply --setup safe" in result.stdout
+    assert "install-builder" in result.stdout
 
 
 def test_policy_python_ignores_poisoned_pythonpath_for_legacy_ownership(

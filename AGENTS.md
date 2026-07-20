@@ -51,11 +51,16 @@ Ubuntu-only and always headless.
 These values must match both platform installers, the contract, tests, and
 operator documentation:
 
-- Claude Code: `@anthropic-ai/claude-code@2.1.206`
-- Codex: `@openai/codex@0.144.1`
-- OpenCode: `opencode-ai@1.17.18`
-- MiMoCode: `@mimo-ai/cli@0.1.5`
-- Antigravity (`agy`): exact `1.1.1`, self-update disabled
+- Active harness set (one owner per harness, RVR-P1-004): `codex` and `zcode`.
+  Bootstrap installs no AI CLI inline and never through a bun/npm global path.
+  Each harness is owned by its authoritative NDDev module, whose materialized
+  checkout GDS device bootstrap passes in an env var:
+  - `codex`: `nddev-codex-app` (`RLDYOUR_CODEX_MODULE`); `install-cli`, then
+    `apply --setup safe` (full-auto only via `RLDYOUR_CODEX_FULL_AUTO=1`), then
+    `install-builder`.
+  - `zcode`: `nddev-zcode-app` (`RLDYOUR_ZCODE_MODULE`); `bootstrap` then
+    `install --setup nddev-builder` through the module's `--plan`/`--apply`
+    lifecycle.
 - RTK: exact `0.43.0`, hash-pinned native artifact
 - CloakBrowser: `0.4.10`
 - Chrome DevTools MCP: `1.5.0`
@@ -67,14 +72,13 @@ operator documentation:
 Use current, source-backed facts before changing a dependency. Preserve exact
 pins and integrity checks unless the change intentionally updates the contract.
 Never reintroduce mutable, unauthenticated remote installer execution or
-unfrozen dependency resolution. Registry-backed AI CLIs use
-`templates/ai-cli/bun.lock` with lifecycle scripts disabled. The Node browser
-providers use `templates/browser/provider/bun.lock`; CloakBrowser uses its
-tracked `uv.lock`.
+unfrozen dependency resolution. The Node browser providers use
+`templates/browser/provider/bun.lock`; CloakBrowser uses its tracked `uv.lock`.
+The codex and zcode harnesses own their standalone artifacts inside their
+modules; never reintroduce an inline AI-CLI bundle or a bun/npm global install.
 
-Codex must launch the lock-installed platform-native binary, not its package-
-manager JS shim. The managed wrapper removes inherited npm/Bun/pnpm provenance
-so diagnostics and update actions cannot target an unrelated global prefix.
+The codex and zcode harnesses stay update-locked: `DISABLE_AUTOUPDATER=1` and
+`DISABLE_UPDATES=1` keep the codex module's standalone binary from drifting.
 
 ## Non-Negotiable Browser Boundary
 
@@ -103,14 +107,14 @@ be committed.
 
 ## GUI And Integrity Boundaries
 
-- macOS GUI: Ghostty, cmux, ChatGPT, the separate Codex app, and Claude Desktop.
-- Ubuntu GUI: Claude Desktop; ChatGPT, Codex, and cmux have no supported Linux
-  builds.
+- macOS GUI: Ghostty, cmux, ChatGPT, and the separate Codex app.
+- Ubuntu GUI: no bootstrap-installed harness apps; the ZCode desktop app is
+  installed by its `nddev-zcode-app` module.
 - Ubuntu server: no GUI applications.
 
-macOS GUI apply configures cmux non-interactively only for Codex, OpenCode, and
-Antigravity. Do not replace those targeted `--yes` installs with broad
-interactive `cmux hooks setup`, which can create unrelated agent configs.
+macOS GUI apply configures cmux non-interactively only for Codex. Do not replace
+that targeted `--yes` install with broad interactive `cmux hooks setup`, which
+can create unrelated agent configs.
 
 ZCode `3.3.3` remains manual by default because upstream publishes no checksum
 or signature manifest. On Ubuntu, installation is allowed only when the owner

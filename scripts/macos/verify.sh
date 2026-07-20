@@ -30,7 +30,7 @@ required_cmds=(
   tsc vtsls yaml-language-server bash-language-server docker-langserver
   vscode-html-language-server vscode-css-language-server vscode-json-language-server
   taplo marksman terraform-ls cmake-language-server
-  claude codex opencode mimo agy rtk
+  codex zcode rtk
   cloak-chromium cloakbrowser-cdp-health chrome-devtools-mcp playwright-cli
 )
 for cmd in "${required_cmds[@]}"; do
@@ -39,26 +39,9 @@ done
 rldyour::require_one_of_cmd required docker-language-server docker-langserver
 
 rldyour::require_cmd_min_version node 20.19 --version
-[ "$(claude --version 2>/dev/null | head -n 1)" = "2.1.206 (Claude Code)" ] || {
-  rldyour::log "missing" "Claude Code exact managed version 2.1.206"
-  exit 1
-}
-[ "$(codex --version 2>/dev/null | head -n 1)" = "codex-cli 0.144.1" ] || {
-  rldyour::log "missing" "Codex exact managed version 0.144.1"
-  exit 1
-}
-[ "$(opencode --version 2>/dev/null | head -n 1)" = "1.17.18" ] || {
-  rldyour::log "missing" "OpenCode exact managed version 1.17.18"
-  exit 1
-}
-[ "$(mimo --version 2>/dev/null | head -n 1)" = "0.1.5" ] || {
-  rldyour::log "missing" "MiMoCode exact managed version 0.1.5"
-  exit 1
-}
-[ "$(agy --version 2>/dev/null | head -n 1)" = "1.1.1" ] || {
-  rldyour::log "missing" "agy exact managed version 1.1.1"
-  exit 1
-}
+# The active harness set (codex, zcode) is owned by its GDS modules. Deep harness
+# proof (exact CLI/app versions, setup catalog) is delegated to each module's own
+# status; here we only require the CLIs to resolve on PATH (checked above).
 rtk --version 2>/dev/null | head -n 1 | grep -Eq '^rtk[[:space:]]+0\.43\.0([[:space:]]|$)' || {
   rldyour::log "missing" "rtk exact managed version 0.43.0"
   exit 1

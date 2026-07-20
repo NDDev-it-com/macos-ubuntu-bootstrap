@@ -55,12 +55,22 @@
       }
     }
   },
-  "ai_cli": {
-    "claude_code": "2.1.206",
-    "codex": "0.144.1",
-    "opencode": "1.17.18",
-    "mimocode": "0.1.5",
-    "antigravity": "1.1.1"
+  "harnesses": {
+    "policy": "one-owner-per-harness",
+    "active": [
+      "codex",
+      "zcode"
+    ],
+    "codex": {
+      "owner_module": "nddev-codex-app",
+      "module_path_env": "RLDYOUR_CODEX_MODULE",
+      "default_setup": "safe"
+    },
+    "zcode": {
+      "owner_module": "nddev-zcode-app",
+      "module_path_env": "RLDYOUR_ZCODE_MODULE",
+      "default_setup": "nddev-builder"
+    }
   },
   "runtime_support": {
     "ubuntu_node_lts": "24.18.0",
@@ -105,24 +115,12 @@
       "codex-app",
       "claude-desktop"
     ],
-    "ubuntu": [
-      "claude-desktop"
-    ],
-    "manual_integrity_gate": [
-      "zcode"
-    ]
+    "ubuntu": []
   },
   "supply_chain": {
-    "ai_cli_lock": "templates/ai-cli/bun.lock",
     "homebrew_pkg_version": "6.0.9",
     "homebrew_pkg_sha256": "525599bd2dcbda29857120234336b0103ad5283a3dc8511f72066eeb917abd3c",
     "homebrew_installer_team": "927JGANW46",
-    "antigravity_macos_arm64_sha512": "2993c4b43d2703cf796848e1a02b71e2e0588387d8dc2424435207eedbbc2097251ca0ba321b99d364358f7e6e98df1ac1757c1f5edaca8d53abaa26123e7f49",
-    "antigravity_linux_x64_sha512": "fcebad8247e0453097e2b26d839371c88df040e6fb18fac3fd8072851194739cf4624041469b57f529bc9c2e1140a6ce4cd5e7144e64e6efc5605a9f10a862b7",
-    "antigravity_linux_arm64_sha512": "6d3d89c7b88d4e22e2eef937ce731345299657ac7a14236a93a5f9dce67eb7251845ccc9804b0ab1881125ff6165311ce73c6933c1376ec3b966659a94753e60",
-    "antigravity_auto_update": false,
-    "codex_launcher": "native-platform-binary",
-    "codex_package_manager_update_context": false,
     "rtk_artifact_version": "0.43.0",
     "rtk_macos_arm64_sha256": "8a17e49acbd378997eb21d0eb6f7f861111f35b4fc9b1c74edf4c7448e576c65",
     "rtk_linux_x64_sha256": "ff8a1e7766496e175291a85aeca1dc97c9ff6df33e51e5893d1fbc78fea2a609",

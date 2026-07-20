@@ -30,11 +30,13 @@ profile; Ubuntu server is always headless.
 
 ## Verified Pins
 
-- Claude Code `2.1.206`
-- Codex `0.144.1`
-- OpenCode `1.17.18`
-- MiMoCode `0.1.5`
-- Antigravity (`agy`) exact `1.1.1`, self-update disabled
+- Active harness set (one owner per harness, RVR-P1-004): `codex` and `zcode`,
+  each installed by its authoritative NDDev module. Bootstrap installs no AI CLI
+  inline or through a bun/npm global path.
+  - `codex`: `nddev-codex-app` via `RLDYOUR_CODEX_MODULE` (safe setup by default;
+    full-auto only with `RLDYOUR_CODEX_FULL_AUTO=1`; then `install-builder`).
+  - `zcode`: `nddev-zcode-app` via `RLDYOUR_ZCODE_MODULE` (nddev-builder setup,
+    module `--plan`/`--apply` lifecycle).
 - RTK exact `0.43.0`, hash-pinned native artifact
 - CloakBrowser `0.4.10`
 - Chrome DevTools MCP `1.5.0`
@@ -79,17 +81,16 @@ copy outside the active namespace.
 ## GUI And Authentication
 
 - macOS GUI mode: Ghostty, cmux, ChatGPT, the separate Codex app, Claude Desktop.
-- Ubuntu GUI mode: Claude Desktop. ChatGPT, Codex, and cmux have no supported
-  Linux desktop build.
+- Ubuntu GUI mode: no bootstrap-installed harness apps; the ZCode desktop app is
+  owned by its `nddev-zcode-app` module.
 - Server: no GUI layer.
 
-macOS GUI apply installs cmux hooks non-interactively only for Codex, OpenCode,
-and Antigravity. Keep the targeted `--yes` commands; do not use broad
-interactive `cmux hooks setup`.
+macOS GUI apply installs cmux hooks non-interactively only for Codex. Keep the
+targeted `--yes` command; do not use broad interactive `cmux hooks setup`.
 
-ZCode `3.3.3` is manual by default because upstream publishes no checksum or
-signature manifest. Ubuntu may install it only with a separately verified
-`RLDYOUR_ZCODE_SHA256`. Never bypass that integrity gate.
+The ZCode app and CLI are owned by the `nddev-zcode-app` module and installed
+through its own `--plan`/`--apply` lifecycle; bootstrap never installs ZCode via
+an apt `.deb` or a `RLDYOUR_ZCODE_SHA256` gate.
 
 Credentials are outside bootstrap ownership. Use:
 

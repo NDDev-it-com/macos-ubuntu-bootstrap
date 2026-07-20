@@ -410,376 +410,105 @@ rldyour::_publish_managed_wrapper_set() {
   rldyour::log "ok" "published managed wrapper set: ${names[*]}"
 }
 
-rldyour::install_ai_cli_bundle() {
-  local claude_version=$1 codex_version=$2 opencode_version=$3 mimo_version=$4
-  local dry_run="${RLDYOUR_DRY_RUN:-1}"
-  local home="$HOME/.local/share/rldyour/ai-cli"
-  local runtimes="$home/runtimes"
-  local bin_dir="$HOME/.local/bin"
-  local marker="$home/.rldyour-ai-cli-runtime"
-  local common_dir root_dir template_dir manifest_source lock_source
-  local runtime_label content_id runtime_name destination runtime_marker stage=""
-  local opencode_relative codex_relative claude_bin codex_bin opencode_bin mimo_bin actual
-  local source_path provider wrapper_spec wrapper_name provider_q wrapper_env
-  local wrapper_stage="" wrapper_marker="# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1"
-  common_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  root_dir="$(cd "$common_dir/../.." && pwd)"
-  template_dir="$root_dir/templates/ai-cli"
-  manifest_source="$template_dir/package.json"
-  lock_source="$template_dir/bun.lock"
-
-  rldyour::section "Install frozen AI CLI runtime bundle"
-  if [ "$dry_run" -eq 1 ]; then
-    rldyour::log "info" "[DRY-RUN] bun install --frozen-lockfile --ignore-scripts for Claude ${claude_version}, Codex ${codex_version}, OpenCode ${opencode_version}, and MiMoCode ${mimo_version}"
-    rldyour::log "info" "[DRY-RUN] build and probe a content-addressed runtime beside ${runtimes}, then atomically publish managed PATH wrappers"
-    return 0
+# One owner per harness (RVR-P1-004). The owner's active harness set is codex and
+# zcode. Bootstrap no longer inline-installs any AI CLI and never installs a
+# harness through a bun/npm global path or its own frozen bundle. Each harness is
+# owned by its dedicated authoritative NDDev module. GDS device bootstrap
+# materializes those module checkouts and passes their absolute paths in
+# RLDYOUR_CODEX_MODULE and RLDYOUR_ZCODE_MODULE. A module owns its standalone
+# artifacts; bootstrap only delegates to the module's own install lifecycle.
+rldyour::_validate_harness_module() {
+  local label=$1 dir=$2 entry=$3
+  # Returns 2 when unset (caller skips), 0 when valid, 1 fail-closed.
+  if [ -z "$dir" ]; then
+    return 2
   fi
-  command -v bun >/dev/null 2>&1 || {
-    rldyour::log "error" "bun is required for the managed AI CLI bundle"
-    return 1
-  }
-  for source_path in "$manifest_source" "$lock_source"; do
-    { [ -f "$source_path" ] && [ ! -L "$source_path" ]; } || {
-      rldyour::log "error" "AI CLI lock input is missing or unsafe: ${source_path}"
-      return 1
-    }
-  done
-
-  if [ -L "$home" ] || { [ -e "$home" ] && [ ! -d "$home" ]; }; then
-    rldyour::log "error" "AI CLI runtime namespace is not a managed directory; preserved: ${home}"
+  if [ ! -d "$dir" ] || [ ! -r "$dir" ]; then
+    rldyour::log "error" "${label} module path is set but is not a readable directory: ${dir}"
     return 1
   fi
-  if [ -e "$marker" ] && { [ ! -f "$marker" ] || [ -L "$marker" ] || \
-    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1" "$marker"; }; then
-    rldyour::log "error" "AI CLI runtime ownership marker is invalid; preserved: ${marker}"
+  if [ ! -f "$dir/$entry" ]; then
+    rldyour::log "error" "${label} module entrypoint is missing: ${dir}/${entry}"
     return 1
   fi
-  if [ -d "$home" ] && [ ! -f "$marker" ] && \
-    [ -n "$(find "$home" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
-    rldyour::log "error" "AI CLI runtime home exists without a management marker; preserved: ${home}"
-    return 1
-  fi
-  if [ -L "$runtimes" ] || { [ -e "$runtimes" ] && [ ! -d "$runtimes" ]; }; then
-    rldyour::log "error" "AI CLI runtimes path is not a managed directory; preserved: ${runtimes}"
-    return 1
-  fi
-  for wrapper_name in claude codex opencode mimo; do
-    rldyour::_managed_wrapper_replaceable "$bin_dir/$wrapper_name" "$wrapper_marker" || return 1
-  done
-
-  mkdir -p "$home" "$runtimes" "$bin_dir" || return 1
-  chmod 0700 "$home" "$runtimes" || return 1
-  rldyour::_install_managed_browser_file \
-    "$marker" "$wrapper_marker" 0600 <<'MARKER' || return 1
-# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1
-# Frozen AI CLI packages; user configuration and credentials live elsewhere.
-MARKER
-
-  # Contract: codex_launcher=native-platform-binary. The npm package's JS shim
-  # injects package-manager update provenance that is invalid for this frozen,
-  # content-addressed bundle, so the managed wrapper uses the shipped native
-  # executable and clears any inherited provenance instead.
-  case "$(uname -s):$(uname -m)" in
-    Darwin:arm64)
-      opencode_relative="node_modules/opencode-darwin-arm64/bin/opencode"
-      codex_relative="node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex"
-      ;;
-    Linux:aarch64|Linux:arm64)
-      opencode_relative="node_modules/opencode-linux-arm64/bin/opencode"
-      codex_relative="node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/bin/codex"
-      ;;
-    Linux:x86_64|Linux:amd64)
-      codex_relative="node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex"
-      if grep -Eq '(^|[[:space:]])avx2([[:space:]]|$)' /proc/cpuinfo 2>/dev/null; then
-        opencode_relative="node_modules/opencode-linux-x64/bin/opencode"
-      else
-        opencode_relative="node_modules/opencode-linux-x64-baseline/bin/opencode"
-      fi
-      ;;
-    *)
-      rldyour::log "error" "managed OpenCode has no supported native target for $(uname -s)/$(uname -m)"
-      return 1
-      ;;
-  esac
-
-  runtime_label="ai-cli|claude=${claude_version}|codex=${codex_version}|opencode=${opencode_version}|mimo=${mimo_version}|platform=$(uname -s)-$(uname -m)"
-  content_id="$(rldyour::_runtime_content_id "$runtime_label" "$manifest_source" "$lock_source")" || return 1
-  runtime_name="ai-${claude_version}-${codex_version}-${opencode_version}-${mimo_version}-${content_id}"
-  destination="$runtimes/$runtime_name"
-  runtime_marker="$destination/.rldyour-runtime"
-  trap 'if [ -n "${stage:-}" ]; then rm -rf "$stage"; fi; if [ -n "${wrapper_stage:-}" ]; then rm -rf "$wrapper_stage"; fi; trap - RETURN' RETURN
-
-  if [ -L "$destination" ] || { [ -e "$destination" ] && [ ! -d "$destination" ]; }; then
-    rldyour::log "error" "AI CLI runtime destination is invalid; preserved: ${destination}"
-    return 1
-  fi
-  if [ ! -d "$destination" ]; then
-    stage="$(mktemp -d "$runtimes/.${runtime_name}.staging.XXXXXX")" || return 1
-    chmod 0700 "$stage" || return 1
-    install -m 0600 "$manifest_source" "$stage/package.json" || return 1
-    install -m 0600 "$lock_source" "$stage/bun.lock" || return 1
-    cat >"$stage/.rldyour-runtime" <<RUNTIME
-# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v2
-identity=${content_id}
-claude=${claude_version}
-codex=${codex_version}
-opencode=${opencode_version}
-mimo=${mimo_version}
-RUNTIME
-    chmod 0600 "$stage/.rldyour-runtime" || return 1
-
-    # No package lifecycle scripts execute. OpenCode's locked native optional
-    # dependency is selected directly below, so its network-capable postinstall
-    # fallback is unnecessary and forbidden.
-    if ! bun install --cwd "$stage" --frozen-lockfile --ignore-scripts \
-      --production >/dev/null 2>&1; then
-      rldyour::log "error" "frozen AI CLI runtime staging installation failed"
-      return 1
-    fi
-    claude_bin="$stage/node_modules/.bin/claude"
-    codex_bin="$stage/$codex_relative"
-    opencode_bin="$stage/$opencode_relative"
-    mimo_bin="$stage/node_modules/.bin/mimo"
-    for provider in "$claude_bin" "$codex_bin" "$opencode_bin" "$mimo_bin"; do
-      [ -x "$provider" ] || {
-        rldyour::log "error" "staged AI CLI provider is missing or not executable: ${provider}"
-        return 1
-      }
-    done
-    actual="$(DISABLE_AUTOUPDATER=1 DISABLE_UPDATES=1 "$claude_bin" --version 2>/dev/null | head -n 1)"
-    [ "$actual" = "${claude_version} (Claude Code)" ] || {
-      rldyour::log "error" "staged Claude Code version mismatch: ${actual:-unknown}"
-      return 1
-    }
-    actual="$(env -u CODEX_MANAGED_BY_NPM -u CODEX_MANAGED_BY_BUN \
-      -u CODEX_MANAGED_BY_PNPM -u CODEX_MANAGED_PACKAGE_ROOT \
-      "$codex_bin" --version 2>/dev/null | head -n 1)"
-    [ "$actual" = "codex-cli ${codex_version}" ] || {
-      rldyour::log "error" "staged Codex version mismatch: ${actual:-unknown}"
-      return 1
-    }
-    actual="$("$opencode_bin" --version 2>/dev/null | head -n 1)"
-    [ "$actual" = "$opencode_version" ] || {
-      rldyour::log "error" "staged OpenCode version mismatch: ${actual:-unknown}"
-      return 1
-    }
-    actual="$("$mimo_bin" --version 2>/dev/null | head -n 1)"
-    [ "$actual" = "$mimo_version" ] || {
-      rldyour::log "error" "staged MiMoCode version mismatch: ${actual:-unknown}"
-      return 1
-    }
-    mv "$stage" "$destination" || return 1
-    stage=""
-  fi
-
-  if [ ! -f "$runtime_marker" ] || [ -L "$runtime_marker" ] || \
-    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v2" "$runtime_marker" || \
-    ! grep -Fxq "identity=${content_id}" "$runtime_marker" || \
-    ! cmp -s "$manifest_source" "$destination/package.json" || \
-    ! cmp -s "$lock_source" "$destination/bun.lock"; then
-    rldyour::log "error" "content-addressed AI CLI runtime identity is invalid; preserved: ${destination}"
-    return 1
-  fi
-  claude_bin="$destination/node_modules/.bin/claude"
-  codex_bin="$destination/$codex_relative"
-  opencode_bin="$destination/$opencode_relative"
-  mimo_bin="$destination/node_modules/.bin/mimo"
-  for provider in "$claude_bin" "$codex_bin" "$opencode_bin" "$mimo_bin"; do
-    [ -x "$provider" ] || {
-      rldyour::log "error" "managed AI CLI provider is missing or not executable: ${provider}"
-      return 1
-    }
-  done
-  actual="$(DISABLE_AUTOUPDATER=1 DISABLE_UPDATES=1 "$claude_bin" --version 2>/dev/null | head -n 1)"
-  [ "$actual" = "${claude_version} (Claude Code)" ] || {
-    rldyour::log "error" "Claude Code bundle version mismatch: ${actual:-unknown}"
-    return 1
-  }
-  actual="$(env -u CODEX_MANAGED_BY_NPM -u CODEX_MANAGED_BY_BUN \
-    -u CODEX_MANAGED_BY_PNPM -u CODEX_MANAGED_PACKAGE_ROOT \
-    "$codex_bin" --version 2>/dev/null | head -n 1)"
-  [ "$actual" = "codex-cli ${codex_version}" ] || {
-    rldyour::log "error" "Codex bundle version mismatch: ${actual:-unknown}"
-    return 1
-  }
-  actual="$("$opencode_bin" --version 2>/dev/null | head -n 1)"
-  [ "$actual" = "$opencode_version" ] || {
-    rldyour::log "error" "OpenCode bundle version mismatch: ${actual:-unknown}"
-    return 1
-  }
-  actual="$("$mimo_bin" --version 2>/dev/null | head -n 1)"
-  [ "$actual" = "$mimo_version" ] || {
-    rldyour::log "error" "MiMoCode bundle version mismatch: ${actual:-unknown}"
-    return 1
-  }
-
-  wrapper_stage="$(mktemp -d "$bin_dir/.ai-cli-wrappers.XXXXXX")" || return 1
-  for wrapper_spec in \
-    "claude|$claude_bin" \
-    "codex|$codex_bin" \
-    "opencode|$opencode_bin" \
-    "mimo|$mimo_bin"; do
-    wrapper_name="${wrapper_spec%%|*}"
-    provider="${wrapper_spec#*|}"
-    printf -v provider_q '%q' "$provider"
-    wrapper_env=""
-    if [ "$wrapper_name" = "claude" ]; then
-      wrapper_env=$'export DISABLE_AUTOUPDATER=1\nexport DISABLE_UPDATES=1'
-    elif [ "$wrapper_name" = "codex" ]; then
-      wrapper_env=$'unset CODEX_MANAGED_BY_NPM CODEX_MANAGED_BY_BUN CODEX_MANAGED_BY_PNPM CODEX_MANAGED_PACKAGE_ROOT'
-    fi
-    cat >"$wrapper_stage/$wrapper_name" <<WRAPPER
-#!/usr/bin/env bash
-# Managed by macos-ubuntu-bootstrap: ai-cli-runtime-v1
-set -euo pipefail
-${wrapper_env}
-provider=${provider_q}
-[ -x "\$provider" ] || { echo "${wrapper_name}: managed provider is unavailable" >&2; exit 127; }
-exec "\$provider" "\$@"
-WRAPPER
-    chmod 0755 "$wrapper_stage/$wrapper_name" || return 1
-  done
-  rldyour::_publish_managed_wrapper_set \
-    "$wrapper_stage" "$bin_dir" "$wrapper_marker" claude codex opencode mimo || return 1
-  wrapper_stage=""
-  trap - RETURN
-  rldyour::log "ok" "managed AI CLI bundle installed from frozen lock"
+  return 0
 }
 
-rldyour::install_antigravity_artifact() {
-  local version=$1
-  local url=$2
-  local expected_sha512=$3
-  local dry_run="${RLDYOUR_DRY_RUN:-1}"
-  local namespace="$HOME/.local/share/rldyour/antigravity"
-  local destination="$namespace/$version/agy"
-  local receipt="$namespace/$version/agy.sha256"
-  local version_dir="$namespace/$version"
-  local launcher="$HOME/.local/bin/agy"
-  local archive stage extracted actual_version binary_sha256 receipt_sha256 publish_tmp signature_details
-  local existing_version backup
+# Delegate the Codex harness to nddev-codex-app. The module installs the pinned
+# official Codex CLI standalone release, switches its setup catalog, and installs
+# the nddev-builder marketplace. The safe setup is the default; the unrestricted
+# full-auto setup is selected only by the explicit owner flag
+# RLDYOUR_CODEX_FULL_AUTO=1. install-builder runs AFTER the current-catalog
+# install. RLDYOUR_DRY_RUN is respected: a dry run only logs the exact planned
+# module commands and performs no install.
+rldyour::install_codex_harness() {
+  local module=${RLDYOUR_CODEX_MODULE:-}
+  local entry="cli-tools/nddev_codex.py"
+  local target="${RLDYOUR_CODEX_HOME:-$HOME/.codex}"
+  local setup="safe" status
 
-  if [ "$dry_run" -eq 1 ]; then
-    rldyour::log "info" "[DRY-RUN] install Antigravity ${version} from a generation-pinned artifact after SHA-512 verification; disable self-update"
+  rldyour::_validate_harness_module "codex" "$module" "$entry"
+  status=$?
+  if [ "$status" -eq 2 ]; then
+    rldyour::log "info" "codex harness is installed via its GDS module (RLDYOUR_CODEX_MODULE unset); skipping bootstrap-side delegation"
     return 0
   fi
+  [ "$status" -eq 0 ] || return 1
 
-  if [ -L "$namespace" ] || { [ -e "$namespace" ] && [ ! -d "$namespace" ]; } || \
-    [ -L "$version_dir" ] || { [ -e "$version_dir" ] && [ ! -d "$version_dir" ]; }; then
-    rldyour::log "error" "Antigravity managed namespace is unsafe; preserved: ${namespace}"
-    return 1
+  if [ "${RLDYOUR_CODEX_FULL_AUTO:-0}" -eq 1 ]; then
+    setup="full-auto"
+    rldyour::log "warn" "codex full-auto setup selected by explicit owner flag RLDYOUR_CODEX_FULL_AUTO=1"
   fi
-  if [ -L "$receipt" ] || { [ -e "$receipt" ] && [ ! -f "$receipt" ]; }; then
-    rldyour::log "error" "Antigravity receipt path is unsafe; preserved: ${receipt}"
-    return 1
-  fi
-  mkdir -p "$namespace" "$HOME/.local/bin" || return 1
-  chmod 0700 "$namespace" || return 1
-  if [ -e "$destination" ] || [ -L "$destination" ]; then
-    if [ ! -f "$destination" ] || [ ! -x "$destination" ] || \
-      [ ! -f "$receipt" ] || [ -L "$receipt" ] || \
-      ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: antigravity-v1" "$receipt"; then
-      rldyour::log "error" "managed Antigravity destination or receipt is invalid; preserved: ${destination}"
-      return 1
-    fi
-    receipt_sha256="$(sed -n 's/^sha256=//p' "$receipt")"
-    if [ "$(grep -c '^sha256=' "$receipt")" -ne 1 ] || \
-      ! printf '%s' "$receipt_sha256" | grep -Eq '^[0-9a-f]{64}$' || \
-      [ "$(rldyour::sha256_file "$destination")" != "$receipt_sha256" ]; then
-      rldyour::log "error" "managed Antigravity binary identity changed; refusing to replace it"
-      return 1
-    fi
-  else
-    archive="$(mktemp)"; stage="$(mktemp -d)"; publish_tmp=""
-    trap 'rm -rf "$archive" "$stage"; [ -z "${publish_tmp:-}" ] || rm -f "$publish_tmp"; trap - RETURN' RETURN
-    rldyour::download_verified_sha512_file "$url" "$expected_sha512" "$archive"
-    tar -xzf "$archive" -C "$stage"
-    extracted="$stage/antigravity"
-    [ -x "$extracted" ] || chmod 0755 "$extracted" 2>/dev/null || {
-      rldyour::log "error" "Antigravity archive did not contain the expected executable"
-      return 1
-    }
-    actual_version="$("$extracted" --version 2>/dev/null | head -n 1)"
-    if [ "$actual_version" != "$version" ]; then
-      rldyour::log "error" "Antigravity artifact version mismatch: expected ${version}, got ${actual_version:-unknown}"
-      return 1
-    fi
-    if [ "$(uname -s)" = "Darwin" ]; then
-      signature_details="$(codesign -dv --verbose=4 "$extracted" 2>&1)" || {
-        rldyour::log "error" "Antigravity macOS code signature is invalid"
-        return 1
-      }
-      case "$signature_details" in
-        *"Authority=Developer ID Application: Google LLC (EQHXZ8M8AV)"*"TeamIdentifier=EQHXZ8M8AV"*) ;;
-        *)
-          rldyour::log "error" "Antigravity macOS code signer mismatch"
-          return 1
-          ;;
-      esac
-    fi
-    mkdir -p "$(dirname "$destination")" || return 1
-    chmod 0700 "$(dirname "$destination")" || return 1
-    publish_tmp="$(mktemp "$(dirname "$destination")/.agy.tmp.XXXXXX")" || return 1
-    install -m 0755 "$extracted" "$publish_tmp" || return 1
-    binary_sha256="$(rldyour::sha256_file "$publish_tmp")" || return 1
-    # Publish the receipt before the atomic binary rename. If power is lost
-    # between these operations, the next run can safely reuse the managed
-    # receipt and finish; a binary can never exist without its receipt.
-    rldyour::_install_managed_browser_file \
-      "$receipt" "# Managed by macos-ubuntu-bootstrap: antigravity-v1" 0600 <<RECEIPT || return 1
-# Managed by macos-ubuntu-bootstrap: antigravity-v1
-version=${version}
-sha256=${binary_sha256}
-RECEIPT
-    mv "$publish_tmp" "$destination" || return 1
-    publish_tmp=""
-    rm -rf "$archive" "$stage"
-    trap - RETURN
-  fi
+  rldyour::section "Delegate codex harness to nddev-codex-app (setup: ${setup})"
+  # The module owns the standalone Codex CLI artifact under its explicit target;
+  # never install codex via a bun/npm global. install-cli installs the pinned
+  # official CLI, apply switches to the setup catalog entry, and install-builder
+  # adds the nddev-builder marketplace after the catalog install.
+  rldyour::run python3 "$module/$entry" install-cli --target "$target" || return 1
+  rldyour::run python3 "$module/$entry" apply --setup "$setup" --target "$target" || return 1
+  rldyour::run python3 "$module/$entry" install-builder --target "$target" || return 1
+}
 
-  binary_sha256="$(rldyour::sha256_file "$destination")" || return 1
-  if [ -e "$launcher" ] && [ ! -L "$launcher" ] && \
-    ! grep -Fxq "# Managed by macos-ubuntu-bootstrap: antigravity-v1" "$launcher"; then
-    existing_version="$("$launcher" --version 2>/dev/null | head -n 1 || true)"
-    if ! printf '%s' "$existing_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-      rldyour::log "error" "unmanaged agy launcher is not a recognized Antigravity binary; preserved: ${launcher}"
-      return 1
-    fi
-    backup="$namespace/legacy-${existing_version}-$(date -u +%Y%m%dT%H%M%SZ)"
-    mkdir -p "$backup" || return 1
-    mv "$launcher" "$backup/agy" || return 1
-    rldyour::log "info" "preserved legacy Antigravity ${existing_version}: ${backup}/agy"
-  elif [ -L "$launcher" ]; then
-    case "$(readlink "$launcher")" in
-      "$namespace"/*) rm -f "$launcher" || return 1 ;;
-      *) rldyour::log "error" "unmanaged agy symlink exists; preserved: ${launcher}"; return 1 ;;
-    esac
-  fi
+# Delegate the ZCode harness to nddev-zcode-app. The module owns the standalone
+# ZCode desktop app + CLI artifacts and exposes its own plan/apply lifecycle, so
+# it is invoked directly with --plan in a dry run (no writes) and --apply
+# otherwise. bootstrap installs the pinned app + CLI; the install command builds
+# the nddev-builder setup.
+rldyour::install_zcode_harness() {
+  local module=${RLDYOUR_ZCODE_MODULE:-}
+  local entry="cli-tools/scripts/install.sh"
+  local status flag
 
-  rldyour::_install_managed_browser_file \
-    "$launcher" "# Managed by macos-ubuntu-bootstrap: antigravity-v1" 0755 <<LAUNCHER || return 1
-#!/usr/bin/env bash
-# Managed by macos-ubuntu-bootstrap: antigravity-v1
-set -euo pipefail
-export AGY_CLI_DISABLE_AUTO_UPDATE=true
-binary="${destination}"
-expected="${binary_sha256}"
-if command -v sha256sum >/dev/null 2>&1; then
-  actual="\$(sha256sum "\$binary" | awk '{ print \$1 }')"
-elif command -v shasum >/dev/null 2>&1; then
-  actual="\$(shasum -a 256 "\$binary" | awk '{ print \$1 }')"
-else
-  echo "agy: no SHA-256 verifier is available" >&2
-  exit 127
-fi
-[ "\$actual" = "\$expected" ] || { echo "agy: managed binary identity changed" >&2; exit 126; }
-exec "\$binary" "\$@"
-LAUNCHER
-  export AGY_CLI_DISABLE_AUTO_UPDATE=true
-  [ "$("$launcher" --version 2>/dev/null | head -n 1)" = "$version" ] || {
-    rldyour::log "error" "managed Antigravity launcher verification failed"
+  rldyour::_validate_harness_module "zcode" "$module" "$entry"
+  status=$?
+  if [ "$status" -eq 2 ]; then
+    rldyour::log "info" "zcode harness is installed via its GDS module (RLDYOUR_ZCODE_MODULE unset); skipping bootstrap-side delegation"
+    return 0
+  fi
+  [ "$status" -eq 0 ] || return 1
+
+  if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then flag="--plan"; else flag="--apply"; fi
+  rldyour::section "Delegate zcode harness to nddev-zcode-app (nddev-builder setup, ${flag})"
+  # never install zcode via a bun/npm global; the module owns its artifacts.
+  rldyour::log "info" "zcode delegation: bash ${module}/${entry} bootstrap ${flag}"
+  bash "$module/$entry" bootstrap "$flag" || {
+    rldyour::log "error" "zcode module bootstrap (${flag}) failed"
     return 1
   }
+  rldyour::log "info" "zcode delegation: bash ${module}/${entry} install --setup nddev-builder ${flag}"
+  bash "$module/$entry" install --setup nddev-builder "$flag" || {
+    rldyour::log "error" "zcode module nddev-builder setup (${flag}) failed"
+    return 1
+  }
+}
+
+# Install exactly the owner's active harness set (codex, zcode) by delegating to
+# each harness's authoritative NDDev module. Bootstrap must still succeed as a
+# standalone run when a module path is unset.
+rldyour::install_selected_harnesses() {
+  rldyour::section "Install selected harnesses (codex, zcode) via their GDS modules"
+  rldyour::install_codex_harness || return 1
+  rldyour::install_zcode_harness || return 1
 }
 
 # Recognize only the exact launchd/systemd files emitted by pre-marker releases.
@@ -3430,20 +3159,28 @@ PY
 
 rldyour::verify_terminal_environment() {
   local shell_dump expected_bin="$HOME/.local/bin"
+  # The active harness set is codex and zcode. Both are owned by their GDS
+  # modules, which publish their launchers into the managed prefix; require them
+  # only when their module paths were provided to bootstrap. The browser and rtk
+  # commands are always published by this bootstrap.
+  local -a required_cmds=(
+    rtk cloak-chromium cloakbrowser-cdp-health chrome-devtools-mcp playwright-cli
+  )
+  [ -n "${RLDYOUR_ZCODE_MODULE:-}" ] && required_cmds=(zcode "${required_cmds[@]}")
+  [ -n "${RLDYOUR_CODEX_MODULE:-}" ] && required_cmds=(codex "${required_cmds[@]}")
   command -v zsh >/dev/null 2>&1 || {
     rldyour::log "error" "zsh is required for managed terminal verification"
     return 1
   }
-  shell_dump="$(zsh -l -c '
+  shell_dump="$(RLDYOUR_VERIFY_CMDS="${required_cmds[*]}" zsh -l -c '
     printf "__RLDYOUR_PATH__=%s\n" "$PATH"
     printf "__RLDYOUR_ENDPOINT__=%s\n" "${RLDYOUR_BROWSER_CDP_ENDPOINT-}"
-    printf "__RLDYOUR_AGY_UPDATE__=%s\n" "${AGY_CLI_DISABLE_AUTO_UPDATE-}"
-    printf "__RLDYOUR_CLAUDE_AUTO__=%s\n" "${DISABLE_AUTOUPDATER-}"
-    printf "__RLDYOUR_CLAUDE_ALL__=%s\n" "${DISABLE_UPDATES-}"
+    printf "__RLDYOUR_CODEX_AUTO__=%s\n" "${DISABLE_AUTOUPDATER-}"
+    printf "__RLDYOUR_CODEX_ALL__=%s\n" "${DISABLE_UPDATES-}"
     printf "__RLDYOUR_CLOAK_BINARY__=%s\n" "${CLOAKBROWSER_BINARY_PATH-unset}"
     printf "__RLDYOUR_CLOAK_URL__=%s\n" "${CLOAKBROWSER_DOWNLOAD_URL-unset}"
     printf "__RLDYOUR_CLOAK_SKIP__=%s\n" "${CLOAKBROWSER_SKIP_CHECKSUM-unset}"
-    for name in claude codex opencode mimo agy rtk cloak-chromium cloakbrowser-cdp-health chrome-devtools-mcp playwright-cli; do
+    for name in ${=RLDYOUR_VERIFY_CMDS}; do
       resolved="$(command -v "$name")" || exit 1
       printf "__RLDYOUR_CMD_%s__=%s\n" "$name" "$resolved"
     done
@@ -3463,30 +3200,36 @@ expected_bin = sys.argv[2]
 required = {
     "__RLDYOUR_PATH__",
     "__RLDYOUR_ENDPOINT__",
-    "__RLDYOUR_AGY_UPDATE__",
-    "__RLDYOUR_CLAUDE_AUTO__",
-    "__RLDYOUR_CLAUDE_ALL__",
+    "__RLDYOUR_CODEX_AUTO__",
+    "__RLDYOUR_CODEX_ALL__",
     "__RLDYOUR_CLOAK_BINARY__",
     "__RLDYOUR_CLOAK_URL__",
     "__RLDYOUR_CLOAK_SKIP__",
 }
-commands = (
-    "claude", "codex", "opencode", "mimo", "agy", "rtk", "cloak-chromium",
-    "cloakbrowser-cdp-health", "chrome-devtools-mcp", "playwright-cli",
+# The browser and rtk commands are always published by this bootstrap; codex and
+# zcode appear only when their GDS module paths were provided.
+always = (
+    "rtk", "cloak-chromium", "cloakbrowser-cdp-health",
+    "chrome-devtools-mcp", "playwright-cli",
 )
-required.update(f"__RLDYOUR_CMD_{name}__" for name in commands)
+required.update(f"__RLDYOUR_CMD_{name}__" for name in always)
+commands = [
+    key[len("__RLDYOUR_CMD_"):-len("__")]
+    for key in values
+    if key.startswith("__RLDYOUR_CMD_")
+]
 if not required <= values.keys():
     raise SystemExit("fresh zsh environment returned an incomplete contract")
 path = values["__RLDYOUR_PATH__"]
 if path.split(":", 1)[0] != expected_bin:
     raise SystemExit("managed user bin is not first on fresh zsh PATH")
+# DISABLE_AUTOUPDATER/DISABLE_UPDATES keep the codex harness update-locked.
 if (
     values["__RLDYOUR_ENDPOINT__"],
-    values["__RLDYOUR_AGY_UPDATE__"],
-    values["__RLDYOUR_CLAUDE_AUTO__"],
-    values["__RLDYOUR_CLAUDE_ALL__"],
+    values["__RLDYOUR_CODEX_AUTO__"],
+    values["__RLDYOUR_CODEX_ALL__"],
 ) != (
-    "http://127.0.0.1:9222", "true", "1", "1"
+    "http://127.0.0.1:9222", "1", "1"
 ):
     raise SystemExit("managed browser or updater environment is not active")
 if any(values[key] != "unset" for key in (

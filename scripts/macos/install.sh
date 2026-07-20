@@ -17,13 +17,9 @@ SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
 GUI_ENABLED="${RLDYOUR_GUI_ENABLED:-1}"
 LOCAL_EXECUTION_POLICY="${RLDYOUR_LOCAL_EXECUTION_POLICY:-source-lsp-only}"
 
-CLAUDE_CODE_VERSION="2.1.206"
-CODEX_VERSION="0.144.1"
-OPENCODE_VERSION="1.17.18"
-MIMOCODE_VERSION="0.1.5"
-ANTIGRAVITY_VERSION="1.1.1"
-ANTIGRAVITY_ARTIFACT_URL="https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.1-6269367663591424/darwin-arm/cli_mac_arm64.tar.gz"
-ANTIGRAVITY_ARTIFACT_SHA512="2993c4b43d2703cf796848e1a02b71e2e0588387d8dc2424435207eedbbc2097251ca0ba321b99d364358f7e6e98df1ac1757c1f5edaca8d53abaa26123e7f49"
+# One owner per harness (RVR-P1-004): the active harness set is codex and zcode,
+# each installed by its dedicated authoritative NDDev module via
+# rldyour::install_selected_harnesses. Bootstrap pins no AI CLI versions here.
 HOMEBREW_PKG_VERSION="6.0.9"
 HOMEBREW_PKG_SHA256="525599bd2dcbda29857120234336b0103ad5283a3dc8511f72066eeb917abd3c"
 HOMEBREW_INSTALLER_TEAM="927JGANW46"
@@ -181,15 +177,9 @@ install_gui_apps() {
 }
 
 install_ai_runtimes() {
-  rldyour::section "Install exact AI CLI versions"
-  rldyour::install_ai_cli_bundle \
-    "$CLAUDE_CODE_VERSION" "$CODEX_VERSION" \
-    "$OPENCODE_VERSION" "$MIMOCODE_VERSION"
-
-  rldyour::install_antigravity_artifact \
-    "$ANTIGRAVITY_VERSION" \
-    "$ANTIGRAVITY_ARTIFACT_URL" \
-    "$ANTIGRAVITY_ARTIFACT_SHA512"
+  # Delegate the active harness set (codex, zcode) to their authoritative NDDev
+  # modules; no AI CLI is installed inline or through a bun/npm global path.
+  rldyour::install_selected_harnesses
 }
 
 install_bun_lsps() {
@@ -211,7 +201,10 @@ configure_cmux_hooks() {
     # generic setup command prompts for every detected integration and can
     # create unrelated configuration on an otherwise clean host.
     local agent
-    for agent in codex opencode antigravity; do
+    # The active harness set that cmux integrates is codex only, per the
+    # one-owner-per-harness policy (RVR-P1-004).
+    # shellcheck disable=SC2043
+    for agent in codex; do
       rldyour::run cmux hooks "$agent" install --yes
     done
   else

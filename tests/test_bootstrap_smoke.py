@@ -105,7 +105,6 @@ def test_contract_version_and_profile_matrix() -> None:
     assert contract["schema_version"] == 2
     version = file("VERSION").strip()
     assert contract["adapter"]["version"] == version
-    assert json.loads(file("templates/ai-cli/package.json"))["version"] == version
     assert (
         json.loads(file("templates/browser/provider/package.json"))["version"]
         == version
@@ -139,63 +138,66 @@ def test_contract_version_and_profile_matrix() -> None:
     assert contract["safety"]["ubuntu_profile_selection"] == "explicit"
 
 
-def test_ai_pins_match_both_installers_contract_and_docs() -> None:
-    names = {
-        "CLAUDE_CODE_VERSION": "2.1.206",
-        "CODEX_VERSION": "0.144.1",
-        "OPENCODE_VERSION": "1.17.18",
-        "MIMOCODE_VERSION": "0.1.5",
-    }
+def test_active_harness_set_is_only_codex_and_zcode() -> None:
+    # RVR-P1-004: one owner per harness. Claude Code, OpenCode, MiMoCode, and
+    # Antigravity are fully removed; codex and zcode are delegated to their
+    # authoritative NDDev modules.
+    contract = json.loads(file("config/rldyour-contract.json"))
+    assert "ai_cli" not in contract
+    harnesses = contract["harnesses"]
+    assert harnesses["policy"] == "one-owner-per-harness"
+    assert harnesses["active"] == ["codex", "zcode"]
+    assert harnesses["codex"]["module_path_env"] == "RLDYOUR_CODEX_MODULE"
+    assert harnesses["zcode"]["module_path_env"] == "RLDYOUR_ZCODE_MODULE"
+
     installers = (file("scripts/macos/install.sh"), file("scripts/ubuntu/install.sh"))
+    removed_constants = (
+        "CLAUDE_CODE_VERSION",
+        "OPENCODE_VERSION",
+        "MIMOCODE_VERSION",
+        "ANTIGRAVITY_VERSION",
+        "ZCODE_VERSION",
+    )
     for body in installers:
-        for name, version in names.items():
-            assert f'{name}="{version}"' in body
-    contract = json.loads(file("config/rldyour-contract.json"))["ai_cli"]
-    assert contract == {
-        "claude_code": "2.1.206",
-        "codex": "0.144.1",
-        "opencode": "1.17.18",
-        "mimocode": "0.1.5",
-        "antigravity": "1.1.1",
-    }
-    for path in ("README.md", "AGENTS.md", ".claude/CLAUDE.md", "docs/install.md"):
-        body = file(path)
-        for version in names.values():
-            assert version in body, f"{path} missing {version}"
+        for name in removed_constants:
+            assert f"{name}=" not in body, f"stale harness constant {name}"
+        assert "rldyour::install_selected_harnesses" in body
+
+    # No harness is installed through a bun/npm global path.
+    for body in installers:
+        for package in (
+            "@anthropic-ai/claude-code",
+            "opencode-ai",
+            "@mimo-ai/cli",
+            "@openai/codex",
+        ):
+            assert f'bun add -g "{package}' not in body
+            assert f"bun add -g {package}" not in body
+            assert f"npm install -g {package}" not in body
 
 
-def test_ai_cli_bundle_is_frozen_and_runs_no_lifecycle_scripts() -> None:
-    expected = {
-        "@anthropic-ai/claude-code": "2.1.206",
-        "@mimo-ai/cli": "0.1.5",
-        "@openai/codex": "0.144.1",
-        "opencode-ai": "1.17.18",
-    }
-    manifest = json.loads(file("templates/ai-cli/package.json"))
-    assert manifest["dependencies"] == expected
-    assert "trustedDependencies" not in manifest
-    lock = file("templates/ai-cli/bun.lock")
-    assert "trustedDependencies" not in lock
-    for package, version in expected.items():
-        assert f'"{package}@{version}"' in lock
-    assert lock.count("sha512-") >= len(expected)
-
+def test_harness_delegation_wires_exact_module_commands() -> None:
     common = file("scripts/lib/common.sh")
-    assert "install_ai_cli_bundle" in common
-    assert "--frozen-lockfile --ignore-scripts" in common
-    assert "OpenCode's locked native optional" in common
-    assert "ai-cli-runtime-v1" in common
-    assert "@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex" in common
-    assert "@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/bin/codex" in common
-    assert "@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex" in common
-    assert "unset CODEX_MANAGED_BY_NPM CODEX_MANAGED_BY_BUN CODEX_MANAGED_BY_PNPM CODEX_MANAGED_PACKAGE_ROOT" in common
-    for installer in (
-        file("scripts/macos/install.sh"),
-        file("scripts/ubuntu/install.sh"),
-    ):
-        assert "install_ai_cli_bundle" in installer
-        for package in expected:
-            assert f'bun add -g "{package}@' not in installer
+    # Removed inline installers are gone.
+    assert "install_ai_cli_bundle" not in common
+    assert "install_antigravity_artifact" not in common
+    assert "ai-cli-runtime-v1" not in common
+    # Delegation helpers with the exact module commands are present.
+    assert "rldyour::install_selected_harnesses" in common
+    assert 'python3 "$module/$entry" install-cli --target "$target"' in common
+    assert 'python3 "$module/$entry" apply --setup "$setup" --target "$target"' in common
+    assert 'python3 "$module/$entry" install-builder --target "$target"' in common
+    assert 'bash "$module/$entry" bootstrap "$flag"' in common
+    assert 'bash "$module/$entry" install --setup nddev-builder "$flag"' in common
+    # Codex module entrypoint and safe-by-default setup.
+    assert 'entry="cli-tools/nddev_codex.py"' in common
+    assert 'setup="safe"' in common
+    assert "RLDYOUR_CODEX_FULL_AUTO" in common
+    # ZCode module entrypoint and plan/apply lifecycle.
+    assert 'entry="cli-tools/scripts/install.sh"' in common
+    assert 'flag="--plan"' in common and 'flag="--apply"' in common
+    # Unset module path is a skip, not an error.
+    assert "skipping bootstrap-side delegation" in common
 
 
 def test_desktop_manifests_exclude_project_runtime_and_docker() -> None:
@@ -409,121 +411,6 @@ printf '%s' "$CONTENT" | rldyour::_install_managed_browser_file "$2" "$3" 0755
     assert unmanaged.read_text(encoding="utf-8") == original
 
 
-def test_antigravity_artifact_install_is_pinned_and_tamper_evident(
-    tmp_path: Path,
-) -> None:
-    payload = tmp_path / "antigravity"
-    payload.write_text("#!/usr/bin/env bash\nprintf '1.1.1\\n'\n", encoding="utf-8")
-    payload.chmod(0o755)
-    archive = tmp_path / "agy.tar.gz"
-    with tarfile.open(archive, "w:gz") as bundle:
-        bundle.add(payload, arcname="antigravity")
-    sha512 = hashlib.sha512(archive.read_bytes()).hexdigest()
-
-    fake_bin = tmp_path / "fake-bin"
-    fake_bin.mkdir()
-    fake_curl = fake_bin / "curl"
-    fake_curl.write_text(
-        """#!/usr/bin/env bash
-set -euo pipefail
-destination=
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --output) destination=$2; shift 2 ;;
-    *) shift ;;
-  esac
-done
-cp "$FAKE_ARCHIVE" "$destination"
-""",
-        encoding="utf-8",
-    )
-    fake_curl.chmod(0o755)
-    fake_uname = fake_bin / "uname"
-    fake_uname.write_text(
-        '#!/usr/bin/env bash\n[ "${1:-}" = -s ] && { echo Darwin; exit 0; }\nexec /usr/bin/uname "$@"\n',
-        encoding="utf-8",
-    )
-    fake_uname.chmod(0o755)
-    fake_codesign = fake_bin / "codesign"
-    fake_codesign.write_text(
-        "#!/usr/bin/env bash\n"
-        "printf '%s\\n' 'Authority=Developer ID Application: Google LLC (EQHXZ8M8AV)'\n"
-        "printf '%s\\n' 'TeamIdentifier=EQHXZ8M8AV'\n"
-        "for _index in $(seq 1 4096); do printf '%s\\n' 'post-signature metadata'; done\n",
-        encoding="utf-8",
-    )
-    fake_codesign.chmod(0o755)
-
-    home = tmp_path / "home"
-    home.mkdir()
-    interrupted = home / ".local/share/rldyour/antigravity/1.1.1"
-    interrupted.mkdir(parents=True)
-    (interrupted / "agy.sha256").write_text(
-        "# Managed by macos-ubuntu-bootstrap: antigravity-v1\n"
-        "version=1.1.1\n"
-        f"sha256={hashlib.sha256(payload.read_bytes()).hexdigest()}\n",
-        encoding="utf-8",
-    )
-    script = r"""
-source "$1"
-export RLDYOUR_DRY_RUN=0
-rldyour::install_antigravity_artifact 1.1.1 https://example.invalid/agy.tar.gz "$2"
-"""
-    env = {
-        **os.environ,
-        "HOME": str(home),
-        "PATH": f"{fake_bin}:{os.environ['PATH']}",
-        "FAKE_ARCHIVE": str(archive),
-    }
-    common_path = ROOT / "scripts/lib/common.sh"
-    result = subprocess.run(
-        ["bash", "-c", script, "_", str(common_path), sha512],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert result.returncode == 0, result.stderr + result.stdout
-    launcher = home / ".local/bin/agy"
-    assert "AGY_CLI_DISABLE_AUTO_UPDATE=true" in launcher.read_text(encoding="utf-8")
-    assert (
-        subprocess.check_output([launcher, "--version"], text=True).strip() == "1.1.1"
-    )
-
-    # A fully valid managed installation must be a clean no-download rerun.
-    second = subprocess.run(
-        ["bash", "-c", script, "_", str(common_path), sha512],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert second.returncode == 0, second.stderr + second.stdout
-    assert (
-        subprocess.check_output([launcher, "--version"], text=True).strip() == "1.1.1"
-    )
-
-    managed_binary = home / ".local/share/rldyour/antigravity/1.1.1/agy"
-    managed_binary.write_bytes(managed_binary.read_bytes() + b"\n# tampered\n")
-    tampered = subprocess.run(
-        [launcher, "--version"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert tampered.returncode == 126
-    assert "managed binary identity changed" in tampered.stderr
-    result = subprocess.run(
-        ["bash", "-c", script, "_", str(common_path), sha512],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert result.returncode != 0
-    assert "binary identity changed" in result.stdout
-
-
 def test_rtk_artifact_install_is_pinned_and_tamper_evident(tmp_path: Path) -> None:
     payload = tmp_path / "rtk"
     payload.write_text(
@@ -654,21 +541,22 @@ def test_remote_installers_have_tracked_integrity_roots() -> None:
     assert "pkgutil --check-signature" in macos
     assert "spctl --assess --type install" in macos
     for body in (macos, ubuntu):
-        assert "ANTIGRAVITY_ARTIFACT_SHA512" in body
-        assert "install_antigravity_artifact" in body
+        # Removed harness installers stay gone; the streamed Antigravity installer
+        # was always forbidden.
+        assert "install_antigravity_artifact" not in body
         assert "antigravity.google/cli/install.sh" not in body
-    assert "AGY_CLI_DISABLE_AUTO_UPDATE=true" in common
-    assert "AGY_CLI_DISABLE_AUTO_UPDATE=true" in file("templates/terminal/zshenv")
-    assert "DISABLE_AUTOUPDATER=1" in common
-    assert "DISABLE_UPDATES=1" in common
+    # AGY_CLI_DISABLE_AUTO_UPDATE related to Antigravity and is fully removed;
+    # DISABLE_AUTOUPDATER/DISABLE_UPDATES stay to keep the codex harness locked.
+    assert "AGY_CLI_DISABLE_AUTO_UPDATE" not in common
+    assert "AGY_CLI_DISABLE_AUTO_UPDATE" not in file("templates/terminal/zshenv")
     assert "DISABLE_AUTOUPDATER=1" in file("templates/terminal/zshenv")
     assert "DISABLE_UPDATES=1" in file("templates/terminal/zshenv")
     assert "download_verified_file" in common
     assert "astral.sh/uv/install.sh" not in ubuntu
     assert "bun.sh/install" not in ubuntu
     supply = json.loads(file("config/rldyour-contract.json"))["supply_chain"]
-    assert supply["codex_launcher"] == "native-platform-binary"
-    assert supply["codex_package_manager_update_context"] is False
+    assert "ai_cli_lock" not in supply
+    assert not any("antigravity" in key for key in supply)
     for value in supply.values():
         if isinstance(value, bool):
             continue
@@ -705,7 +593,6 @@ def test_existing_homebrew_packages_are_never_implicitly_upgraded() -> None:
 def test_versioned_native_artifacts_publish_on_the_destination_filesystem() -> None:
     common = file("scripts/lib/common.sh")
     ubuntu = file("scripts/ubuntu/install.sh")
-    assert ".agy.tmp.XXXXXX" in common
     assert ".rtk.tmp.XXXXXX" in common
     assert ".node-${NODE_VERSION}.tmp.XXXXXX" in ubuntu
     assert ".uv-${UV_VERSION}.tmp.XXXXXX" in ubuntu
@@ -733,15 +620,14 @@ def test_auth_handoff_contains_all_manual_boundaries() -> None:
         "codex login --device-auth",
         "open ChatGPT.app",
         "open Codex.app",
-        "claude auth login",
-        "opencode auth login",
-        "mimo",
-        "agy",
         "zcode.z.ai",
         "cloakbrowser-cdp-health",
         "Settings → Secrets and variables → Actions",
     ):
         assert marker in handoff
+    # Removed harnesses must not linger in the handoff steps.
+    for absent in ("claude auth login", "opencode auth login", "agy"):
+        assert absent not in handoff
     assert "never reads" in handoff
 
 
@@ -923,9 +809,11 @@ def test_no_gui_mode_is_distinct_from_server_role() -> None:
     assert "for app in Ghostty cmux ChatGPT Codex Claude" in file(
         "scripts/macos/verify.sh"
     )
-    assert 'for agent in codex opencode antigravity; do' in macos
+    assert 'for agent in codex; do' in macos
     assert 'cmux hooks "$agent" install --yes' in macos
     assert "cmux hooks setup" not in macos
+    assert "opencode" not in macos
+    assert "antigravity" not in macos
 
 
 def test_reusable_ci_is_pinned_to_current_ci_workflows_release() -> None:
@@ -976,12 +864,14 @@ def test_raven_actionlint_uses_no_unsupported_args_input() -> None:
     assert found > 0
 
 
-def test_dependency_check_enforces_frozen_ai_and_antigravity_channels() -> None:
+def test_dependency_check_enforces_one_owner_per_harness_delegation() -> None:
     workflow = file(".github/workflows/dependency-check.yml")
-    assert "templates/ai-cli/package.json" in workflow
-    assert "streamed Antigravity installer is forbidden" in workflow
-    assert "ANTIGRAVITY_ARTIFACT_SHA512" in workflow
-    assert 'marker = "antigravity.google/cli/install.sh"' not in workflow
+    assert "one-owner-per-harness delegation" in workflow
+    assert "rldyour::install_selected_harnesses" in workflow
+    assert "RLDYOUR_CODEX_MODULE" in workflow
+    assert "RLDYOUR_ZCODE_MODULE" in workflow
+    assert "the frozen AI-CLI bundle template must be removed" in workflow
+    assert "streamed installer is forbidden" in workflow
 
 
 def test_release_keeps_numeric_tag_push_path() -> None:

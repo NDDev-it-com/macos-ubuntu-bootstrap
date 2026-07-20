@@ -219,5 +219,3 @@ def test_server_contract_contains_rollback_and_context_guards() -> None:
     assert installer.count("rldyour::run sudo") == 2
     assert "sudo apt-get" not in installer
     assert "sudo install" not in installer
-    assert "single_primary_key_fingerprint" in installer
-    assert 'primary_count != 1' in installer

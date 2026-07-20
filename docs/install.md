@@ -126,26 +126,30 @@ bash scripts/bootstrap.sh --platform ubuntu --profile server --docker-mode rootl
 bash scripts/bootstrap.sh --platform ubuntu --profile server --docker-mode none
 ```
 
-## Managed AI CLI Versions
+## Managed Harnesses (one owner per harness)
 
-The installers and `config/rldyour-contract.json` must agree on these values:
+The owner's active harness set is **codex** and **zcode** only. Bootstrap no
+longer inline-installs any AI CLI and never installs a harness through a bun/npm
+global path. Each harness is owned by its dedicated authoritative NDDev module.
+GDS device bootstrap materializes each module checkout and passes its absolute
+path in an environment variable; when a variable is unset, the harness is
+installed out-of-band by its GDS module and the standalone bootstrap logs the
+delegation and continues.
 
-| CLI | Package or channel | Version policy |
-| --- | --- | --- |
-| Claude Code | `@anthropic-ai/claude-code` | exact `2.1.206` |
-| Codex | `@openai/codex` | exact `0.144.1` |
-| OpenCode | `opencode-ai` | exact `1.17.18` |
-| MiMoCode | `@mimo-ai/cli` | exact `0.1.5` |
-| Antigravity | generation-pinned native artifact | exact `1.1.1` |
+| Harness | Owner module | Module path env | Delegated install |
+| --- | --- | --- | --- |
+| Codex | `nddev-codex-app` | `RLDYOUR_CODEX_MODULE` | `install-cli`, `apply --setup safe`, then `install-builder` |
+| ZCode | `nddev-zcode-app` | `RLDYOUR_ZCODE_MODULE` | `bootstrap`, then `install --setup nddev-builder` (`--plan`/`--apply`) |
 
-Antigravity is installed from a generation-pinned platform artifact whose
-SHA-512 is tracked in the contract. The managed launcher exports
-`AGY_CLI_DISABLE_AUTO_UPDATE=true`, so the verified binary cannot silently move
-away from `1.1.1`.
+The codex setup defaults to the read-only `safe` profile; the unrestricted
+`full-auto` profile is selected only by the explicit owner flag
+`RLDYOUR_CODEX_FULL_AUTO=1`. `RLDYOUR_DRY_RUN` is respected: a codex dry run only
+logs the exact planned module commands, and the zcode module is driven through
+its own `--plan` lifecycle.
 
-Claude Code is also update-locked: both `DISABLE_AUTOUPDATER=1` and
-`DISABLE_UPDATES=1` are exported by its managed wrapper and the managed shell
-drop-in. A reviewed lock/contract update is the only supported upgrade path.
+The codex harness stays update-locked: both `DISABLE_AUTOUPDATER=1` and
+`DISABLE_UPDATES=1` are exported by the managed shell drop-in so the module's
+standalone binary cannot silently drift.
 
 ## Mandatory Browser Automation
 
@@ -207,27 +211,21 @@ app versions.
 
 ### Ubuntu Desktop
 
-GUI mode installs Claude Desktop through its verified package channel and the
-desktop font support used by the terminal environment. ChatGPT, Codex, and cmux
-do not have supported Linux desktop builds, so their managed CLI surfaces remain
-the supported Ubuntu path.
+GUI mode installs only the desktop font support used by the terminal
+environment. No harness desktop app is installed by bootstrap: the codex and
+zcode harnesses are owned by their GDS modules, and the ZCode desktop app is
+installed by `nddev-zcode-app`. ChatGPT, Codex, and cmux have no supported Linux
+desktop build.
 
 Ubuntu server never installs GUI applications.
 
-### ZCode Integrity Gate
+### Harness ownership
 
-ZCode `3.3.3` is not installed automatically by default because upstream does
-not publish a checksum or signature manifest.
-
-- macOS: use the manual installation link from `scripts/auth-handoff.sh` after
-  independently checking the artifact.
-- Ubuntu GUI: either use the same manual path or provide a separately verified
-  SHA-256 as `RLDYOUR_ZCODE_SHA256`. The installer verifies that value before
-  installing the tracked package and fails on a mismatch.
-
-Do not source the checksum from the same unverified artifact URL. The absence of
-an upstream integrity manifest is a real trust boundary, not a best-effort
-warning to bypass.
+The codex and zcode harnesses (CLIs, setups, and — for ZCode — the desktop app)
+are installed and version-owned by their authoritative NDDev modules, not by
+this bootstrap. Bootstrap only delegates to each module's own install
+lifecycle; it publishes no apt `.deb`, bun/npm global, or frozen AI-CLI bundle
+for any harness.
 
 ## Explicit Ubuntu Server Hardening
 
@@ -302,14 +300,13 @@ bash scripts/auth-handoff.sh show
 bash scripts/auth-handoff.sh check
 ```
 
-`show` documents owner-controlled sign-in for GitHub CLI, Codex/OpenAI, Claude
-Code, OpenCode, MiMoCode, Antigravity, supported desktop applications, ZCode,
-browser health, and cmux. `check` performs only non-secret CLI status probes and
-reports `ok` or `pending`; it does not print account secrets.
+`show` documents owner-controlled sign-in for GitHub CLI, the Codex/OpenAI and
+ZCode harnesses, supported desktop applications, browser health, and cmux.
+`check` performs only non-secret CLI status probes and reports `ok` or
+`pending`; it does not print account secrets.
 
-Headless Codex authentication uses `codex login --device-auth`. Claude Code and
-Antigravity can hand an OAuth URL/code exchange to a trusted desktop while the
-original SSH terminal remains open.
+Headless Codex authentication uses `codex login --device-auth`. ZCode signs in
+with Z.ai account OAuth on first launch.
 
 ## Ownership And Idempotency
 
@@ -335,13 +332,11 @@ receipt binding the tracked archive digest to hashes of its managed
 executables; strict verification also requires the owned `~/.local/bin` links.
 External same-version PATH binaries are never accepted as provenance. Homebrew
 uses a hash-verified, signed, and
-notarized package. Claude Code, Codex, OpenCode, and MiMoCode install from a
-tracked `bun.lock` with `--frozen-lockfile --ignore-scripts`; OpenCode runs its
-locked native optional dependency directly instead of executing its fallback
-postinstall. Codex also runs its lock-installed platform-native binary directly;
-the managed wrapper removes inherited npm/Bun/pnpm provenance so diagnostics
-and update behavior cannot target another global prefix. Antigravity uses generation-pinned native archives with tracked
-SHA-512 values and a no-auto-update wrapper. RTK `0.43.0` uses a hash-pinned
+notarized package. The codex and zcode harnesses are installed by their
+authoritative NDDev modules (`nddev-codex-app`, `nddev-zcode-app`), which own
+their pinned standalone artifacts and integrity checks; bootstrap only delegates
+to each module's install lifecycle and never installs a harness through a
+bun/npm global path. RTK `0.43.0` uses a hash-pinned
 native artifact and tamper-evident launcher. Chrome DevTools MCP and Playwright
 CLI install from a separate tracked `bun.lock` with `--frozen-lockfile`.
 CloakBrowser dependencies come from a tracked universal lock and install with

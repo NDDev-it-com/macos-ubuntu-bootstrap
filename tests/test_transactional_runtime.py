@@ -280,7 +280,7 @@ def install_fake_uv(fake_bin: Path) -> None:
         printf '\n' >>"$FAKE_PYTHON_LOG"
         case "$*" in
           *'from importlib.metadata import version; import cloakbrowser;'*)
-            printf '%s\n' '0.4.10'
+            printf '%s\n' '0.4.12'
             exit 0
             ;;
         esac
@@ -315,7 +315,7 @@ def install_verified_cloak_receipt(home: Path) -> Path:
     receipt.parent.mkdir(parents=True, exist_ok=True)
     receipt.write_text(
         "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
-        "package=cloakbrowser@0.4.10\n"
+        "package=cloakbrowser@0.4.12\n"
         f"path={binary}\n"
         f"sha256={digest}\n",
         encoding="utf-8",
@@ -619,7 +619,7 @@ def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(
         "PYTHONHOME": "poisoned-pythonhome",
     }
     command = r"""
-      rldyour::_install_cloak_runtime 0.4.10 "$HOME/cloak" \
+      rldyour::_install_cloak_runtime 0.4.12 "$HOME/cloak" \
         "$FIXTURE/templates/browser" runtime_result || exit
       printf '%s\n' "$runtime_result"
     """

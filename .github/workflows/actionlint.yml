@@ -18,4 +18,4 @@ jobs:
     name: Workflow YAML lint
     permissions:
       contents: read
-    uses: NDDev-it-com/nddev-ci-workflows/.github/workflows/actionlint.yml@ac4d1f469f5974741c7449305ffcbd5f05a5a47f # 0.5.1
+    uses: NDDev-it-com/nddev-ci-workflows/.github/workflows/actionlint.yml@eb7bd953dc9741e559cb9e357c2d36c9b4de5a88 # 0.10.0

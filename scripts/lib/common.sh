@@ -810,7 +810,7 @@ rldyour::install_cloakbrowser() {
   local dry_run="${RLDYOUR_DRY_RUN:-1}"
   local runtime_output_var=${1:-}
   local binary_output_var=${2:-}
-  local pin="0.4.10"
+  local pin="0.4.12"
   local bin_dir="$HOME/.local/bin"
   local home cache marker_file receipt resolved_binary fp legacy_owned
   local browser_version common_dir root_dir template_dir runtime_home python_bin

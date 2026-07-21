@@ -4,5 +4,5 @@ name = "rldyour-cloakbrowser-runtime"
 version = "1.0.0"
 requires-python = ">=3.10"
 dependencies = [
-  "cloakbrowser==0.4.10",
+  "cloakbrowser==0.4.12",
 ]

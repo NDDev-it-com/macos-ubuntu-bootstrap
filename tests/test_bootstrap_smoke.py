@@ -278,7 +278,7 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     assert contract == {
         "required": True,
         "provider": "cloakbrowser",
-        "cloakbrowser": "0.4.10",
+        "cloakbrowser": "0.4.12",
         "cdp_endpoint": "http://127.0.0.1:9222",
         "fallback_allowed": False,
         "chrome_devtools_mcp": "1.6.0",
@@ -290,7 +290,7 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     }
     assert "RLDYOUR_BROWSER_REQUIRED=1" in bootstrap
     assert "--skip-browser is unsupported" in bootstrap
-    assert 'local pin="0.4.10"' in common
+    assert 'local pin="0.4.12"' in common
     assert "127.0.0.1:9222" in common
     assert "alternate CDP endpoint rejected" in common
     provider_manifest = json.loads(file("templates/browser/provider/package.json"))
@@ -311,9 +311,9 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     assert '"@playwright/cli": ["@playwright/cli@0.1.17"' in provider_lock
     cloak_lock = file("templates/browser/cloakbrowser-uv.lock")
     assert 'name = "cloakbrowser"' in cloak_lock
-    assert 'version = "0.4.10"' in cloak_lock
+    assert 'version = "0.4.12"' in cloak_lock
     assert (
-        "36342e97f02f82af43beda972ee785df69b9a17db374019109dd2b70b7c124d6" in cloak_lock
+        "0415acff4aa5f49c18bc9cbd6a65ae806591dfd71ddf5d862238c61cd8471142" in cloak_lock
     )
 
 

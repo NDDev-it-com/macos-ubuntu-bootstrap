@@ -59,7 +59,7 @@ APT_SOURCE_PACKAGES=(
   fd-find bat fzf zoxide tmux btop duf hexyl gh ripgrep httpie miller
 )
 
-# Runtime libraries/fonts from the CloakBrowser v0.4.10 upstream Linux image.
+# Runtime libraries/fonts from the CloakBrowser v0.4.12 upstream Linux image.
 # They support the mandatory downloaded Chromium binary; they are not a stock
 # browser or a project runtime.
 APT_CLOAK_RUNTIME_PACKAGES=(

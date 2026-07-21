@@ -95,7 +95,7 @@
   "browser_automation": {
     "required": true,
     "provider": "cloakbrowser",
-    "cloakbrowser": "0.4.10",
+    "cloakbrowser": "0.4.12",
     "cdp_endpoint": "http://127.0.0.1:9222",
     "fallback_allowed": false,
     "chrome_devtools_mcp": "1.6.0",

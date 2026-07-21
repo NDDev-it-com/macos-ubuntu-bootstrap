@@ -47,7 +47,7 @@ rtk --version 2>/dev/null | head -n 1 | grep -Eq '^rtk[[:space:]]+0\.43\.0([[:sp
   exit 1
 }
 cloakbrowser-cdp-health
-chrome-devtools-mcp --version | grep -Fq "1.5.0"
+chrome-devtools-mcp --version | grep -Fq "1.6.0"
 playwright-cli --version | grep -Fq "0.1.17"
 "$SCRIPT_DIR/../verify-browser-runtime.sh" --json
 rldyour::verify_terminal_environment

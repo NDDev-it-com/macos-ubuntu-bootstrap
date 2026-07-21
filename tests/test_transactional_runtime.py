@@ -236,7 +236,7 @@ def install_fake_bun(fake_bin: Path) -> None:
         done
 
         cat >"$cwd/node_modules/chrome-devtools-mcp/package.json" <<'JSON'
-        {"version":"1.5.0"}
+        {"version":"1.6.0"}
         JSON
         cat >"$cwd/node_modules/@playwright/cli/package.json" <<'JSON'
         {"version":"0.1.17"}
@@ -280,7 +280,7 @@ def install_fake_uv(fake_bin: Path) -> None:
         printf '\n' >>"$FAKE_PYTHON_LOG"
         case "$*" in
           *'from importlib.metadata import version; import cloakbrowser;'*)
-            printf '%s\n' '0.4.10'
+            printf '%s\n' '0.4.12'
             exit 0
             ;;
         esac
@@ -315,7 +315,7 @@ def install_verified_cloak_receipt(home: Path) -> Path:
     receipt.parent.mkdir(parents=True, exist_ok=True)
     receipt.write_text(
         "# Managed by macos-ubuntu-bootstrap: browser-stack-v1\n"
-        "package=cloakbrowser@0.4.10\n"
+        "package=cloakbrowser@0.4.12\n"
         f"path={binary}\n"
         f"sha256={digest}\n",
         encoding="utf-8",
@@ -439,7 +439,8 @@ def test_harness_delegation_skips_cleanly_when_module_paths_are_unset(
         extra_env={"RLDYOUR_DRY_RUN": "1"},
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "skipping bootstrap-side delegation" in result.stdout
+    assert "self-materializing the pinned codex module" in result.stdout
+    assert "[DRY-RUN] materialize codex module" in result.stdout
     assert not bun_log.exists()
 
 
@@ -550,7 +551,7 @@ def test_browser_node_bundle_is_transactional_and_disables_detached_checks(
     env = {"FAKE_BUN_LOG": str(bun_log), "FAKE_PROVIDER_LOG": str(provider_log)}
     command = r"""
       rldyour::_install_browser_node_bundle \
-        1.5.0 0.1.17 "$HOME/browser" \
+        1.6.0 0.1.17 "$HOME/browser" \
         "$FIXTURE/templates/browser/provider/package.json" \
         "$FIXTURE/templates/browser/provider/bun.lock" chrome_result playwright_result || exit
       printf '%s\n%s\n' "$chrome_result" "$playwright_result"
@@ -619,7 +620,7 @@ def test_cloak_runtime_isolated_uv_failure_preserves_previous_runtime(
         "PYTHONHOME": "poisoned-pythonhome",
     }
     command = r"""
-      rldyour::_install_cloak_runtime 0.4.10 "$HOME/cloak" \
+      rldyour::_install_cloak_runtime 0.4.12 "$HOME/cloak" \
         "$FIXTURE/templates/browser" runtime_result || exit
       printf '%s\n' "$runtime_result"
     """

@@ -59,12 +59,12 @@ rldyour::ubuntu_verify::tool_host_provenance() {
   if [ "$arch" = "x64" ] && ! rldyour::cpu_has_avx2; then bun_arch="x64-baseline"; fi
   bun_sha=$(rldyour::ubuntu_verify::contract_hash ubuntu_bun_sha256 "$bun_arch")
   node_root="$HOME/.local/share/rldyour/node/v24.18.0"
-  uv_root="$HOME/.local/share/rldyour/uv/0.11.29"
+  uv_root="$HOME/.local/share/rldyour/uv/0.11.30"
   bun_root="$HOME/.local/share/rldyour/bun/1.3.14"
 
   rldyour::ubuntu_verify::runtime_receipt node 24.18.0 "$node_sha" "$node_root" \
     bin/node bin/npm bin/npx bin/corepack || return 1
-  rldyour::ubuntu_verify::runtime_receipt uv 0.11.29 "$uv_sha" "$uv_root" uv uvx || return 1
+  rldyour::ubuntu_verify::runtime_receipt uv 0.11.30 "$uv_sha" "$uv_root" uv uvx || return 1
   rldyour::ubuntu_verify::runtime_receipt bun 1.3.14 "$bun_sha" "$bun_root" bun || return 1
   # Only node is published to the managed PATH; npm/npx/corepack must NOT be
   # linked (uv and bun are the only package managers). Their integrity inside
@@ -115,8 +115,8 @@ done
   rldyour::log "missing" "Bun exact managed Ubuntu version 1.3.14"
   exit 1
 }
-uv --version 2>/dev/null | head -n 1 | grep -Eq '^uv 0\.11\.29([[:space:]]|$)' || {
-  rldyour::log "missing" "uv exact managed Ubuntu version 0.11.29"
+uv --version 2>/dev/null | head -n 1 | grep -Eq '^uv 0\.11\.30([[:space:]]|$)' || {
+  rldyour::log "missing" "uv exact managed Ubuntu version 0.11.30"
   exit 1
 }
 # The active harness set (codex, zcode) is owned by its GDS modules. Deep harness
@@ -127,7 +127,7 @@ rtk --version 2>/dev/null | head -n 1 | grep -Eq '^rtk[[:space:]]+0\.43\.0([[:sp
   exit 1
 }
 cloakbrowser-cdp-health
-chrome-devtools-mcp --version | grep -Fq "1.5.0"
+chrome-devtools-mcp --version | grep -Fq "1.6.0"
 playwright-cli --version | grep -Fq "0.1.17"
 "$SCRIPT_DIR/../verify-browser-runtime.sh" --json
 rldyour::verify_terminal_environment

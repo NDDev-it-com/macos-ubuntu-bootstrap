@@ -4,6 +4,6 @@
   "private": true,
   "dependencies": {
     "@playwright/cli": "0.1.17",
-    "chrome-devtools-mcp": "1.5.0"
+    "chrome-devtools-mcp": "1.6.0"
   }
 }

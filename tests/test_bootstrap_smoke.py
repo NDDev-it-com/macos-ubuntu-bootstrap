@@ -133,7 +133,7 @@ def test_contract_version_and_profile_matrix() -> None:
     assert {"chatgpt", "codex-app"}.issubset(contract["gui"]["macos"])
     assert contract["runtime_support"]["ubuntu_node_lts"] == "24.18.0"
     assert set(contract["runtime_support"]["ubuntu_node_sha256"]) == {"x64", "arm64"}
-    assert contract["runtime_support"]["ubuntu_uv"] == "0.11.29"
+    assert contract["runtime_support"]["ubuntu_uv"] == "0.11.30"
     assert contract["runtime_support"]["ubuntu_bun"] == "1.3.14"
     assert contract["safety"]["ubuntu_profile_selection"] == "explicit"
 
@@ -149,6 +149,10 @@ def test_active_harness_set_is_only_codex_and_zcode() -> None:
     assert harnesses["active"] == ["codex", "zcode"]
     assert harnesses["codex"]["module_path_env"] == "RLDYOUR_CODEX_MODULE"
     assert harnesses["zcode"]["module_path_env"] == "RLDYOUR_ZCODE_MODULE"
+    assert harnesses["codex"]["module_repo"].endswith("nddev-codex-app.git")
+    assert harnesses["zcode"]["module_repo"].endswith("nddev-zcode-app.git")
+    assert len(harnesses["codex"]["module_commit"]) == 40
+    assert len(harnesses["zcode"]["module_commit"]) == 40
 
     installers = (file("scripts/macos/install.sh"), file("scripts/ubuntu/install.sh"))
     removed_constants = (
@@ -196,8 +200,10 @@ def test_harness_delegation_wires_exact_module_commands() -> None:
     # ZCode module entrypoint and plan/apply lifecycle.
     assert 'entry="cli-tools/scripts/install.sh"' in common
     assert 'flag="--plan"' in common and 'flag="--apply"' in common
-    # Unset module path is a skip, not an error.
-    assert "skipping bootstrap-side delegation" in common
+    # Unset module path self-materializes the pinned public module (additive).
+    assert "self-materializing the pinned codex module" in common
+    assert "rldyour::_materialize_harness_module" in common
+    assert "rldyour::_ensure_pinned_git_checkout" in common
 
 
 def test_desktop_manifests_exclude_project_runtime_and_docker() -> None:
@@ -278,10 +284,10 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     assert contract == {
         "required": True,
         "provider": "cloakbrowser",
-        "cloakbrowser": "0.4.10",
+        "cloakbrowser": "0.4.12",
         "cdp_endpoint": "http://127.0.0.1:9222",
         "fallback_allowed": False,
-        "chrome_devtools_mcp": "1.5.0",
+        "chrome_devtools_mcp": "1.6.0",
         "playwright_cli": "0.1.17",
         "active_providers": ["playwright-cli", "chrome-devtools-mcp"],
         "webwright_status": "retired-fail-closed",
@@ -290,13 +296,13 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     }
     assert "RLDYOUR_BROWSER_REQUIRED=1" in bootstrap
     assert "--skip-browser is unsupported" in bootstrap
-    assert 'local pin="0.4.10"' in common
+    assert 'local pin="0.4.12"' in common
     assert "127.0.0.1:9222" in common
     assert "alternate CDP endpoint rejected" in common
     provider_manifest = json.loads(file("templates/browser/provider/package.json"))
     assert provider_manifest["dependencies"] == {
         "@playwright/cli": "0.1.17",
-        "chrome-devtools-mcp": "1.5.0",
+        "chrome-devtools-mcp": "1.6.0",
     }
     assert '"cdpEndpoint": "http://127.0.0.1:9222"' in file(
         "templates/browser/playwright-cli.json"
@@ -307,13 +313,13 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     assert not (ROOT / "templates/browser/webwright-local-cdp.yaml").exists()
     assert "--frozen-lockfile" in common
     provider_lock = file("templates/browser/provider/bun.lock")
-    assert '"chrome-devtools-mcp": ["chrome-devtools-mcp@1.5.0"' in provider_lock
+    assert '"chrome-devtools-mcp": ["chrome-devtools-mcp@1.6.0"' in provider_lock
     assert '"@playwright/cli": ["@playwright/cli@0.1.17"' in provider_lock
     cloak_lock = file("templates/browser/cloakbrowser-uv.lock")
     assert 'name = "cloakbrowser"' in cloak_lock
-    assert 'version = "0.4.10"' in cloak_lock
+    assert 'version = "0.4.12"' in cloak_lock
     assert (
-        "36342e97f02f82af43beda972ee785df69b9a17db374019109dd2b70b7c124d6" in cloak_lock
+        "0415acff4aa5f49c18bc9cbd6a65ae806591dfd71ddf5d862238c61cd8471142" in cloak_lock
     )
 
 

@@ -417,6 +417,40 @@ rldyour::_publish_managed_wrapper_set() {
 # materializes those module checkouts and passes their absolute paths in
 # RLDYOUR_CODEX_MODULE and RLDYOUR_ZCODE_MODULE. A module owns its standalone
 # artifacts; bootstrap only delegates to the module's own install lifecycle.
+# Read a harness module pin (module_repo / module_commit) from the contract.
+rldyour::_harness_module_pin() {
+  local label=$1 key=$2 common_dir root_dir contract
+  common_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  root_dir="$(cd "$common_dir/../.." && pwd)"
+  contract="$root_dir/config/rldyour-contract.json"
+  rldyour::_isolated_python python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["harnesses"][sys.argv[2]].get(sys.argv[3], ""))' \
+    "$contract" "$label" "$key"
+}
+
+# Self-materialize the pinned public harness module (git clone at the exact
+# contract commit) into a managed dir when no explicit module path is provided,
+# so a clean OS -> bootstrap flow installs codex/zcode with zero manual steps.
+# Additive: an explicit RLDYOUR_<H>_MODULE path still wins. Fail-closed.
+rldyour::_materialize_harness_module() {
+  local label=$1 dest=$2 entry=$3 repo commit
+  repo="$(rldyour::_harness_module_pin "$label" module_repo)"
+  commit="$(rldyour::_harness_module_pin "$label" module_commit)"
+  if [ -z "$repo" ] || [ -z "$commit" ]; then
+    rldyour::log "error" "${label} harness module pin is missing from the contract"
+    return 1
+  fi
+  if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] materialize ${label} module: git clone ${repo} @ ${commit} -> ${dest}"
+    return 0
+  fi
+  rldyour::_ensure_pinned_git_checkout "$repo" "$commit" "$dest" || return 1
+  [ -f "$dest/$entry" ] || {
+    rldyour::log "error" "${label} module entrypoint missing after materialize: ${dest}/${entry}"
+    return 1
+  }
+}
+
 rldyour::_validate_harness_module() {
   local label=$1 dir=$2 entry=$3
   # Returns 2 when unset (caller skips), 0 when valid, 1 fail-closed.
@@ -450,10 +484,12 @@ rldyour::install_codex_harness() {
   rldyour::_validate_harness_module "codex" "$module" "$entry"
   status=$?
   if [ "$status" -eq 2 ]; then
-    rldyour::log "info" "codex harness is installed via its GDS module (RLDYOUR_CODEX_MODULE unset); skipping bootstrap-side delegation"
-    return 0
+    module="$HOME/.local/share/rldyour/harness-modules/nddev-codex-app"
+    rldyour::log "info" "RLDYOUR_CODEX_MODULE unset; self-materializing the pinned codex module"
+    rldyour::_materialize_harness_module codex "$module" "$entry" || return 1
+  elif [ "$status" -ne 0 ]; then
+    return 1
   fi
-  [ "$status" -eq 0 ] || return 1
 
   if [ "${RLDYOUR_CODEX_FULL_AUTO:-0}" -eq 1 ]; then
     setup="full-auto"
@@ -482,13 +518,20 @@ rldyour::install_zcode_harness() {
   rldyour::_validate_harness_module "zcode" "$module" "$entry"
   status=$?
   if [ "$status" -eq 2 ]; then
-    rldyour::log "info" "zcode harness is installed via its GDS module (RLDYOUR_ZCODE_MODULE unset); skipping bootstrap-side delegation"
-    return 0
+    module="$HOME/.local/share/rldyour/harness-modules/nddev-zcode-app"
+    rldyour::log "info" "RLDYOUR_ZCODE_MODULE unset; self-materializing the pinned zcode module"
+    rldyour::_materialize_harness_module zcode "$module" "$entry" || return 1
+  elif [ "$status" -ne 0 ]; then
+    return 1
   fi
-  [ "$status" -eq 0 ] || return 1
 
   if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then flag="--plan"; else flag="--apply"; fi
   rldyour::section "Delegate zcode harness to nddev-zcode-app (nddev-builder setup, ${flag})"
+  if [ ! -f "$module/$entry" ]; then
+    # Auto-materialized module is not present in dry-run; show the plan only.
+    rldyour::log "info" "[DRY-RUN] zcode: bash ${module}/${entry} bootstrap ${flag}; install --setup nddev-builder ${flag}"
+    return 0
+  fi
   # never install zcode via a bun/npm global; the module owns its artifacts.
   rldyour::log "info" "zcode delegation: bash ${module}/${entry} bootstrap ${flag}"
   bash "$module/$entry" bootstrap "$flag" || {
@@ -810,7 +853,7 @@ rldyour::install_cloakbrowser() {
   local dry_run="${RLDYOUR_DRY_RUN:-1}"
   local runtime_output_var=${1:-}
   local binary_output_var=${2:-}
-  local pin="0.4.10"
+  local pin="0.4.12"
   local bin_dir="$HOME/.local/bin"
   local home cache marker_file receipt resolved_binary fp legacy_owned
   local browser_version common_dir root_dir template_dir runtime_home python_bin
@@ -2681,7 +2724,7 @@ rldyour::_restore_legacy_cloak_home() {
 
 rldyour::_install_browser_providers_impl() {
   local dry_run="${RLDYOUR_DRY_RUN:-1}"
-  local chrome_version="1.5.0"
+  local chrome_version="1.6.0"
   local playwright_version="0.1.17"
   local endpoint="http://127.0.0.1:9222"
   local bin_dir="$HOME/.local/bin"

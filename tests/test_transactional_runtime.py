@@ -236,7 +236,7 @@ def install_fake_bun(fake_bin: Path) -> None:
         done
 
         cat >"$cwd/node_modules/chrome-devtools-mcp/package.json" <<'JSON'
-        {"version":"1.5.0"}
+        {"version":"1.6.0"}
         JSON
         cat >"$cwd/node_modules/@playwright/cli/package.json" <<'JSON'
         {"version":"0.1.17"}
@@ -550,7 +550,7 @@ def test_browser_node_bundle_is_transactional_and_disables_detached_checks(
     env = {"FAKE_BUN_LOG": str(bun_log), "FAKE_PROVIDER_LOG": str(provider_log)}
     command = r"""
       rldyour::_install_browser_node_bundle \
-        1.5.0 0.1.17 "$HOME/browser" \
+        1.6.0 0.1.17 "$HOME/browser" \
         "$FIXTURE/templates/browser/provider/package.json" \
         "$FIXTURE/templates/browser/provider/bun.lock" chrome_result playwright_result || exit
       printf '%s\n%s\n' "$chrome_result" "$playwright_result"

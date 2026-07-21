@@ -133,7 +133,7 @@ def test_contract_version_and_profile_matrix() -> None:
     assert {"chatgpt", "codex-app"}.issubset(contract["gui"]["macos"])
     assert contract["runtime_support"]["ubuntu_node_lts"] == "24.18.0"
     assert set(contract["runtime_support"]["ubuntu_node_sha256"]) == {"x64", "arm64"}
-    assert contract["runtime_support"]["ubuntu_uv"] == "0.11.29"
+    assert contract["runtime_support"]["ubuntu_uv"] == "0.11.30"
     assert contract["runtime_support"]["ubuntu_bun"] == "1.3.14"
     assert contract["safety"]["ubuntu_profile_selection"] == "explicit"
 
@@ -281,7 +281,7 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
         "cloakbrowser": "0.4.10",
         "cdp_endpoint": "http://127.0.0.1:9222",
         "fallback_allowed": False,
-        "chrome_devtools_mcp": "1.5.0",
+        "chrome_devtools_mcp": "1.6.0",
         "playwright_cli": "0.1.17",
         "active_providers": ["playwright-cli", "chrome-devtools-mcp"],
         "webwright_status": "retired-fail-closed",
@@ -296,7 +296,7 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     provider_manifest = json.loads(file("templates/browser/provider/package.json"))
     assert provider_manifest["dependencies"] == {
         "@playwright/cli": "0.1.17",
-        "chrome-devtools-mcp": "1.5.0",
+        "chrome-devtools-mcp": "1.6.0",
     }
     assert '"cdpEndpoint": "http://127.0.0.1:9222"' in file(
         "templates/browser/playwright-cli.json"
@@ -307,7 +307,7 @@ def test_browser_stack_is_mandatory_and_fixed_to_cloak() -> None:
     assert not (ROOT / "templates/browser/webwright-local-cdp.yaml").exists()
     assert "--frozen-lockfile" in common
     provider_lock = file("templates/browser/provider/bun.lock")
-    assert '"chrome-devtools-mcp": ["chrome-devtools-mcp@1.5.0"' in provider_lock
+    assert '"chrome-devtools-mcp": ["chrome-devtools-mcp@1.6.0"' in provider_lock
     assert '"@playwright/cli": ["@playwright/cli@0.1.17"' in provider_lock
     cloak_lock = file("templates/browser/cloakbrowser-uv.lock")
     assert 'name = "cloakbrowser"' in cloak_lock

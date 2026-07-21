@@ -6,14 +6,14 @@
       "name": "rldyour-browser-providers",
       "dependencies": {
         "@playwright/cli": "0.1.17",
-        "chrome-devtools-mcp": "1.5.0",
+        "chrome-devtools-mcp": "1.6.0",
       },
     },
   },
   "packages": {
     "@playwright/cli": ["@playwright/cli@0.1.17", "", { "dependencies": { "playwright": "1.62.0-alpha-1783623505000", "playwright-core": "1.62.0-alpha-1783623505000" }, "bin": { "playwright-cli": "playwright-cli.js" } }, "sha512-VBw6y3p8eqOqmjKg07IkWSPGKJkpIhMRNDFI6DOYsDD6fAfcI1XYEWMLWyhSZQ0B/Oc2KN49eq4XqE64PUPHBg=="],
 
-    "chrome-devtools-mcp": ["chrome-devtools-mcp@1.5.0", "", { "peerDependencies": { "@toon-format/toon": "^2.2.0" }, "optionalPeers": ["@toon-format/toon"], "bin": { "chrome-devtools-mcp": "build/src/bin/chrome-devtools-mcp.js", "chrome-devtools": "build/src/bin/chrome-devtools.js" } }, "sha512-Yfpeg6cKnWaFrq/CpTY19bVO0kr84CpHNgTSQXTQshovKcRIf1efh1vAI+IOuCXrQvrul2hE0XoKPn94LRxC1A=="],
+    "chrome-devtools-mcp": ["chrome-devtools-mcp@1.6.0", "", { "peerDependencies": { "@blackwell-systems/gcf": "^2.2.2", "@toon-format/toon": "^2.2.0" }, "optionalPeers": ["@blackwell-systems/gcf", "@toon-format/toon"], "bin": { "chrome-devtools-mcp": "build/src/bin/chrome-devtools-mcp.js", "chrome-devtools": "build/src/bin/chrome-devtools.js" } }, "sha512-VZX6f/OjQSYhy2BGGRs+y3LsrsAQAz/HwZCWKBLVyST/4r/3zjVEjjVW7gMCVbRDuspnVdcp5hQDPrQ5UFrdZw=="],
 
     "fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
 

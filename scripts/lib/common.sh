@@ -2681,7 +2681,7 @@ rldyour::_restore_legacy_cloak_home() {
 
 rldyour::_install_browser_providers_impl() {
   local dry_run="${RLDYOUR_DRY_RUN:-1}"
-  local chrome_version="1.5.0"
+  local chrome_version="1.6.0"
   local playwright_version="0.1.17"
   local endpoint="http://127.0.0.1:9222"
   local bin_dir="$HOME/.local/bin"

@@ -1,6 +1,6 @@
 # Installation And Target Matrix
 
-This guide describes adapter contract `1.0.0`. Use `scripts/bootstrap.sh` as the
+This guide describes adapter contract `2.0.0`. Use `scripts/bootstrap.sh` as the
 public entry point so platform, profile, GUI, Docker, browser, safety, and
 verification settings are composed consistently.
 
@@ -157,9 +157,9 @@ Browser automation is a required platform layer, not an optional desktop app.
 
 | Component | Pin | Contract |
 | --- | --- | --- |
-| CloakBrowser | `0.4.10` | only supported browser backend |
+| CloakBrowser | `0.4.12` | only supported browser backend |
 | Managed CDP service | `http://127.0.0.1:9222` | fixed loopback endpoint |
-| Chrome DevTools MCP | `1.5.0` | wrapper supplies the fixed browser URL |
+| Chrome DevTools MCP | `1.6.0` | wrapper supplies the fixed browser URL |
 | Playwright CLI | `0.1.17` | wrapper supplies the managed CDP config |
 | Webwright | retired fail-closed | exact disabled wrapper exits `78` |
 

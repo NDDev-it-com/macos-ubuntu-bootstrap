@@ -5,7 +5,7 @@ The bootstrap browser layer has one supported browser backend: CloakBrowser on
 
 ## Managed Runtime
 
-- `cloakbrowser==0.4.10` is installed in a content-addressed isolated runtime
+- `cloakbrowser==0.4.12` is installed in a content-addressed isolated runtime
   below `~/.local/share/rldyour/cloakbrowser/runtimes/`.
 - The wrapper resolves and verifies the CloakBrowser binary before launch.
 - `com.rldyour.cloakbrowser` (launchd) or
@@ -27,7 +27,7 @@ then installs isolated packages below
 `~/.local/share/rldyour/browser-stack/node-runtimes/` and managed PATH wrappers below
 `~/.local/bin`:
 
-- `chrome-devtools-mcp` `1.5.0` adds the fixed `--browser-url` and rejects
+- `chrome-devtools-mcp` `1.6.0` adds the fixed `--browser-url` and rejects
   WebSocket, auto-connect, executable, channel, or alternate URL selectors.
 - `playwright-cli` `0.1.17` loads the managed `browser.cdpEndpoint` config in
   an isolated session registry. It rejects external attach, alternate endpoint,

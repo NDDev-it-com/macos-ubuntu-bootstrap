@@ -4,11 +4,20 @@ All notable changes to this module will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-23
+
 ### Changed
 
+- **Advance managed harness pins to their promoted heads:** `nddev-codex-app`
+  `dc6db75` → `e8ee019` (config-ownership + overlay-preservation fixes) and
+  `nddev-zcode-app` `66f7639` → `4457f07` (source-graph plan/apply collision
+  parity), matching the `nddev-harnesses` expected heads.
+- **Sync agent-facing docs to the executable contract:** CloakBrowser `0.4.12`,
+  Chrome DevTools MCP `1.6.0`, uv `0.11.30` across AGENTS/README/SECURITY/CLAUDE,
+  the install and browser-routing docs, and the release-validation memory.
 - **uv/bun are the only package managers.** Remove `python3-pip` from the apt
   baseline; publish only the managed `node` launcher (npm/npx/corepack no longer
-  on PATH); pin uv/bun source tools; bump uv to 0.11.29.
+  on PATH); pin uv/bun source tools; bump uv to 0.11.30.
 - **Server profile is `container-execution-only`** (was `server-build-runtime`):
   no host `build-essential`/`pkg-config`; project builds/tests run in Docker.
 - **One owner per harness (breaking):** remove the inline Claude Code, OpenCode,

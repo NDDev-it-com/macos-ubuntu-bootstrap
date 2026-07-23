@@ -2,7 +2,7 @@
   "schema_version": 2,
   "adapter": {
     "id": "macos-ubuntu-bootstrap",
-    "version": "1.0.0"
+    "version": "2.0.0"
   },
   "verified_on": "2026-07-10",
   "targets": {
@@ -65,14 +65,14 @@
       "owner_module": "nddev-codex-app",
       "module_path_env": "RLDYOUR_CODEX_MODULE",
       "module_repo": "https://github.com/NDDev-it-com/nddev-codex-app.git",
-      "module_commit": "dc6db7522fd0bbaa87312a9345bc28ac6daeb0ea",
+      "module_commit": "e8ee0199c255d863467a91d279c0f32aae88db52",
       "default_setup": "safe"
     },
     "zcode": {
       "owner_module": "nddev-zcode-app",
       "module_path_env": "RLDYOUR_ZCODE_MODULE",
       "module_repo": "https://github.com/NDDev-it-com/nddev-zcode-app.git",
-      "module_commit": "66f763926f85069ce73e223348610ed4e3bfcabf",
+      "module_commit": "4457f07bab2dfe4e228a10ff77826f4c9c560444",
       "default_setup": "nddev-builder"
     }
   },

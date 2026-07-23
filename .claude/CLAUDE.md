@@ -10,7 +10,7 @@ Maintain one plan-first bootstrap adapter for:
 
 The public entry point is `scripts/bootstrap.sh`. Treat
 `config/rldyour-contract.json`, the platform installers, verification scripts,
-and tests as the executable contract. Current adapter version: `1.0.0`.
+and tests as the executable contract. Current adapter version: `2.0.0`.
 
 ## Composition Invariants
 
@@ -38,12 +38,12 @@ profile; Ubuntu server is always headless.
   - `zcode`: `nddev-zcode-app` via `RLDYOUR_ZCODE_MODULE` (nddev-builder setup,
     module `--plan`/`--apply` lifecycle).
 - RTK exact `0.43.0`, hash-pinned native artifact
-- CloakBrowser `0.4.10`
-- Chrome DevTools MCP `1.5.0`
+- CloakBrowser `0.4.12`
+- Chrome DevTools MCP `1.6.0`
 - Playwright CLI `0.1.17`
 - Webwright retired fail-closed; only the exact disabled compatibility wrapper
   is published
-- Ubuntu Node.js/uv/Bun `24.18.0` / `0.11.28` / `1.3.14`, immutable assets
+- Ubuntu Node.js/uv/Bun `24.18.0` / `0.11.30` / `1.3.14`, immutable assets
   with tracked architecture hashes
 
 Keep the contract, both installers, tests, README, install guide, AGENTS, and

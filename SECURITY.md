@@ -8,7 +8,7 @@ reviewed commit and the matching versioned contract.
 
 | Version | Supported |
 | --- | --- |
-| Current exact tag `1.0.0` | yes |
+| Current exact tag `2.0.0` | yes |
 | Older patch, minor, or major versions | no |
 
 The `0.3.x` release-line label tracks only the latest released patch. The
@@ -66,7 +66,7 @@ cookies, tokens, `.env` files, or credential exports to an issue or artifact.
 
 ### Mandatory Browser Isolation
 
-Every supported profile requires CloakBrowser `0.4.10`. A managed service owns
+Every supported profile requires CloakBrowser `0.4.12`. A managed service owns
 the fixed endpoint `http://127.0.0.1:9222`; it must never listen on a non-loopback
 address. The only active providers are Chrome DevTools MCP and Playwright CLI;
 their managed wrappers reject alternate endpoints, executables, configs,

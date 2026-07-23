@@ -26,7 +26,7 @@ When prose and implementation disagree, verify the scripts and contract, then
 update the affected documentation in the same change. Do not invent a second
 policy source.
 
-## Contract `1.0.0`
+## Contract `2.0.0`
 
 Ubuntu profile selection is always explicit. Never infer server/rootful Docker
 from `uname=Linux`; require `--profile desktop|server`.
@@ -62,11 +62,11 @@ operator documentation:
     `install --setup nddev-builder` through the module's `--plan`/`--apply`
     lifecycle.
 - RTK: exact `0.43.0`, hash-pinned native artifact
-- CloakBrowser: `0.4.10`
-- Chrome DevTools MCP: `1.5.0`
+- CloakBrowser: `0.4.12`
+- Chrome DevTools MCP: `1.6.0`
 - Playwright CLI: `0.1.17`
 - Webwright: retired fail-closed; publish only the exact disabled wrapper
-- Ubuntu Node.js/uv/Bun: `24.18.0` / `0.11.28` / `1.3.14`, immutable assets
+- Ubuntu Node.js/uv/Bun: `24.18.0` / `0.11.30` / `1.3.14`, immutable assets
   with tracked architecture hashes
 
 Use current, source-backed facts before changing a dependency. Preserve exact

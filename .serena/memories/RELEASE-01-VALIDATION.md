@@ -49,7 +49,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - Current product/config version is `0.3.10`.
 - Supported targets are Apple Silicon macOS desktop and Ubuntu 24.04/26.04 desktop/server on amd64 or arm64. Desktop Docker mode is always `none`; server Docker is explicit `none`, `rootful`, or `rootless`.
 - Exact AI pins are Claude Code `2.1.206`, Codex CLI `0.144.1`, OpenCode `1.17.18`, MiMoCode `0.1.5`, and Antigravity `1.1.1` with self-update disabled.
-- The mandatory browser baseline is CloakBrowser `0.4.10`, Chrome DevTools MCP `1.5.0`, and Playwright CLI `0.1.17` on loopback CDP `127.0.0.1:9222`; Webwright has no installed runtime or dependency tree.
+- The mandatory browser baseline is CloakBrowser `0.4.12`, Chrome DevTools MCP `1.6.0`, and Playwright CLI `0.1.17` on loopback CDP `127.0.0.1:9222`; Webwright has no installed runtime or dependency tree.
 - AI, browser Node, and CloakBrowser runtimes install from repository-owned frozen locks into content-addressed directories before an atomic wrapper/service/receipt handoff.
 - Browser Node staging removes group/world-write permission bits before publication. An already published runtime with unsafe permissions is preserved outside the active namespace and rebuilt from the frozen lock.
 - Ubuntu server hardening is opt-in. SSH key/algorithm/Match context, UFW operator CIDR, Docker ownership, APT key identity, time service, Fail2ban, systemd linger, and rollback state are validated fail closed.

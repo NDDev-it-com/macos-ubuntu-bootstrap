@@ -5,13 +5,13 @@ Plan-first bootstrap automation for Apple Silicon macOS desktops, Ubuntu
 
 ## Current Baseline
 
-The adapter contract version is `1.0.0`.
+The adapter contract version is `2.0.0`.
 
 | Field | Value |
 | --- | --- |
-| Adapter version | `1.0.0` |
+| Adapter version | `2.0.0` |
 | Runtime baseline | macOS arm64 and Ubuntu 24.04/26.04 amd64/arm64 |
-| GitHub release tag | `1.0.0` |
+| GitHub release tag | `2.0.0` |
 
 ## What This Repository Provides
 
@@ -28,7 +28,7 @@ or configure local project build/runtime execution. Node and Python are tool
 hosts, and the macOS clangd provider arrives in Homebrew's LLVM distribution;
 those supporting binaries do not authorize local project builds.
 
-On Ubuntu, Node.js `24.18.0`, uv `0.11.28`, and Bun `1.3.14` are installed from
+On Ubuntu, Node.js `24.18.0`, uv `0.11.30`, and Bun `1.3.14` are installed from
 versioned upstream assets with tracked per-architecture SHA-256 values. macOS
 bootstraps Homebrew from its notarized `6.0.9` package. The four registry-backed
 AI CLIs install from a repository-owned Bun lock with lifecycle scripts disabled.
@@ -143,9 +143,9 @@ hardening, verification, and authentication handoff guidance.
 
 Every profile installs the same fail-closed browser stack:
 
-- CloakBrowser `0.4.10` in an isolated environment;
+- CloakBrowser `0.4.12` in an isolated environment;
 - a managed headless service fixed to `http://127.0.0.1:9222`;
-- Chrome DevTools MCP `1.5.0`;
+- Chrome DevTools MCP `1.6.0`;
 - Playwright CLI `0.1.17`;
 - an exact disabled `webwright` compatibility wrapper that exits `78` without
   starting Python or a browser.

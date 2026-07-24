@@ -30,7 +30,7 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - `scripts/macos/install.sh` and `scripts/ubuntu/install.sh`: OS-specific installer profiles.
 - `scripts/macos/verify.sh` and `scripts/ubuntu/verify.sh`: per-platform verification gates.
 - `scripts/ubuntu/server.sh` and `scripts/ubuntu/verify-server.sh`: explicit Ubuntu server mutation and read-only verification surfaces.
-- `templates/ai-cli/` and `templates/browser/`: frozen runtime manifests, locks, and fail-closed provider configuration.
+- `templates/browser/`: frozen runtime manifests, locks, and fail-closed provider configuration.
 - `.github/workflows/**`: CI, security, dependency, scorecard, cross-platform, and release workflows.
 
 ## Invariants
@@ -75,7 +75,6 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - path:scripts/ubuntu/install.sh
 - path:scripts/ubuntu/server.sh
 - path:scripts/ubuntu/verify-server.sh
-- path:templates/ai-cli/bun.lock
 - path:templates/browser/cloakbrowser-uv.lock
 - path:.github/workflows/ci.yml
 - path:.github/workflows/release.yml
@@ -103,10 +102,9 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - `pyright scripts/browser_runtime_integrity.py tests/test_browser_runtime_integrity.py`
 - `find scripts -type f -name '*.sh' -print0 | xargs -0 shellcheck`
 - `actionlint`
-- `bash scripts/macos/verify.sh --strict --skip-optional`
-- `bash scripts/ubuntu/verify.sh --strict --skip-optional`
+- `bash scripts/macos/verify.sh --strict` (add `--no-gui` for a headless run)
+- `bash scripts/ubuntu/verify.sh --strict`
 - `bash scripts/ubuntu/verify-server.sh --docker-mode <none|rootful|rootless>`
-- `python3 ../../../scripts/validate_release_version_policy.py`
 
 ## Repair Procedure
 - Reconcile `VERSION`, `CHANGELOG.md`, contract, README, and installer pins, then rerun local CI and root release validators.

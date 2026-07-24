@@ -1,0 +1,22 @@
+name: zizmor
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: zizmor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zizmor:
+    name: Workflow security analysis
+    permissions:
+      contents: read
+      security-events: write # SARIF upload to the Security tab
+    uses: NDDev-it-com/ci-workflows/.github/workflows/zizmor-sarif.yml@2ccb80e96f5771b6a6b4eae63a4f47e232906dc7 # 0.12.0

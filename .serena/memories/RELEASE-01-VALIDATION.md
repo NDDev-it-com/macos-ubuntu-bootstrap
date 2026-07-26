@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-10
-Last verified: 2026-07-10
-Last commit: 42658c2 ci(pytest): cancel superseded workflow runs
+Last updated: 2026-07-26
+Last verified: 2026-07-26
+Last commit: c58ee40 Merge pull request #23 from NDDev-it-com/fix/release-artifact-metadata-permission
 Scope: README.md, VERSION, CHANGELOG.md, config/rldyour-contract.json, scripts/**, templates/**, tests/**, .github/workflows/**
 Area: RELEASE
 -->
@@ -46,9 +46,9 @@ Release, validation, CI, and public README contract for the macOS/Ubuntu bootstr
 - launchd forward and rollback handoffs use bounded loaded/unloaded state convergence instead of treating an immediate `launchctl` exit status as proof.
 
 ## Current State
-- Current product/config version is `0.3.10`.
+- Current product/config version is `2.0.0` (`VERSION`, `config/rldyour-contract.json` -> `adapter`).
 - Supported targets are Apple Silicon macOS desktop and Ubuntu 24.04/26.04 desktop/server on amd64 or arm64. Desktop Docker mode is always `none`; server Docker is explicit `none`, `rootful`, or `rootless`.
-- Exact AI pins are Claude Code `2.1.206`, Codex CLI `0.144.1`, OpenCode `1.17.18`, MiMoCode `0.1.5`, and Antigravity `1.1.1` with self-update disabled.
+- The active harness set is codex and zcode only (`harnesses.active`). Neither is installed inline: each is owned by an NDDev module pinned by exact `harnesses.<id>.module_commit`, and is self-materialized from `module_repo` at that commit when its `module_path_env` is unset. Exact commits and vendor runtime versions are read from the contract and the module's `build/version.json`; they are not duplicated here.
 - The mandatory browser baseline is CloakBrowser `0.4.12`, Chrome DevTools MCP `1.6.0`, and Playwright CLI `0.1.17` on loopback CDP `127.0.0.1:9222`; Webwright has no installed runtime or dependency tree.
 - AI, browser Node, and CloakBrowser runtimes install from repository-owned frozen locks into content-addressed directories before an atomic wrapper/service/receipt handoff.
 - Browser Node staging removes group/world-write permission bits before publication. An already published runtime with unsafe permissions is preserved outside the active namespace and rebuilt from the frozen lock.

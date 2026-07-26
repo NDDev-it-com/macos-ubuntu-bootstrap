@@ -23,18 +23,23 @@ The adapter contract version is `2.0.0`.
   build/runtime, Docker `none`, `rootful`, or `rootless`; default `rootful`.
 
 Desktop profiles install source-analysis tools, LSPs, quality checks, terminal
-tooling, AI CLIs, and the mandatory browser layer. They do not install Docker
+tooling, the selected harnesses, and the mandatory browser layer. They do not install Docker
 or configure local project build/runtime execution. Node and Python are tool
 hosts, and the macOS clangd provider arrives in Homebrew's LLVM distribution;
 those supporting binaries do not authorize local project builds.
 
 On Ubuntu, Node.js `24.18.0`, uv `0.11.30`, and Bun `1.3.14` are installed from
 versioned upstream assets with tracked per-architecture SHA-256 values. macOS
-bootstraps Homebrew from its notarized `6.0.9` package. The four registry-backed
-AI CLIs install from a repository-owned Bun lock with lifecycle scripts disabled.
-Antigravity uses a generation-pinned native artifact and disables self-update.
-Browser Node providers and CloakBrowser also use tracked locks with frozen
-artifact hashes.
+bootstraps Homebrew from its notarized `6.0.9` package. At contract `2.0.0` the
+active harness set is **codex** and **zcode** only, and neither is installed
+inline: each is owned by its NDDev module, pinned by exact commit in
+`config/rldyour-contract.json`, and self-materialized when its module path
+variable is unset (see `docs/install.md`). Browser Node providers and
+CloakBrowser use tracked locks with frozen artifact hashes.
+
+This repository does not install `gds`, and it does not install the seed
+verifier that the GDS clean-device runbook establishes before its first
+`release verify`. Those belong to the control-plane boundary.
 
 Ubuntu tool-host artifacts always install into owned versioned directories
 with archive/hash receipts and managed `~/.local/bin` links. A same-version
@@ -84,6 +89,12 @@ that directory, the fixed CloakBrowser endpoint is active, forbidden trust
 overrides are unset, and managed updater policy is present.
 
 ## Install / Update / ry-repair
+
+Every command below is run from the root of this repository. On a device that
+has no checkout yet, acquire one at an exact commit first — the GDS clean-device
+runbook does this in its step 0 and then invokes
+`bash "$BOOTSTRAP_ROOT/scripts/bootstrap.sh" ...` with an absolute root. Do not
+pipe a remote copy of this script into a shell.
 
 Plan mode is the default and does not mutate the target:
 

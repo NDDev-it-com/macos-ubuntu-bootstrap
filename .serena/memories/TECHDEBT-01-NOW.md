@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-10
-Last verified: 2026-07-10
-Last commit: 8631dd0 feat(browser): enforce exact fail-closed runtime integrity
+Last updated: 2026-07-26
+Last verified: 2026-07-26
+Last commit: c58ee40 Merge pull request #23 from NDDev-it-com/fix/release-artifact-metadata-permission
 Scope: .gitignore, .serena/project.yml, README.md, AGENTS.md, .claude/CLAUDE.md, scripts/**
 Area: TECHDEBT
 -->
@@ -39,7 +39,7 @@ Operational watchpoints and boundaries for the bootstrap module.
 - Managed shell integration edits only delimited source blocks, backs up pre-existing files, and verifies a fresh login shell. Interactive aliases activate only when their target executable exists.
 - ZCode remains an explicit integrity handoff because upstream publishes no checksum/signature manifest. Ubuntu can install it only with an independently supplied SHA-256.
 - A real Apple Silicon macOS desktop strict apply and an immediate non-interactive idempotent reapply were verified on 2026-07-10, including managed launchd/CDP health and cmux hooks. Representative Ubuntu 24.04/26.04 desktop/server runs with systemd, SSH/UFW, and each selected Docker mode remain required; container-only CI cannot prove those host boundaries.
-- No current bootstrap contract/version drift: `VERSION`, contract, scripts, frozen locks, docs, SECURITY, and tests agree on release 0.3.10 and its exact runtime pins.
+- No current bootstrap contract/version drift: `VERSION`, contract, scripts, frozen locks, docs, SECURITY, and tests agree on release `2.0.0` and its exact runtime pins.
 - Historical Webwright runtimes may remain on previously configured devices for preservation, but no managed command, dependency, or config path can execute them.
 
 ## Evidence

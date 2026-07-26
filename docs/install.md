@@ -1,6 +1,9 @@
 # Installation And Target Matrix
 
-This guide describes adapter contract `2.0.0`. Use `scripts/bootstrap.sh` as the
+This guide describes adapter contract `2.0.0`. All paths are relative to the
+root of an existing checkout of this repository at a verified commit; acquiring
+that checkout is the caller's step (see the GDS clean-device runbook, step 0).
+Use `scripts/bootstrap.sh` as the
 public entry point so platform, profile, GUI, Docker, browser, safety, and
 verification settings are composed consistently.
 
@@ -132,11 +135,18 @@ The owner's active harness set is **codex** and **zcode** only. Bootstrap no
 longer inline-installs any AI CLI and never installs a harness through a bun/npm
 global path. Each harness is owned by its dedicated authoritative NDDev module.
 GDS device bootstrap materializes each module checkout and passes its absolute
-path in an environment variable; when a variable is unset, the harness is
-installed out-of-band by its GDS module and the standalone bootstrap logs the
-delegation and continues.
+path in an environment variable. When a variable is unset, bootstrap does **not**
+skip the harness: it self-materializes the owner module by cloning
+`harnesses.<id>.module_repo` at the exact `harnesses.<id>.module_commit` from
+`config/rldyour-contract.json` into
+`~/.local/share/rldyour/harness-modules/<module>`, then runs that module's
+install lifecycle. Setting the variable overrides this with an existing local
+checkout, whose entrypoint is validated before use.
 
-| Harness | Owner module | Module path env | Delegated install |
+This means a clean OS -> bootstrap run installs codex and zcode with no manual
+steps and no pre-provisioned checkouts.
+
+| Harness | Owner module | Module path env (optional override) | Delegated install |
 | --- | --- | --- | --- |
 | Codex | `nddev-codex-app` | `RLDYOUR_CODEX_MODULE` | `install-cli`, `apply --setup safe`, then `install-builder` |
 | ZCode | `nddev-zcode-app` | `RLDYOUR_ZCODE_MODULE` | `bootstrap`, then `install --setup nddev-builder` (`--plan`/`--apply`) |

@@ -45,6 +45,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Prepare validation tools
         run: |
@@ -77,6 +78,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Prepare validation tools
         if: github.event_name != 'workflow_dispatch' || inputs.platform == 'both' || inputs.platform == matrix.platform
@@ -126,6 +128,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Crosscheck other platform installer in plan mode
         if: github.event_name != 'workflow_dispatch' || inputs.platform == 'both' || inputs.platform == matrix.platform
@@ -141,6 +144,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Lint GitHub workflow YAML files
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7

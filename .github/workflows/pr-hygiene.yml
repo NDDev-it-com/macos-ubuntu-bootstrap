@@ -16,4 +16,10 @@ jobs:
     name: PR hygiene
     permissions:
       contents: read
+      pull-requests: write # labeler + stale jobs comment/label PRs
+      issues: write # stale job manages issues
     uses: NDDev-it-com/ci-workflows/.github/workflows/pr-hygiene.yml@2ccb80e96f5771b6a6b4eae63a4f47e232906dc7 # 0.12.0
+    with:
+      # The reusable commitlint job (wagoid v6.2.1) fails with EISDIR here; keep
+      # pr-title/labeler/stale and re-enable once ci-workflows fixes commitlint.
+      commitlint: false

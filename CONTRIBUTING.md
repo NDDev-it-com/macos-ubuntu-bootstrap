@@ -31,8 +31,8 @@ The module provides bootstrap automation and validation for:
 - Run local validation (plan mode):
   - `bash scripts/ci/validate.sh`
 - Run installer verification for platform:
-  - `bash scripts/macos/verify.sh --strict --skip-optional`
-  - `bash scripts/ubuntu/verify.sh --strict --skip-optional`
+  - `bash scripts/macos/verify.sh --strict` (add `--no-gui` for a headless run)
+  - `bash scripts/ubuntu/verify.sh --strict`
 
 Before opening a PR, include evidence of successful checks in PR description.
 

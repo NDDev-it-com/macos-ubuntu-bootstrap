@@ -75,7 +75,6 @@ Operational watchpoints and boundaries for the bootstrap module.
 - `bash scripts/ci/validate.sh`
 - `python3 -m pytest -q`
 - `shellcheck scripts/lib/common.sh scripts/ubuntu/server.sh scripts/ubuntu/verify-server.sh`
-- `python3 ../../scripts/validate_serena_memory_schema.py --scope new-mac-or-ubuntu --strict-mode strict-all`
 
 ## Repair Procedure
 - Restore durable memory tracking, keep runtime state ignored, align docs with scripts, then rerun validation commands.

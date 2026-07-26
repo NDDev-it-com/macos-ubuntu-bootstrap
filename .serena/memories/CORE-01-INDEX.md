@@ -60,8 +60,6 @@ Durable Serena memory index for the `rldyour-new-mac-or-ubuntu` bootstrap module
 - Update when memory files are added, renamed, split, deleted, or when module instruction/source-of-truth paths change.
 
 ## Validation Commands
-- `python3 "$RLDYOUR_CODEX_PLUGIN_CACHE/rldyour-serena-mcp/local/scripts/serena_memory_state.py"` (device-local path; not a repository artifact)
-- `python3 ../../scripts/validate_serena_memory_schema.py --scope new-mac-or-ubuntu --strict-mode strict-all`
 - `git ls-files .serena`
 
 ## Repair Procedure

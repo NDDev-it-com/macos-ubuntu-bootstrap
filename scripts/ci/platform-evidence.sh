@@ -156,9 +156,19 @@ ensure_native_ubuntu_user() {
   sudo install -d -o root -g root -m 0755 \
     /usr/local/libexec /usr/local/share /usr/share/polkit-1/actions
   sudo chown root:root /usr/local /usr/local/share /usr/local/libexec \
-    /usr/share/polkit-1 /usr/share/polkit-1/actions
+    /usr/share /usr/share/polkit-1 /usr/share/polkit-1/actions
   sudo chmod 0755 /usr/local /usr/local/share /usr/local/libexec \
-    /usr/share/polkit-1 /usr/share/polkit-1/actions
+    /usr/share /usr/share/polkit-1 /usr/share/polkit-1/actions
+  sudo /usr/bin/python3 -I - <<'PY'
+import os, stat
+for path in (
+    "/usr", "/usr/local", "/usr/local/libexec", "/usr/local/share",
+    "/usr/share", "/usr/share/polkit-1", "/usr/share/polkit-1/actions",
+):
+    value = os.stat(path, follow_symlinks=False)
+    assert stat.S_ISDIR(value.st_mode) and value.st_uid == 0 and value.st_gid == 0
+    assert not stat.S_IMODE(value.st_mode) & 0o022
+PY
 }
 
 native_ubuntu_cmd() {

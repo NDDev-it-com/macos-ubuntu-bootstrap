@@ -12,12 +12,28 @@ single provider-neutral allowlist for developer/CI validation executables that
 are not supplied by a root-owned system path. A declaration binds the provider,
 package identity, exact version, anchored installation root, receipt/provenance
 metadata, executable-relative path, and version output. Content-addressed
-bundles additionally bind receipt and executable SHA-256; Homebrew declarations
-bind the exact bottle SHA-256, installed versioned-keg receipt and installed
-executable SHA-256, then capture and revalidate identity around a bounded
-version probe. Validation reads these exact local artifacts directly; it never
+bundles additionally bind receipt and executable SHA-256; each Homebrew
+provenance variant binds an exact homebrew/core formula revision, bottle tag,
+rebuild number, bottle SHA-256 and resulting installed executable SHA-256.
+The resolver also binds the installed versioned-keg receipt and captures and
+revalidates identity around a bounded version probe. Validation reads these
+exact local artifacts directly; it never
 invokes Homebrew, consults ambient `HOME`/`PATH`, updates metadata or uses the
 network.
+
+The ShellCheck 0.11.0 variants were reconciled on 2026-08-13 against the
+official `Homebrew/homebrew-core` formula revisions
+`4a47db2a60995b1e7a5a0024b7406de197647c15` (rebuild 0) and
+`11b85b79adabddf823a733445e86b9ad2e9b0141` (rebuild 1). The current
+`arm64_tahoe` bottle digest is
+`102f7f385855df8eabf5c9017b8d729a02a5ccca810aa23e3ae700a46226ab70`;
+the older preserved installed leaf and current bottle-derived installed leaf
+are separate explicit variants rather than an unordered hash exception.
+Ripgrep 15.2.0 is bound to formula revision
+`666e305a8f602401e66a29c2198a4139b52629ee` and its current
+`arm64_tahoe` bottle. There is no repository generator or second inventory for
+these values: the JSON contract is the sole generated-provenance input and all
+tests/resolvers consume or independently validate that structure.
 
 The Homebrew global prefix and `bin`/`Cellar` namespaces may be writable by the
 package-manager owner or group. That exception does not extend to an undeclared

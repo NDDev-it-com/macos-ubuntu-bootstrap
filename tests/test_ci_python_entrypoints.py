@@ -242,8 +242,12 @@ def test_validation_path_manifest_declares_provider_neutral_managed_anchors() ->
         assert anchor["version_pattern"] and anchor["version_argument"] == "--version"
         if anchor["provider"] == "homebrew":
             assert anchor["prefix"] == "/opt/homebrew"
-            assert len(anchor["bottle_sha256"]) == 64
-            assert len(anchor["executable_sha256"]) == 64
+            assert anchor["provenance_variants"]
+            for variant in anchor["provenance_variants"]:
+                assert len(variant["formula_revision"]) == 40
+                assert variant["bottle_tag"] and variant["bottle_rebuild"] >= 0
+                assert len(variant["bottle_sha256"]) == 64
+                assert len(variant["executable_sha256"]) == 64
         else:
             assert anchor["root"].startswith("$HOME/")
             assert len(anchor["receipt_sha256"]) == 64
@@ -263,6 +267,19 @@ def test_managed_anchor_inventory_rejects_duplicate_and_unknown_provider() -> No
     unknown["ci_validation"]["managed_package_anchors"][0]["provider"] = "ambient"
     with pytest.raises(resolver.ResolutionError, match="malformed"):
         resolver._managed_anchors(unknown, "darwin", "arm64")
+
+    bad_variant = json.loads(json.dumps(contract))
+    bad_variant["ci_validation"]["managed_package_anchors"][0]["provenance_variants"][0][
+        "bottle_sha256"
+    ] = "not-a-digest"
+    with pytest.raises(resolver.ResolutionError, match="bottle_sha256"):
+        resolver._managed_anchors(bad_variant, "darwin", "arm64")
+
+    conflicting = json.loads(json.dumps(contract))
+    variants = conflicting["ci_validation"]["managed_package_anchors"][0]["provenance_variants"]
+    variants.append({**variants[0], "executable_sha256": "f" * 64})
+    with pytest.raises(resolver.ResolutionError, match="variant is duplicated"):
+        resolver._managed_anchors(conflicting, "darwin", "arm64")
 
 
 def test_candidate_requires_declared_provider_and_rejects_higher_shadow(
@@ -383,14 +400,25 @@ def test_homebrew_anchor_binds_formula_receipt_alias_and_bottle(
     anchor = {
         "prefix": str(prefix), "command": "tool", "package": "tool", "version": "1.2.3",
         "architecture": "arm64",
-        "bottle_sha256": "a" * 64, "executable": "bin/tool",
-        "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        "executable": "bin/tool", "provenance_variants": [{
+            "formula_revision": "a" * 40, "bottle_tag": "arm64_test", "bottle_rebuild": 0,
+            "bottle_sha256": "a" * 64,
+            "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        }],
         "version_argument": "--version", "version_pattern": "tool 1.2.3",
     }
     assert resolver._homebrew_trusted(alias, anchor) == executable
     assert observed_argv == [[str(executable), "--version"]]
+    bad = {**anchor, "provenance_variants": [
+        {**anchor["provenance_variants"][0], "executable_sha256": "b" * 64}
+    ]}
     with pytest.raises(resolver.ResolutionError, match="hash mismatch"):
-        resolver._homebrew_trusted(alias, {**anchor, "executable_sha256": "b" * 64})
+        resolver._homebrew_trusted(alias, bad)
+    second = {**anchor["provenance_variants"][0], "formula_revision": "b" * 40,
+              "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest()}
+    assert resolver._homebrew_trusted(
+        alias, {**anchor, "provenance_variants": [bad["provenance_variants"][0], second]},
+    ) == executable
     outside, outside_identity = _owned_external_executable(tmp_path)
     alias.unlink()
     alias.symlink_to(outside)
@@ -415,8 +443,11 @@ def test_homebrew_anchor_rejects_missing_malformed_stale_and_wrong_arch_receipts
     alias.symlink_to("../Cellar/tool/1/bin/tool")
     anchor = {
         "prefix": str(prefix), "command": "tool", "package": "tool", "version": "1",
-        "architecture": "arm64", "bottle_sha256": "a" * 64,
-        "executable": "bin/tool", "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        "architecture": "arm64", "executable": "bin/tool", "provenance_variants": [{
+            "formula_revision": "a" * 40, "bottle_tag": "arm64_test", "bottle_rebuild": 0,
+            "bottle_sha256": "a" * 64,
+            "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        }],
         "version_argument": "--version", "version_pattern": "tool 1",
     }
     receipt_path = keg / "INSTALL_RECEIPT.json"

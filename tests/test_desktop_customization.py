@@ -260,10 +260,21 @@ def test_chrome_key_gate_rejects_a_foreign_key(tmp_path: Path) -> None:
 
     result = subprocess.run(
         ["bash", "-c",
-         'source "$1"; chrome_key_fingerprint "$2"', "_", str(PRIVILEGED_HELPER), str(foreign)],
+         'source "$1"; chrome_key_matches "$2" "$3"', "_", str(PRIVILEGED_HELPER),
+         str(foreign), CHROME_FINGERPRINT],
         capture_output=True, text=True, check=False,
     )
     assert result.returncode != 0, "a foreign signing key was accepted"
+
+
+def test_chrome_key_acceptance_is_contract_owned_and_rejects_override() -> None:
+    helper = PRIVILEGED_HELPER.read_text(encoding="utf-8")
+    install = helper.split("install_chrome() {", 1)[1].split("\n}", 1)[0]
+    matcher = helper.split("chrome_key_matches() {", 1)[1].split("\n}", 1)[0]
+    assert 'chrome_key_matches "$tmp_dir/chrome-key" "$fingerprint"' in install
+    assert 'observed=$(chrome_key_fingerprint "$key")' in matcher
+    assert '[ "$observed" = "$expected" ]' in matcher
+    assert CHROME_FINGERPRINT not in helper
 
 
 def test_chrome_key_gate_rejects_a_missing_keyring(tmp_path: Path) -> None:

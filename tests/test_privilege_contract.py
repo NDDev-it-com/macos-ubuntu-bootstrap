@@ -5,7 +5,6 @@ import importlib.util
 import json
 import os
 import re
-import shutil
 import stat
 import subprocess
 import sys
@@ -22,6 +21,17 @@ POLICY = ROOT / "templates/polkit/com.nddev.rldyour.bootstrap.policy"
 SHELL_CONTRACT = ROOT / "scripts/ci/shell_contract.py"
 SHELL_CONTRACT_SCHEMA = "rldyour.shell-contract/v1"
 FUNCTION_HARNESS = ROOT / "scripts/ci/shell_function_harness.py"
+
+
+def _load_function_harness():
+    spec = importlib.util.spec_from_file_location("privilege_function_harness", FUNCTION_HARNESS)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+FUNCTION_HARNESS_MODULE = _load_function_harness()
 
 
 def contract() -> dict:
@@ -504,8 +514,8 @@ def test_exact_path_cli_is_cwd_and_shadow_module_independent(tmp_path: Path) -> 
 
 
 def test_pytest_launchers_execute_exact_path_cli_from_unrelated_cwd(tmp_path: Path) -> None:
-    pytest_executable = shutil.which("pytest")
-    assert pytest_executable is not None
+    pytest_executable = Path(sys.executable).with_name("pytest")
+    assert pytest_executable.is_file() and os.access(pytest_executable, os.X_OK)
     test_file = tmp_path / "probe.py"
     test_file.write_text(
         "import json, subprocess, sys\n"
@@ -566,28 +576,38 @@ def test_cli_consumer_rejects_malformed_json_stderr_and_timeout(tmp_path: Path) 
     scripts = {
         "malformed": "import sys; print('not-json')\n",
         "stderr": "import sys; print('{}'); print('noise', file=sys.stderr)\n",
-        "slow": "import time; time.sleep(2)\n",
+        "blocked": "import threading; threading.Event().wait()\n",
     }
     for name, body in scripts.items():
         fake = tmp_path / f"{name}.py"
-        fake.write_text(body, encoding="utf-8")
+        fake.write_text(
+            "import os\n"
+            "ready_fd = int(os.environ['RLDYOUR_TEST_READY_FD'])\n"
+            "os.write(ready_fd, b'\\x01')\n"
+            "os.close(ready_fd)\n" + body,
+            encoding="utf-8",
+        )
+        read_fd, write_fd = os.pipe()
+        environment = {
+            "PATH": os.environ.get("PATH", ""),
+            "RLDYOUR_TEST_READY_FD": str(write_fd),
+        }
         try:
-            result = subprocess.run(
+            result = FUNCTION_HARNESS_MODULE.run_owned(
                 [sys.executable, "-I", str(fake)],
-                text=True, capture_output=True, check=False, timeout=0.1,
+                env=environment,
+                timeout=0.1 if name == "blocked" else 2,
+                pass_fds=(write_fd,), readiness_fd=read_fd,
+                close_after_spawn_fds=(write_fd,),
             )
-        except subprocess.TimeoutExpired:
-            assert name == "slow"
-            continue
-        if name == "malformed":
-            try:
-                json.loads(result.stdout)
-            except json.JSONDecodeError:
-                pass
-            else:
-                raise AssertionError("malformed CLI output was accepted")
+        except FUNCTION_HARNESS_MODULE.HarnessError as error:
+            assert name == "blocked" and "timed out" in str(error)
         else:
-            assert name == "stderr" and result.stderr != ""
+            if name == "malformed":
+                with pytest.raises(json.JSONDecodeError):
+                    json.loads(result.stdout)
+            else:
+                assert name == "stderr" and result.stderr != ""
 
 
 def test_internal_apt_allowlist_matches_contract_without_drift() -> None:
@@ -1257,6 +1277,9 @@ def test_hosted_native_fixture_models_clean_root_destination_authority() -> None
     evidence = (ROOT / "scripts/ci/platform-evidence.sh").read_text(encoding="utf-8")
     assert "sudo chown root:root /usr/local" in evidence
     assert "sudo chmod 0755 /usr/local" in evidence
+    assert "/usr/share /usr/share/polkit-1 /usr/share/polkit-1/actions" in evidence
+    assert '"/usr/share", "/usr/share/polkit-1"' in evidence
+    assert "not stat.S_IMODE(value.st_mode) & 0o022" in evidence
     assert "RLDYOUR_PRIVILEGE_SANDBOX_ROOT" not in evidence
 
 

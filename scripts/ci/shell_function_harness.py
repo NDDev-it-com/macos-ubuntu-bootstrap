@@ -486,93 +486,314 @@ class OwnedResult:
         self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
 
 
+def _validated_group_signal(
+    process: subprocess.Popen[bytes], pgid: int, sig: signal.Signals, *,
+    leader_running: bool, descendant_pipe_proof: bool,
+) -> str | None:
+    """Signal only the captured session group; return typed residual evidence."""
+    if pgid != process.pid:
+        return "GROUP_IDENTITY_UNPROVEN:CAPTURE_MISMATCH"
+    if leader_running:
+        try:
+            if os.getpgid(process.pid) != pgid:
+                return "GROUP_IDENTITY_UNPROVEN:LEADER_PGID_CHANGED"
+        except ProcessLookupError:
+            return "GROUP_IDENTITY_UNPROVEN:LEADER_DISAPPEARED"
+        except OSError as error:
+            return f"GROUP_IDENTITY_UNPROVEN:{error.errno}"
+    elif not descendant_pipe_proof:
+        return None
+    try:
+        os.killpg(pgid, sig)
+    except ProcessLookupError:
+        return f"GROUP_SIGNAL_ESRCH:{sig.name}"
+    except PermissionError as error:
+        return f"GROUP_SIGNAL_EPERM:{sig.name}:{error.errno}"
+    except OSError as error:
+        return f"GROUP_SIGNAL_ERROR:{sig.name}:{error.errno}"
+    return None
+
+
+def _raise_owned_failure(message: str, residuals: list[str]) -> None:
+    failure = HarnessError(message)
+    for residual in residuals:
+        failure.add_note(f"cleanup residual: {residual}")
+    raise failure
+
+
+def _has_output_streams(selector: selectors.BaseSelector) -> bool:
+    return any(not isinstance(key.fileobj, int) for key in selector.get_map().values())
+
+
+def _next_selector_timeout(now: float, deadlines: tuple[float | None, ...]) -> float:
+    active = [deadline for deadline in deadlines if deadline is not None]
+    if not active:
+        raise HarnessError("owned selector has no absolute deadline")
+    return max(0.0, min(active) - now)
+
+
+def _readiness_transition(record: bytearray, chunk: bytes) -> tuple[str, str | None]:
+    if chunk:
+        record.extend(chunk)
+    if len(record) > 1:
+        return "failed", "target readiness record is malformed or oversized"
+    if record and record != b"\x01":
+        return "failed", "target readiness record is malformed or oversized"
+    if chunk == b"":
+        if record == b"\x01":
+            return "ready", None
+        return "failed", "target readiness ended before a valid record"
+    return "pending", None
+
+
 def run_owned(
     argv: list[str], *, env: dict[str, str] | None = None,
     timeout: float = TIMEOUT_SECONDS, pass_fds: tuple[int, ...] = (),
+    readiness_fd: int | None = None, close_after_spawn_fds: tuple[int, ...] = (),
 ) -> OwnedResult:
+    """Run an owned process transaction.
+
+    When ``readiness_fd`` is supplied, its ownership transfers to this
+    function.  Exactly one ``0x01`` record starts the execution deadline;
+    interpreter/startup time is bounded separately and cannot satisfy the
+    timeout oracle.
+    """
+    if len(set(close_after_spawn_fds)) != len(close_after_spawn_fds):
+        raise HarnessError("duplicate child-only descriptor")
+    if any(fd not in pass_fds for fd in close_after_spawn_fds):
+        raise HarnessError("child-only descriptor is not passed to the child")
+    if readiness_fd in close_after_spawn_fds:
+        raise HarnessError("readiness reader cannot be a child-only writer")
     process: subprocess.Popen[bytes] | None = None
     try:
         process = subprocess.Popen(
             argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
             start_new_session=True, close_fds=True, pass_fds=pass_fds,
         )
-    except BaseException:
+    except BaseException as primary:
         # Popen owns and closes any pipes it created when construction fails.
+        for descriptor in (*close_after_spawn_fds, *((readiness_fd,) if readiness_fd is not None else ())):
+            try:
+                os.close(descriptor)
+            except OSError as error:
+                primary.add_note(f"spawn descriptor close residual: {error}")
         raise
+    spawn_close_errors: list[str] = []
+    for descriptor in close_after_spawn_fds:
+        try:
+            os.close(descriptor)
+        except OSError as error:
+            spawn_close_errors.append(f"CHILD_ONLY_CLOSE_FAILED:{error.errno}")
+    try:
+        process_group = os.getpgid(process.pid)
+    except OSError as error:
+        process.kill()
+        process.wait()
+        if readiness_fd is not None:
+            os.close(readiness_fd)
+        raise HarnessError("GROUP_IDENTITY_UNPROVEN:SPAWN") from error
+    if process_group != process.pid:
+        process.kill()
+        process.wait()
+        if readiness_fd is not None:
+            os.close(readiness_fd)
+        raise HarnessError("GROUP_IDENTITY_UNPROVEN:SESSION")
     selector = selectors.DefaultSelector()
     buffers = {"stdout": bytearray(), "stderr": bytearray()}
     streams = {process.stdout: "stdout", process.stderr: "stderr"}
     assert process.stdout is not None and process.stderr is not None
-    for stream in streams:
-        os.set_blocking(stream.fileno(), False)
-        selector.register(stream, selectors.EVENT_READ)
-    deadline = time.monotonic() + timeout
-    failure: str | None = None
+    ready = readiness_fd is None
+    readiness_record = bytearray()
+    try:
+        for stream in streams:
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ)
+        if readiness_fd is not None:
+            os.set_blocking(readiness_fd, False)
+            selector.register(readiness_fd, selectors.EVENT_READ, "readiness")
+    except BaseException as primary:
+        try:
+            process.kill()
+            process.wait(timeout=1)
+        except BaseException as error:
+            primary.add_note(f"setup reap residual: {error}")
+        for key in list(selector.get_map().values()):
+            try:
+                selector.unregister(key.fileobj)
+                if isinstance(key.fileobj, int):
+                    os.close(key.fileobj)
+                    readiness_fd = None
+                else:
+                    key.fileobj.close()
+            except OSError as error:
+                primary.add_note(f"setup descriptor residual: {error}")
+        for stream in streams:
+            if not stream.closed:
+                try:
+                    stream.close()
+                except OSError as error:
+                    primary.add_note(f"setup stream residual: {error}")
+        if readiness_fd is not None:
+            try:
+                os.close(readiness_fd)
+            except OSError as error:
+                primary.add_note(f"setup readiness residual: {error}")
+        try:
+            selector.close()
+        except OSError as error:
+            primary.add_note(f"setup selector residual: {error}")
+        raise
+    started_at = time.monotonic()
+    startup_deadline = started_at + TIMEOUT_SECONDS
+    execution_deadline = started_at + timeout if ready else None
+    failure: str | None = (
+        "child-only readiness writer close failed" if spawn_close_errors else None
+    )
     term_sent_at: float | None = None
+    kill_deadline: float | None = None
+    teardown_deadline: float | None = None
     leader_exit_at: float | None = None
+    residuals: list[str] = list(spawn_close_errors)
+    caught_primary: BaseException | None = None
+
+    def close_registered(key: selectors.SelectorKey) -> None:
+        nonlocal readiness_fd
+        try:
+            selector.unregister(key.fileobj)
+        except (KeyError, OSError) as error:
+            residuals.append(f"STREAM_UNREGISTER_FAILED:{type(error).__name__}")
+        try:
+            if isinstance(key.fileobj, int):
+                os.close(key.fileobj)
+                if readiness_fd == key.fileobj:
+                    readiness_fd = None
+            else:
+                key.fileobj.close()
+        except OSError as error:
+            residuals.append(f"STREAM_CLOSE_FAILED:{error.errno}")
+
+    def begin_teardown(now: float) -> None:
+        nonlocal term_sent_at, kill_deadline, teardown_deadline
+        if term_sent_at is not None:
+            return
+        leader_running = process.poll() is None
+        descendant_pipe_proof = not leader_running and leader_exit_at is not None and _has_output_streams(selector)
+        if leader_running or descendant_pipe_proof:
+            residual = _validated_group_signal(
+                process, process_group, signal.SIGTERM,
+                leader_running=leader_running, descendant_pipe_proof=descendant_pipe_proof,
+            )
+            if residual is not None:
+                residuals.append(residual)
+        term_sent_at = now
+        kill_deadline = now + 0.5
+        teardown_deadline = now + 1.5
+
     try:
         while selector.get_map() or process.poll() is None:
             now = time.monotonic()
-            if failure is None and now >= deadline:
+            if failure is None and not ready and now >= startup_deadline:
+                failure = "target readiness timed out"
+            if failure is None and ready and execution_deadline is not None and now >= execution_deadline:
                 failure = "target timed out"
-            if process.poll() is not None and selector.get_map() and failure is None:
+            output_streams_open = _has_output_streams(selector)
+            if process.poll() is not None and output_streams_open and failure is None:
                 leader_exit_at = leader_exit_at or now
                 if now - leader_exit_at >= 0.2:
                     failure = "descendant retained output pipe after leader exit"
-            if failure is not None and term_sent_at is None:
-                try:
-                    os.killpg(process.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                term_sent_at = now
-            if term_sent_at is not None and now - term_sent_at >= 0.5:
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            events = selector.select(0.05)
+            if failure is not None:
+                begin_teardown(now)
+            if kill_deadline is not None and now >= kill_deadline:
+                leader_running = process.poll() is None
+                descendant_pipe_proof = not leader_running and _has_output_streams(selector)
+                residual = _validated_group_signal(
+                    process, process_group, signal.SIGKILL,
+                    leader_running=leader_running, descendant_pipe_proof=descendant_pipe_proof,
+                )
+                if residual is not None:
+                    residuals.append(residual)
+                kill_deadline = None
+            if teardown_deadline is not None and now >= teardown_deadline:
+                if process.poll() is None:
+                    try:
+                        process.kill()
+                    except OSError as error:
+                        residuals.append(f"LEADER_KILL_FAILED:{error.errno}")
+                    else:
+                        residuals.append("LEADER_DIRECT_KILL_AFTER_GROUP_FAILURE")
+                for key in list(selector.get_map().values()):
+                    close_registered(key)
+                break
+
+            select_timeout = _next_selector_timeout(now, (
+                now + 0.05,
+                startup_deadline if not ready else None,
+                execution_deadline if ready else None,
+                leader_exit_at + 0.2 if leader_exit_at is not None and failure is None else None,
+                kill_deadline,
+                teardown_deadline,
+            ))
+            events = selector.select(select_timeout)
             for key, _ in events:
                 stream = key.fileobj
                 try:
-                    chunk = os.read(stream.fileno(), 65536)
+                    descriptor = stream if isinstance(stream, int) else stream.fileno()
+                    chunk = os.read(descriptor, 65536)
                 except BlockingIOError:
                     continue
+                if key.data == "readiness":
+                    readiness_state, readiness_error = _readiness_transition(readiness_record, chunk)
+                    if readiness_state == "failed":
+                        close_registered(key)
+                        failure = failure or readiness_error
+                    elif readiness_state == "ready":
+                        close_registered(key)
+                        ready = True
+                        execution_deadline = time.monotonic() + timeout
+                    continue
                 if not chunk:
-                    selector.unregister(stream)
-                    stream.close()
+                    close_registered(key)
                     continue
                 target = buffers[streams[stream]]
                 if sum(map(len, buffers.values())) + len(chunk) > MAX_OUTPUT:
                     failure = f"{streams[stream]} exceeds bounded limit"
                 else:
                     target.extend(chunk)
-            if failure is not None and term_sent_at is not None and now - term_sent_at > 1.0 and process.poll() is not None:
-                for key in list(selector.get_map().values()):
-                    selector.unregister(key.fileobj)
-                    key.fileobj.close()
-        returncode = process.wait(timeout=1)
-    except BaseException as primary:
-        cleanup_errors: list[str] = []
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        except OSError as error:
-            cleanup_errors.append(f"group kill: {error}")
+            returncode = process.wait(timeout=1)
+        except BaseException as error:
+            residuals.append(f"REAP_FAILED:{type(error).__name__}")
+            if failure is None:
+                raise
+            returncode = process.returncode if process.returncode is not None else -1
+    except BaseException as primary:
+        residual = _validated_group_signal(
+            process, process_group, signal.SIGKILL,
+            leader_running=process.poll() is None,
+            descendant_pipe_proof=_has_output_streams(selector),
+        )
+        if residual is not None:
+            residuals.append(residual)
         try:
             process.wait(timeout=1)
         except BaseException as error:
-            cleanup_errors.append(f"reap: {error}")
-        for error in cleanup_errors:
-            primary.add_note(f"cleanup residual: {error}")
-        raise
+            residuals.append(f"REAP_FAILED:{type(error).__name__}")
+        caught_primary = primary
     finally:
         for key in list(selector.get_map().values()):
-            selector.unregister(key.fileobj)
-            key.fileobj.close()
-        selector.close()
+            close_registered(key)
+        try:
+            selector.close()
+        except OSError as error:
+            residuals.append(f"SELECTOR_CLOSE_FAILED:{error.errno}")
+    if caught_primary is not None:
+        for residual in residuals:
+            caught_primary.add_note(f"cleanup residual: {residual}")
+        raise caught_primary
     if failure is not None:
-        raise HarnessError(failure)
+        _raise_owned_failure(failure, residuals)
+    if residuals:
+        _raise_owned_failure("owned process cleanup failed", residuals)
     try:
         stdout = bytes(buffers["stdout"]).decode("utf-8")
         stderr = bytes(buffers["stderr"]).decode("utf-8")

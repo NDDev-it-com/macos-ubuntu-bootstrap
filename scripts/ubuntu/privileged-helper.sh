@@ -209,6 +209,12 @@ chrome_key_fingerprint() {
     /usr/bin/awk -F: '$1=="pub"{n++;want=1;next}$1=="fpr"&&want{f=toupper($10);want=0}END{if(n!=1||f=="")exit 1;print f}'
 }
 
+chrome_key_matches() {
+  local key=$1 expected=$2 observed
+  observed=$(chrome_key_fingerprint "$key") || return 1
+  [ "$observed" = "$expected" ]
+}
+
 apt_install() {
   apt_arguments_allowed "$@" || { result INTERNAL_ALLOWLIST_REJECTED apt-install; return 2; }
   /usr/bin/env -i PATH="$SAFE_PATH" DEBIAN_FRONTEND=noninteractive \
@@ -242,10 +248,9 @@ install_rustdesk() {
 }
 
 install_chrome() {
-  local key_url=$1 fingerprint=$2 repo_uri=$3 keyring=$4 source=$5 observed
+  local key_url=$1 fingerprint=$2 repo_uri=$3 keyring=$4 source=$5
   clean_env /usr/bin/curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location "$key_url" --output "$tmp_dir/chrome-key"
-  observed=$(chrome_key_fingerprint "$tmp_dir/chrome-key") || return 1
-  [ "$observed" = "$fingerprint" ] || return 1
+  chrome_key_matches "$tmp_dir/chrome-key" "$fingerprint" || return 1
   /usr/bin/install -d -o root -g root -m 0755 /etc/apt/keyrings /etc/apt/sources.list.d /etc/default
   /usr/bin/install -o root -g root -m 0644 "$tmp_dir/chrome-key" "$keyring"
   /usr/bin/printf '%s\n' '# Managed by macos-ubuntu-bootstrap: desktop-app-google-chrome-v1' \

@@ -106,7 +106,9 @@ def _homebrew_trusted(path: Path, anchor: dict[str, object]) -> Path:
     if (resolved != expected or not stat.S_ISREG(expected.lstat().st_mode)
             or not os.access(resolved, os.X_OK)):
         raise ResolutionError("Homebrew alias escaped or executable is invalid")
-    if _sha256(expected) != anchor["executable_sha256"]:
+    variants = anchor["provenance_variants"]
+    accepted_hashes = {item["executable_sha256"] for item in variants}  # type: ignore[union-attr,index]
+    if _sha256(expected) not in accepted_hashes:
         raise ResolutionError("Homebrew executable hash mismatch")
     # The global namespace may be package-manager writable. Inside the selected
     # keg, mixed ownership and group/world-writable content are forbidden.
@@ -266,7 +268,7 @@ def _managed_anchors(data: dict[str, object], host_platform: str, host_arch: str
     common = {"command", "provider", "platform", "architecture", "package", "version",
               "executable", "version_argument", "version_pattern"}
     provider_fields = {
-        "homebrew": {"prefix", "bottle_sha256", "executable_sha256"},
+        "homebrew": {"prefix", "provenance_variants"},
         "codex-bundle": {"root", "receipt", "receipt_sha256", "executable_sha256"},
     }
     seen: set[tuple[object, ...]] = set()
@@ -285,10 +287,36 @@ def _managed_anchors(data: dict[str, object], host_platform: str, host_arch: str
                 raise ResolutionError(f"managed-package {field} is invalid")
         if item["version_argument"] != "--version":
             raise ResolutionError("managed-package version probe is not allowlisted")
-        for field in ("bottle_sha256", "receipt_sha256", "executable_sha256"):
+        for field in ("receipt_sha256", "executable_sha256"):
             if field in item and (not isinstance(item[field], str) or len(item[field]) != 64
                                   or any(char not in "0123456789abcdef" for char in item[field])):
                 raise ResolutionError(f"managed-package {field} is invalid")
+        if item["provider"] == "homebrew":
+            variants = item["provenance_variants"]
+            required = {"formula_revision", "bottle_tag", "bottle_rebuild", "bottle_sha256", "executable_sha256"}
+            if not isinstance(variants, list) or not variants:
+                raise ResolutionError("managed-package provenance variants are invalid")
+            variant_ids: set[tuple[object, ...]] = set()
+            for variant in variants:
+                if not isinstance(variant, dict) or set(variant) != required:
+                    raise ResolutionError("managed-package provenance variant is malformed")
+                if (not isinstance(variant["formula_revision"], str)
+                        or len(variant["formula_revision"]) != 40
+                        or any(char not in "0123456789abcdef" for char in variant["formula_revision"])):
+                    raise ResolutionError("managed-package formula revision is invalid")
+                if (not isinstance(variant["bottle_tag"], str) or not variant["bottle_tag"]
+                        or not isinstance(variant["bottle_rebuild"], int)
+                        or variant["bottle_rebuild"] < 0):
+                    raise ResolutionError("managed-package bottle identity is invalid")
+                for field in ("bottle_sha256", "executable_sha256"):
+                    value = variant[field]
+                    if (not isinstance(value, str) or len(value) != 64
+                            or any(char not in "0123456789abcdef" for char in value)):
+                        raise ResolutionError(f"managed-package {field} is invalid")
+                variant_id = (variant["formula_revision"], variant["bottle_tag"], variant["bottle_rebuild"])
+                if variant_id in variant_ids:
+                    raise ResolutionError("managed-package provenance variant is duplicated")
+                variant_ids.add(variant_id)
         _bounded_relative(item["executable"], "executable")
         if item["provider"] == "codex-bundle":
             _bounded_relative(item["receipt"], "receipt")

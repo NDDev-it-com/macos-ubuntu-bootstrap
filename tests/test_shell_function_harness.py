@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import importlib.util
 import os
 import signal
@@ -24,6 +25,65 @@ def load_module():
 
 
 HARNESS_MODULE = load_module()
+
+
+def _ready_owned(code: str, *, timeout: float) -> object:
+    read_fd, write_fd = os.pipe()
+    environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "RLDYOUR_TEST_READY_FD": str(write_fd),
+    }
+    prefix = (
+        "import os; _ready=int(os.environ['RLDYOUR_TEST_READY_FD']); "
+        "os.write(_ready,b'\\x01'); os.close(_ready); "
+    )
+    return HARNESS_MODULE.run_owned(
+        [sys.executable, "-c", prefix + code], env=environment, timeout=timeout,
+        pass_fds=(write_fd,), readiness_fd=read_fd,
+        close_after_spawn_fds=(write_fd,),
+    )
+
+
+@pytest.mark.parametrize(
+    "now,deadlines,expected",
+    [
+        (10.0, (10.05, 25.0, None), 0.05),
+        (10.0, (12.0, 10.25, 11.0), 0.25),
+        (20.0, (19.0, 21.0, None), 0.0),
+    ],
+)
+def test_selector_uses_the_nearest_absolute_phase_deadline(
+    now: float, deadlines: tuple[float | None, ...], expected: float,
+) -> None:
+    assert HARNESS_MODULE._next_selector_timeout(now, deadlines) == pytest.approx(expected)
+
+
+def test_selector_without_an_owned_deadline_fails_closed() -> None:
+    with pytest.raises(HARNESS_MODULE.HarnessError, match="no absolute deadline"):
+        HARNESS_MODULE._next_selector_timeout(1.0, (None, None))
+
+
+@pytest.mark.parametrize(
+    "chunks,expected_state,expected_record",
+    [
+        ([b""], "failed", b""),
+        ([b"X"], "failed", b"X"),
+        ([b"X", b""], "failed", b"X"),
+        ([b"\x01"], "pending", b"\x01"),
+        ([b"\x01", b""], "ready", b"\x01"),
+        ([b"\x01\x01"], "failed", b"\x01\x01"),
+        ([b"\x01", b"X"], "failed", b"\x01X"),
+    ],
+)
+def test_readiness_transition_table_is_exact_and_eof_bound(
+    chunks: list[bytes], expected_state: str, expected_record: bytes,
+) -> None:
+    record = bytearray()
+    state = "pending"
+    for chunk in chunks:
+        state, _error = HARNESS_MODULE._readiness_transition(record, chunk)
+    assert state == expected_state
+    assert bytes(record) == expected_record
 
 
 def test_structural_extraction_preserves_nested_braces_comments_and_heredocs() -> None:
@@ -102,7 +162,7 @@ def test_structural_extraction_rejects_duplicate_or_malformed_input(source: str)
 def test_owned_capture_accepts_split_multibyte_utf8() -> None:
     result = HARNESS_MODULE.run_owned([
         sys.executable, "-c",
-        "import os,time; os.write(1, b'\\xe2'); time.sleep(.05); os.write(1, b'\\x82\\xac')",
+        "import os; os.write(1, b'\\xe2'); os.write(1, b'\\x82\\xac')",
     ], timeout=1)
     assert result.stdout == "€"
 
@@ -114,7 +174,137 @@ def test_owned_capture_fails_closed_on_output_overflow() -> None:
 
 def test_owned_capture_times_out_and_reaps_group() -> None:
     with pytest.raises(HARNESS_MODULE.HarnessError, match="timed out"):
-        HARNESS_MODULE.run_owned([sys.executable, "-c", "import time; time.sleep(30)"], timeout=.1)
+        _ready_owned("import threading; threading.Event().wait()", timeout=.1)
+
+
+def test_readiness_separates_delayed_startup_from_execution_deadline() -> None:
+    read_fd, write_fd = os.pipe()
+    environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "RLDYOUR_TEST_READY_FD": str(write_fd),
+    }
+    code = (
+        "import os; sum(range(1000000)); "
+        "fd=int(os.environ['RLDYOUR_TEST_READY_FD']); "
+        "os.write(fd,b'\\x01'); os.close(fd); print('ready')"
+    )
+    result = HARNESS_MODULE.run_owned(
+        [sys.executable, "-c", code], env=environment, timeout=.1,
+        pass_fds=(write_fd,), readiness_fd=read_fd,
+        close_after_spawn_fds=(write_fd,),
+    )
+    assert result.stdout == "ready\n"
+    with pytest.raises(OSError):
+        os.fstat(write_fd)
+
+
+def test_spawn_failure_closes_both_owned_readiness_ends(monkeypatch) -> None:
+    read_fd, write_fd = os.pipe()
+    monkeypatch.setattr(
+        HARNESS_MODULE.subprocess, "Popen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("spawn failed")),
+    )
+    with pytest.raises(OSError, match="spawn failed"):
+        HARNESS_MODULE.run_owned(
+            [sys.executable, "-c", "raise SystemExit(0)"],
+            pass_fds=(write_fd,), readiness_fd=read_fd,
+            close_after_spawn_fds=(write_fd,),
+        )
+    for descriptor in (read_fd, write_fd):
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+
+
+@pytest.mark.parametrize("record", [b"", b"X", b"\x01\x01"])
+def test_readiness_record_is_exact_and_fail_closed(record: bytes) -> None:
+    read_fd, write_fd = os.pipe()
+    environment = {"RLDYOUR_TEST_READY_FD": str(write_fd)}
+    code = (
+        "import os; fd=int(os.environ['RLDYOUR_TEST_READY_FD']); "
+        f"os.write(fd,{record!r}); os.close(fd)"
+    )
+    with pytest.raises(HARNESS_MODULE.HarnessError, match="readiness"):
+        HARNESS_MODULE.run_owned(
+            [sys.executable, "-c", code], env=environment, timeout=.1,
+            pass_fds=(write_fd,), readiness_fd=read_fd,
+            close_after_spawn_fds=(write_fd,),
+        )
+
+
+class _GroupIdentityProcess:
+    def __init__(self, pid: int = 4242) -> None:
+        self.pid = pid
+
+
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        (PermissionError(errno.EPERM, "denied"), "GROUP_SIGNAL_EPERM:SIGTERM:1"),
+        (ProcessLookupError(errno.ESRCH, "gone"), "GROUP_SIGNAL_ESRCH:SIGTERM"),
+        (OSError(errno.EIO, "io"), "GROUP_SIGNAL_ERROR:SIGTERM:5"),
+    ],
+)
+def test_group_signal_failures_are_typed_residuals_not_success(
+    monkeypatch, error: OSError, expected: str,
+) -> None:
+    process = _GroupIdentityProcess()
+    monkeypatch.setattr(HARNESS_MODULE.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(
+        HARNESS_MODULE.os, "killpg", lambda *_args: (_ for _ in ()).throw(error),
+    )
+    assert HARNESS_MODULE._validated_group_signal(
+        process, process.pid, signal.SIGTERM,
+        leader_running=True, descendant_pipe_proof=False,
+    ) == expected
+
+
+def test_exited_leader_with_descendant_pipe_does_not_treat_eperm_as_gone(monkeypatch) -> None:
+    process = _GroupIdentityProcess()
+    monkeypatch.setattr(
+        HARNESS_MODULE.os, "killpg",
+        lambda *_args: (_ for _ in ()).throw(PermissionError(errno.EPERM, "denied")),
+    )
+    assert HARNESS_MODULE._validated_group_signal(
+        process, process.pid, signal.SIGKILL,
+        leader_running=False, descendant_pipe_proof=True,
+    ) == "GROUP_SIGNAL_EPERM:SIGKILL:1"
+
+
+def test_reused_process_group_is_never_signalled(monkeypatch) -> None:
+    process = _GroupIdentityProcess()
+    monkeypatch.setattr(HARNESS_MODULE.os, "getpgid", lambda _pid: process.pid + 1)
+    monkeypatch.setattr(
+        HARNESS_MODULE.os, "killpg",
+        lambda *_args: pytest.fail("reused process group must not be signalled"),
+    )
+    assert HARNESS_MODULE._validated_group_signal(
+        process, process.pid, signal.SIGKILL,
+        leader_running=True, descendant_pipe_proof=False,
+    ) == "GROUP_IDENTITY_UNPROVEN:LEADER_PGID_CHANGED"
+
+
+def test_primary_limit_failure_retains_group_cleanup_error_without_token_leak(monkeypatch) -> None:
+    real_signal = HARNESS_MODULE._validated_group_signal
+    calls = 0
+
+    def fail_first_signal(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "GROUP_SIGNAL_EPERM:SIGTERM:1"
+        return real_signal(*args, **kwargs)
+
+    monkeypatch.setattr(HARNESS_MODULE, "_validated_group_signal", fail_first_signal)
+    token = "sensitive-test-token"
+    with pytest.raises(HARNESS_MODULE.HarnessError, match="bounded limit") as caught:
+        HARNESS_MODULE.run_owned(
+            [sys.executable, "-c", "import os; os.write(1, b'x'*300000)", token],
+            env={"PATH": os.environ.get("PATH", ""), "SECRET_TOKEN": token},
+            timeout=1,
+        )
+    evidence = str(caught.value) + "\n" + "\n".join(caught.value.__notes__)
+    assert "GROUP_SIGNAL_EPERM" in evidence
+    assert token not in evidence
 
 
 def _process_group_states(process_group: int) -> dict[int, str]:
@@ -136,7 +326,7 @@ def test_leader_exit_with_term_ignoring_descendant_is_killed(tmp_path: Path) -> 
     code = (
         "import os,signal,time; p=os.fork(); "
         f"((open({str(state_file)!r},'w').write(f'{{p}} {{os.getpgid(p)}}'), os._exit(0)) "
-        "if p else (signal.signal(signal.SIGTERM, signal.SIG_IGN), time.sleep(30)))"
+        "if p else (signal.signal(signal.SIGTERM, signal.SIG_IGN), __import__('threading').Event().wait()))"
     )
     with pytest.raises(HARNESS_MODULE.HarnessError, match="descendant retained"):
         HARNESS_MODULE.run_owned([sys.executable, "-c", code], timeout=2)
@@ -224,8 +414,9 @@ def test_fd_close_failure_is_not_silently_successful(tmp_path: Path, monkeypatch
     owned = tmp_path / "portable-fixture.py"
     owned.write_text("raise SystemExit(0)\n", encoding="utf-8")
     owned.chmod(0o700)
-    with pytest.raises(OSError, match="selector-close"):
+    with pytest.raises(HARNESS_MODULE.HarnessError, match="cleanup failed") as caught:
         HARNESS_MODULE.run_owned([sys.executable, str(owned)], timeout=1)
+    assert any("SELECTOR_CLOSE_FAILED" in note for note in caught.value.__notes__)
 
 
 def test_successful_transaction_leaves_no_temp_or_fd_leak(tmp_path: Path, monkeypatch) -> None:

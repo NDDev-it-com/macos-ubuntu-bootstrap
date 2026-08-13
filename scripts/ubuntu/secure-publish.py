@@ -5,39 +5,165 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import stat
 import sys
 
 AUTHORITY_ROOT = "root-production"
 AUTHORITY_SANDBOX = "actor-sandbox"
+DIAGNOSTIC_SCHEMA = "rldyour.secure-publish-authority/v1"
+MAX_DIAGNOSTIC_BYTES = 4096
 
 
-def identity(fd: int) -> tuple[int, int, int, int]:
+def object_kind(mode: int) -> str:
+    if stat.S_ISDIR(mode):
+        return "directory"
+    if stat.S_ISREG(mode):
+        return "regular"
+    if stat.S_ISLNK(mode):
+        return "symlink"
+    return "unsupported"
+
+
+def identity(fd: int) -> tuple[int, int, int, int, int, int, str]:
     value = os.fstat(fd)
-    return value.st_dev, value.st_ino, value.st_uid, stat.S_IMODE(value.st_mode)
+    return (
+        value.st_dev, value.st_ino, value.st_uid, value.st_gid,
+        stat.S_IMODE(value.st_mode), value.st_nlink, object_kind(value.st_mode),
+    )
 
 
-def open_directory_chain(path: str) -> tuple[int, list[tuple[int, int, int, int]]]:
+def identity_record(value: tuple[int, int, int, int, int, int, str] | None) -> dict[str, int | str] | None:
+    if value is None:
+        return None
+    device, inode, uid, gid, mode, nlink, kind = value
+    return {
+        "device": device, "inode": inode, "uid": uid, "gid": gid,
+        "mode": f"{mode:04o}", "nlink": nlink, "type": kind,
+    }
+
+
+def directory_identity(value: tuple[int, int, int, int, int, int, str]) -> tuple[int, int, str]:
+    """Return only replacement-stable directory identity fields."""
+    device, inode, _uid, _gid, _mode, _nlink, kind = value
+    return device, inode, kind
+
+
+def first_directory_identity_mismatch(
+    expected: list[tuple[int, int, int, int, int, int, str]],
+    observed: list[tuple[int, int, int, int, int, int, str]],
+) -> int | None:
+    for index, (wanted, current) in enumerate(zip(expected, observed)):
+        if directory_identity(wanted) != directory_identity(current):
+            return index
+    if len(expected) != len(observed):
+        return min(len(expected), len(observed))
+    return None
+
+
+def destination_class(path: str, authority: str) -> str:
+    if authority == AUTHORITY_SANDBOX:
+        return "actor-sandbox"
+    known = {
+        "/usr": "system-prefix",
+        "/usr/local": "local-prefix",
+        "/usr/local/libexec": "privilege-helper-directory",
+        "/usr/local/share": "local-share-prefix",
+        "/usr/local/share/rldyour-bootstrap": "privilege-state-directory",
+        "/usr/share": "system-share-prefix",
+        "/usr/share/polkit-1": "policy-prefix",
+        "/usr/share/polkit-1/actions": "policy-directory",
+    }
+    return known.get(path, "production-other")
+
+
+class AuthorityError(PermissionError):
+    """Fail closed with a deterministic path-redacted authority receipt."""
+
+    def __init__(
+        self, summary: str, *, code: str, authority: str, path_class: str,
+        component_index: int, component_count: int,
+        expected: dict[str, int | str],
+        observed: tuple[int, int, int, int, int, int, str] | None,
+        parent: tuple[int, int, int, int, int, int, str] | None,
+    ) -> None:
+        receipt = {
+            "authority": authority,
+            "code": code,
+            "component_count": component_count,
+            "component_index": component_index,
+            "expected": expected,
+            "observed": identity_record(observed),
+            "parent": identity_record(parent),
+            "path_class": path_class,
+            "schema": DIAGNOSTIC_SCHEMA,
+        }
+        encoded = json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+        if len(encoded.encode("utf-8")) > MAX_DIAGNOSTIC_BYTES:
+            raise RuntimeError("authority diagnostic exceeded its fixed bound")
+        self.receipt = receipt
+        super().__init__(f"{summary}; authority-receipt={encoded}")
+
+
+def authority_error(
+    summary: str, *, code: str, authority: str, path_class: str,
+    component_index: int, component_count: int,
+    expected: dict[str, int | str],
+    observed: tuple[int, int, int, int, int, int, str] | None,
+    parent: tuple[int, int, int, int, int, int, str] | None,
+) -> AuthorityError:
+    return AuthorityError(
+        summary, code=code, authority=authority, path_class=path_class,
+        component_index=component_index, component_count=component_count,
+        expected=expected, observed=observed, parent=parent,
+    )
+
+
+def open_directory_chain(path: str) -> tuple[int, list[tuple[int, int, int, int, int, int, str]]]:
     if not path.startswith("/") or path == "/" or ".." in path.split("/"):
         raise ValueError("destination parent must be a canonical absolute path")
     fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
     identities = [identity(fd)]
-    if identities[0][2] != 0 or identities[0][3] & 0o022:
+    components = list(filter(None, path.split("/")))
+    expected = {"owner_gid": 0, "owner_uid": 0, "type": "directory", "writable_mask_forbidden": "0022"}
+    if identities[0][2] != 0 or identities[0][3] != 0 or identities[0][4] & 0o022:
         os.close(fd)
-        raise PermissionError("filesystem root is not root-owned and non-writable")
+        raise authority_error(
+            "filesystem root is not root-owned and non-writable",
+            code="ROOT_POLICY_MISMATCH", authority=AUTHORITY_ROOT,
+            path_class="filesystem-root", component_index=0,
+            component_count=len(components) + 1, expected=expected,
+            observed=identities[0], parent=None,
+        )
     try:
-        for component in filter(None, path.split("/")):
-            next_fd = os.open(
-                component,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                dir_fd=fd,
-            )
+        for index, component in enumerate(components, start=1):
+            parent = identity(fd)
+            try:
+                next_fd = os.open(
+                    component,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                    dir_fd=fd,
+                )
+            except OSError as error:
+                raise authority_error(
+                    "destination ancestor could not be opened without following links",
+                    code="ANCESTOR_OPEN_FAILED", authority=AUTHORITY_ROOT,
+                    path_class=destination_class(path, AUTHORITY_ROOT),
+                    component_index=index, component_count=len(components) + 1,
+                    expected=expected, observed=None, parent=parent,
+                ) from error
             os.close(fd)
             fd = next_fd
             current = identity(fd)
-            if current[2] != 0 or current[3] & 0o022:
-                raise PermissionError("destination ancestor is not root-owned and non-writable")
+            if current[2] != 0 or current[3] != 0 or current[4] & 0o022:
+                raise authority_error(
+                    "destination ancestor is not root-owned and non-writable",
+                    code="ANCESTOR_POLICY_MISMATCH", authority=AUTHORITY_ROOT,
+                    path_class=destination_class(path, AUTHORITY_ROOT),
+                    component_index=index, component_count=len(components) + 1,
+                    expected=expected, observed=current, parent=parent,
+                )
             identities.append(current)
         return fd, identities
     except BaseException:
@@ -45,7 +171,7 @@ def open_directory_chain(path: str) -> tuple[int, list[tuple[int, int, int, int]
         raise
 
 
-def open_actor_sandbox_chain(path: str, sandbox_root: str) -> tuple[int, list[tuple[int, int, int, int]]]:
+def open_actor_sandbox_chain(path: str, sandbox_root: str) -> tuple[int, list[tuple[int, int, int, int, int, int, str]]]:
     """Open an actor-owned private subtree without authorizing outside paths."""
     if not sandbox_root.startswith("/") or sandbox_root == "/" or ".." in sandbox_root.split("/"):
         raise ValueError("sandbox root must be a canonical absolute non-root path")
@@ -53,27 +179,73 @@ def open_actor_sandbox_chain(path: str, sandbox_root: str) -> tuple[int, list[tu
         raise PermissionError("actor sandbox cannot authorize a production or escaped path")
     fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
     try:
-        for component in filter(None, sandbox_root.split("/")):
-            next_fd = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=fd)
+        prefix_components = list(filter(None, sandbox_root.split("/")))
+        for index, component in enumerate(prefix_components, start=1):
+            parent = identity(fd)
+            try:
+                next_fd = os.open(
+                    component, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                    dir_fd=fd,
+                )
+            except OSError as error:
+                raise authority_error(
+                    "sandbox prefix could not be opened without following links",
+                    code="SANDBOX_PREFIX_OPEN_FAILED", authority=AUTHORITY_SANDBOX,
+                    path_class="sandbox-prefix", component_index=index,
+                    component_count=len(prefix_components) + 1,
+                    expected={"type": "directory", "link_policy": "no-follow"},
+                    observed=None, parent=parent,
+                ) from error
             os.close(fd)
             fd = next_fd
         actor = os.geteuid()
         anchor = identity(fd)
-        if anchor[2] != actor or anchor[3] & 0o077:
-            raise PermissionError("sandbox anchor is not effective-actor-owned and private")
+        actor_group = os.getegid()
+        if anchor[2] != actor or anchor[3] != actor_group or anchor[4] & 0o077:
+            raise authority_error(
+                "sandbox anchor is not effective-actor-owned and private",
+                code="SANDBOX_ANCHOR_POLICY_MISMATCH", authority=AUTHORITY_SANDBOX,
+                path_class="sandbox-anchor", component_index=len(prefix_components),
+                component_count=len(prefix_components) + 1,
+                expected={"owner_gid": actor_group, "owner_uid": actor, "type": "directory", "writable_mask_forbidden": "0077"},
+                observed=anchor, parent=parent,
+            )
         identities = [anchor]
         relative = os.path.relpath(path, sandbox_root)
         if relative == ".":
             return fd, identities
-        for component in relative.split("/"):
+        relative_components = relative.split("/")
+        for relative_index, component in enumerate(relative_components, start=1):
             if component in ("", ".", ".."):
                 raise ValueError("sandbox destination is not canonical")
-            next_fd = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=fd)
+            parent = identity(fd)
+            try:
+                next_fd = os.open(
+                    component, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                    dir_fd=fd,
+                )
+            except OSError as error:
+                raise authority_error(
+                    "sandbox ancestor could not be opened without following links",
+                    code="SANDBOX_ANCESTOR_OPEN_FAILED", authority=AUTHORITY_SANDBOX,
+                    path_class="sandbox-descendant", component_index=relative_index,
+                    component_count=len(relative_components),
+                    expected={"owner_gid": actor_group, "owner_uid": actor, "type": "directory", "writable_mask_forbidden": "0022"},
+                    observed=None, parent=parent,
+                ) from error
             os.close(fd)
             fd = next_fd
             current = identity(fd)
-            if current[2] != actor or current[3] & 0o022:
-                raise PermissionError("sandbox ancestor is not effective-actor-owned and non-writable")
+            if current[2] != actor or current[3] != actor_group or current[4] & 0o022:
+                raise authority_error(
+                    "sandbox ancestor is not effective-actor-owned and non-writable",
+                    code="SANDBOX_ANCESTOR_POLICY_MISMATCH", authority=AUTHORITY_SANDBOX,
+                    path_class="sandbox-descendant",
+                    component_index=relative_index,
+                    component_count=len(relative_components),
+                    expected={"owner_gid": actor_group, "owner_uid": actor, "type": "directory", "writable_mask_forbidden": "0022"},
+                    observed=current, parent=parent,
+                )
             identities.append(current)
         return fd, identities
     except BaseException:
@@ -119,20 +291,29 @@ def digest_fd(fd: int) -> str:
     return digest.hexdigest()
 
 
-def revalidate_chain(path: str, expected: list[tuple[int, int, int, int]]) -> None:
+def revalidate_chain(path: str, expected: list[tuple[int, int, int, int, int, int, str]]) -> None:
     fd, observed = open_directory_chain(path)
     try:
-        if observed != expected:
+        if first_directory_identity_mismatch(expected, observed) is not None:
             raise RuntimeError("destination ancestor identity changed")
     finally:
         os.close(fd)
 
 
-def revalidate_authorized_chain(path: str, expected: list[tuple[int, int, int, int]], authority: str, sandbox_root: str | None) -> None:
+def revalidate_authorized_chain(path: str, expected: list[tuple[int, int, int, int, int, int, str]], authority: str, sandbox_root: str | None) -> None:
     fd, observed = open_authorized_chain(path, authority, sandbox_root)
     try:
-        if observed != expected:
-            raise RuntimeError("destination ancestor identity changed")
+        mismatch = first_directory_identity_mismatch(expected, observed)
+        if mismatch is not None:
+            raise authority_error(
+                "destination ancestor identity changed",
+                code="ANCESTOR_IDENTITY_CHANGED", authority=authority,
+                path_class=destination_class(path, authority),
+                component_index=mismatch, component_count=max(len(expected), len(observed)),
+                expected={"identity": "unchanged", "type": "directory"},
+                observed=observed[mismatch] if mismatch < len(observed) else None,
+                parent=observed[mismatch - 1] if 0 < mismatch <= len(observed) else None,
+            )
     finally:
         os.close(fd)
 

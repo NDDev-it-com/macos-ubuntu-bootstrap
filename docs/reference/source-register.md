@@ -75,6 +75,7 @@ The audited system-Python surfaces are:
 | installed path/contract/pkexec identity | three isolated snippets in `scripts/ubuntu/privileged-helper.sh` |
 | dirfd/no-follow publisher | `scripts/ubuntu/secure-publish.py` via `/usr/bin/python3 -I` |
 | publication authority modes | `config/rldyour-contract.json#privilege.publication_authorities`; root-production remains strict, actor-sandbox is confined beneath an explicit private fd anchor |
+| publication authority diagnostics | `config/rldyour-contract.json#privilege.authority_diagnostics`; bounded deterministic receipts expose only authority role, destination class, component index, expected/observed identity metadata, parent identity, and typed failure code—never destination component names. Directory replacement identity is device+inode+type; uid/gid/mode are rechecked independently as authority policy, while link count/size/timestamps are diagnostic-only operational metadata. |
 | runtime and Herdr verification | two isolated parsers in `scripts/ubuntu/verify.sh` |
 | Chrome source/fingerprint verification | exact-path isolated `scripts/ci/shell_contract.py chrome-runtime` CLI invoked by `scripts/ubuntu/verify.sh` against the installed root-owned contract |
 | server network/CIDR validation | three isolated parsers in `scripts/ubuntu/server.sh` |

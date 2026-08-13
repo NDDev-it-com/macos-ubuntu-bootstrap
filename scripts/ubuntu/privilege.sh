@@ -68,13 +68,21 @@ data = json.load(open(sys.argv[1], encoding="utf-8"))
 p = data["privilege"]
 assert p["schema_version"] == 1
 assert p["system_python_minimum"] == "3.12"
+assert p["authority_diagnostics"] == {
+    "schema": "rldyour.secure-publish-authority/v1",
+    "maximum_bytes": 4096,
+    "path_disclosure": "class-and-component-index-only",
+    "directory_replacement_identity": ["device", "inode", "type"],
+    "directory_policy_revalidation": ["uid", "gid", "mode"],
+    "directory_operational_metadata": ["nlink", "size", "timestamps"],
+}
 assert p["publication_authorities"] == {
     "root-production": {
-        "owner": "root", "ancestor_writable_mask": "0022",
+        "owner": "root", "group": "root", "ancestor_writable_mask": "0022",
         "destination_scope": "canonical-absolute-production",
     },
     "actor-sandbox": {
-        "owner": "effective-actor", "anchor_mode": "0700",
+        "owner": "effective-actor", "group": "effective-actor-primary-group", "anchor_mode": "0700",
         "ancestor_writable_mask": "0022",
         "destination_scope": "strictly-beneath-explicit-fd-anchored-root",
         "production_paths": "forbidden",

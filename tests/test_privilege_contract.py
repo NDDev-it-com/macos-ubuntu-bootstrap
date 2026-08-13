@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -872,6 +873,7 @@ class _RootStat:
         self._value = value
         self.st_uid = 0
         self.st_gid = 0
+        self.st_mode = value.st_mode & ~0o022
 
     def __getattr__(self, name):
         return getattr(self._value, name)
@@ -1015,6 +1017,231 @@ def test_actor_sandbox_rejects_escape_symlink_mixed_authority_and_race(
         )
     monkeypatch.setattr(module, "revalidate_authorized_chain", real)
     assert not (anchor / "payload").exists()
+
+
+def _receipt(error: BaseException) -> dict:
+    marker = "authority-receipt="
+    assert marker in str(error)
+    return json.loads(str(error).split(marker, 1)[1])
+
+
+def test_authority_diagnostic_contract_is_bounded_deterministic_and_redacted(tmp_path: Path) -> None:
+    module = _publisher_module()
+    observed = (11, 12, 501, 20, 0o775, 2, "directory")
+    parent = (1, 2, 0, 0, 0o755, 2, "directory")
+    values = [
+        module.authority_error(
+            "destination ancestor is not root-owned and non-writable",
+            code="ANCESTOR_POLICY_MISMATCH", authority=module.AUTHORITY_ROOT,
+            path_class="privilege-helper-directory", component_index=2,
+            component_count=4,
+            expected={"owner_uid": 0, "type": "directory", "writable_mask_forbidden": "0022"},
+            observed=observed, parent=parent,
+        )
+        for _ in range(2)
+    ]
+    assert str(values[0]) == str(values[1])
+    assert len(str(values[0]).encode()) <= module.MAX_DIAGNOSTIC_BYTES
+    assert str(tmp_path) not in str(values[0])
+    receipt = _receipt(values[0])
+    assert receipt["schema"] == "rldyour.secure-publish-authority/v1"
+    assert receipt["component_index"] == 2
+    assert receipt["path_class"] == "privilege-helper-directory"
+    assert receipt["observed"] == {
+        "device": 11, "gid": 20, "inode": 12, "mode": "0775",
+        "nlink": 2, "type": "directory", "uid": 501,
+    }
+
+
+def test_root_chain_reports_each_failing_ancestor_without_path_disclosure(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    module = _publisher_module()
+    destination = tmp_path / "one" / "two"
+    destination.mkdir(parents=True)
+    components = list(filter(None, str(destination).split("/")))
+    real_fstat = module.os.fstat
+
+    for failed_index in range(len(components) + 1):
+        calls = 0
+        failing_call = 0 if failed_index == 0 else failed_index * 2
+
+        def controlled(fd):
+            nonlocal calls
+            value = _RootStat(real_fstat(fd))
+            current = calls
+            calls += 1
+            if current == failing_call:
+                value.st_uid = 501
+            return value
+
+        monkeypatch.setattr(module.os, "fstat", controlled)
+        with pytest.raises(module.AuthorityError) as caught:
+            module.open_directory_chain(str(destination))
+        receipt = _receipt(caught.value)
+        assert receipt["component_index"] == failed_index
+        assert receipt["code"] in {"ROOT_POLICY_MISMATCH", "ANCESTOR_POLICY_MISMATCH"}
+        assert str(destination) not in str(caught.value)
+
+
+def test_actor_chain_reports_anchor_and_descendant_policy_without_secret_paths(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    module = _publisher_module()
+    anchor = tmp_path / "private-secret-anchor"
+    descendant = anchor / "managed-secret-child"
+    descendant.mkdir(parents=True)
+    anchor.chmod(0o700)
+    descendant.chmod(0o755)
+    real_fstat = module.os.fstat
+    actor = os.geteuid()
+
+    class ActorStat:
+        def __init__(self, value, *, mode=None, uid=None):
+            self._value = value
+            self.st_uid = actor if uid is None else uid
+            self.st_gid = os.getegid()
+            self.st_mode = value.st_mode if mode is None else stat.S_IFDIR | mode
+
+        def __getattr__(self, name):
+            return getattr(self._value, name)
+
+    calls = 0
+    anchor_call = len(list(filter(None, str(anchor).split("/"))))
+
+    def bad_anchor(fd):
+        nonlocal calls
+        value = ActorStat(real_fstat(fd), mode=0o700)
+        if calls == anchor_call:
+            value.st_mode = stat.S_IFDIR | 0o770
+        calls += 1
+        return value
+
+    monkeypatch.setattr(module.os, "fstat", bad_anchor)
+    with pytest.raises(module.AuthorityError) as caught:
+        module.open_actor_sandbox_chain(str(descendant), str(anchor))
+    assert _receipt(caught.value)["code"] == "SANDBOX_ANCHOR_POLICY_MISMATCH"
+    assert "private-secret" not in str(caught.value)
+
+    calls = 0
+
+    def bad_descendant(fd):
+        nonlocal calls
+        value = ActorStat(real_fstat(fd), mode=0o700 if calls <= anchor_call else 0o755)
+        if calls == anchor_call + 2:
+            value.st_uid = actor + 1
+        calls += 1
+        return value
+
+    monkeypatch.setattr(module.os, "fstat", bad_descendant)
+    with pytest.raises(module.AuthorityError) as caught:
+        module.open_actor_sandbox_chain(str(descendant), str(anchor))
+    assert _receipt(caught.value)["code"] == "SANDBOX_ANCESTOR_POLICY_MISMATCH"
+    assert "managed-secret" not in str(caught.value)
+
+
+def test_directory_identity_excludes_operational_metadata_but_detects_replacement() -> None:
+    module = _publisher_module()
+    diagnostics = contract()["privilege"]["authority_diagnostics"]
+    assert diagnostics["directory_replacement_identity"] == ["device", "inode", "type"]
+    assert diagnostics["directory_policy_revalidation"] == ["uid", "gid", "mode"]
+    assert diagnostics["directory_operational_metadata"] == ["nlink", "size", "timestamps"]
+    original = (11, 12, 0, 0, 0o755, 2, "directory")
+    metadata_changed = (11, 12, 0, 0, 0o700, 99, "directory")
+    assert module.first_directory_identity_mismatch([original], [metadata_changed]) is None
+    assert module.first_directory_identity_mismatch(
+        [original], [(11, 13, 0, 0, 0o755, 2, "directory")],
+    ) == 0
+    assert module.first_directory_identity_mismatch(
+        [original], [(11, 12, 0, 0, 0o755, 2, "regular")],
+    ) == 0
+
+
+def test_root_chain_allows_owned_file_and_subdirectory_creation_but_detects_swap(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    module = _publisher_module()
+    _unprivileged_publisher(module, monkeypatch)
+    managed = tmp_path / "managed"
+    managed.mkdir()
+    fd, expected = module.open_directory_chain(str(managed))
+    os.close(fd)
+    (managed / "payload").write_bytes(b"owned")
+    (managed / "child").mkdir()
+    module.revalidate_authorized_chain(str(managed), expected, module.AUTHORITY_ROOT, None)
+
+    displaced = tmp_path / "displaced"
+    managed.rename(displaced)
+    managed.mkdir()
+    with pytest.raises(module.AuthorityError) as caught:
+        module.revalidate_authorized_chain(str(managed), expected, module.AUTHORITY_ROOT, None)
+    assert _receipt(caught.value)["code"] == "ANCESTOR_IDENTITY_CHANGED"
+
+
+def test_actor_chain_distinguishes_policy_change_identity_change_and_symlink(
+    tmp_path: Path,
+) -> None:
+    module = _publisher_module()
+    anchor = tmp_path / "actor-root"
+    managed = anchor / "managed"
+    managed.mkdir(parents=True, mode=0o755)
+    anchor.chmod(0o700)
+    fd, expected = module.open_actor_sandbox_chain(str(managed), str(anchor))
+    os.close(fd)
+
+    (managed / "payload").write_bytes(b"owned")
+    (managed / "child").mkdir()
+    module.revalidate_authorized_chain(
+        str(managed), expected, module.AUTHORITY_SANDBOX, str(anchor),
+    )
+
+    managed.chmod(0o777)
+    with pytest.raises(module.AuthorityError) as policy_error:
+        module.revalidate_authorized_chain(
+            str(managed), expected, module.AUTHORITY_SANDBOX, str(anchor),
+        )
+    assert _receipt(policy_error.value)["code"] == "SANDBOX_ANCESTOR_POLICY_MISMATCH"
+    managed.chmod(0o755)
+
+    displaced = anchor / "displaced"
+    managed.rename(displaced)
+    managed.mkdir(mode=0o755)
+    with pytest.raises(module.AuthorityError) as identity_error:
+        module.revalidate_authorized_chain(
+            str(managed), expected, module.AUTHORITY_SANDBOX, str(anchor),
+        )
+    assert _receipt(identity_error.value)["code"] == "ANCESTOR_IDENTITY_CHANGED"
+
+    managed.rmdir()
+    managed.symlink_to(displaced, target_is_directory=True)
+    with pytest.raises(module.AuthorityError) as symlink_error:
+        module.open_actor_sandbox_chain(str(managed), str(anchor))
+    assert _receipt(symlink_error.value)["code"] == "SANDBOX_ANCESTOR_OPEN_FAILED"
+
+
+def test_regular_file_identity_keeps_type_mode_size_and_digest_invariants(tmp_path: Path) -> None:
+    module = _publisher_module()
+    payload = tmp_path / "payload"
+    payload.write_bytes(b"managed")
+    digest = __import__("hashlib").sha256(b"managed").hexdigest()
+    parent_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        assert module.verify_existing(
+            parent_fd, payload.name, digest, 0o644, os.geteuid(), os.getegid(),
+        )
+        payload.write_bytes(b"changed-size")
+        with pytest.raises(FileExistsError, match="divergent identity or content"):
+            module.verify_existing(
+                parent_fd, payload.name, digest, 0o644, os.geteuid(), os.getegid(),
+            )
+        payload.unlink()
+        payload.mkdir()
+        with pytest.raises(PermissionError, match="regular file"):
+            module.verify_existing(
+                parent_fd, payload.name, digest, 0o644, os.geteuid(), os.getegid(),
+            )
+    finally:
+        os.close(parent_fd)
 
 
 def test_privilege_receipts_remain_private_and_use_fixed_privileged_reader() -> None:

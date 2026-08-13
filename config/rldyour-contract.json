@@ -63,6 +63,20 @@
   },
   "privilege": {
     "schema_version": 1,
+    "publication_authorities": {
+      "root-production": {
+        "owner": "root",
+        "ancestor_writable_mask": "0022",
+        "destination_scope": "canonical-absolute-production"
+      },
+      "actor-sandbox": {
+        "owner": "effective-actor",
+        "anchor_mode": "0700",
+        "ancestor_writable_mask": "0022",
+        "destination_scope": "strictly-beneath-explicit-fd-anchored-root",
+        "production_paths": "forbidden"
+      }
+    },
     "shell_control_flow": {
       "canonical_form": "explicit-if-v1",
       "guards": [

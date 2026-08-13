@@ -74,6 +74,7 @@ The audited system-Python surfaces are:
 | source contract and profile validation | two isolated snippets in `scripts/ubuntu/privilege.sh` |
 | installed path/contract/pkexec identity | three isolated snippets in `scripts/ubuntu/privileged-helper.sh` |
 | dirfd/no-follow publisher | `scripts/ubuntu/secure-publish.py` via `/usr/bin/python3 -I` |
+| publication authority modes | `config/rldyour-contract.json#privilege.publication_authorities`; root-production remains strict, actor-sandbox is confined beneath an explicit private fd anchor |
 | runtime and Herdr verification | two isolated parsers in `scripts/ubuntu/verify.sh` |
 | Chrome source/fingerprint verification | exact-path isolated `scripts/ci/shell_contract.py chrome-runtime` CLI invoked by `scripts/ubuntu/verify.sh` against the installed root-owned contract |
 | server network/CIDR validation | three isolated parsers in `scripts/ubuntu/server.sh` |

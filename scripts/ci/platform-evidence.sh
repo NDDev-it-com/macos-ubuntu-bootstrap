@@ -149,6 +149,16 @@ ensure_native_ubuntu_user() {
     sudo cp -a "$REPO_ROOT" "$NATIVE_REPO_ROOT"
     sudo chmod -R a+rX "$NATIVE_REPO_ROOT"
   fi
+  # GitHub's developer image deliberately makes /usr/local a collaborative
+  # package namespace. A clean Ubuntu target does not. This native lane models
+  # the supported clean-system production authority before exercising the
+  # strict root-owned publisher; it does not weaken publisher policy.
+  sudo install -d -o root -g root -m 0755 \
+    /usr/local/libexec /usr/local/share /usr/share/polkit-1/actions
+  sudo chown root:root /usr/local /usr/local/share /usr/local/libexec \
+    /usr/share/polkit-1 /usr/share/polkit-1/actions
+  sudo chmod 0755 /usr/local /usr/local/share /usr/local/libexec \
+    /usr/share/polkit-1 /usr/share/polkit-1/actions
 }
 
 native_ubuntu_cmd() {

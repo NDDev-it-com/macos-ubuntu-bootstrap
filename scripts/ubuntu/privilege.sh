@@ -68,6 +68,18 @@ data = json.load(open(sys.argv[1], encoding="utf-8"))
 p = data["privilege"]
 assert p["schema_version"] == 1
 assert p["system_python_minimum"] == "3.12"
+assert p["publication_authorities"] == {
+    "root-production": {
+        "owner": "root", "ancestor_writable_mask": "0022",
+        "destination_scope": "canonical-absolute-production",
+    },
+    "actor-sandbox": {
+        "owner": "effective-actor", "anchor_mode": "0700",
+        "ancestor_writable_mask": "0022",
+        "destination_scope": "strictly-beneath-explicit-fd-anchored-root",
+        "production_paths": "forbidden",
+    },
+}
 assert {item["id"] for item in p["system_python_surfaces"]} == {
     "privilege-source-contract", "privilege-profile-allowance",
     "publisher-record", "publisher-file", "publisher-directory",
@@ -129,7 +141,20 @@ rldyour::privilege::file_sha256() {
 
 rldyour::privilege::receipt_value() {
   local file=$1 key=$2
-  /usr/bin/sed -n "s/^${key}=//p" "$file" | /usr/bin/head -n 1
+  rldyour::privilege::read_record "$file" | /usr/bin/sed -n "s/^${key}=//p" | /usr/bin/head -n 1
+}
+
+rldyour::privilege::read_record() {
+  local file=$1
+  case "$file" in
+    "$RLDYOUR_PRIVILEGE_RECEIPT"|"$RLDYOUR_PRIVILEGE_TRANSACTION") ;;
+    *) return 1 ;;
+  esac
+  if [ -r "$file" ]; then
+    /bin/cat -- "$file"
+  else
+    rldyour::privilege::root_exec /bin/cat -- "$file"
+  fi
 }
 
 rldyour::privilege::record_valid() {
@@ -144,7 +169,7 @@ rldyour::privilege::record_valid() {
     printf '%s' "$expected" | /usr/bin/grep -Eq '^[0-9a-f]{64}$' || return 1
     [ "$(rldyour::privilege::receipt_value "$record" "${key}_sha256" | /usr/bin/wc -l)" -eq 1 ] || return 1
   done
-  [ "$(/usr/bin/wc -l <"$record")" -eq 4 ]
+  [ "$(rldyour::privilege::read_record "$record" | /usr/bin/wc -l)" -eq 4 ]
 }
 
 rldyour::privilege::bundle_matches_record() {

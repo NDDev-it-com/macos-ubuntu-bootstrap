@@ -848,7 +848,7 @@ def test_secure_publisher_uses_anchored_no_follow_no_replace_and_fsync() -> None
     assert "os.link(temp, leaf" in text
     assert "os.replace" not in text and "os.rename" not in text
     assert text.count("os.fsync(") >= 3
-    assert "revalidate_chain(parent, chain)" in text
+    assert "revalidate_authorized_chain(parent, chain, authority, sandbox_root)" in text
     assert "destination exists with divergent" in text
 
 
@@ -915,16 +915,16 @@ def test_ancestor_identity_race_stops_before_publish_and_cleans(tmp_path: Path, 
     source.write_bytes(b"managed")
     digest = __import__("hashlib").sha256(source.read_bytes()).hexdigest()
     calls = 0
-    real_revalidate = module.revalidate_chain
+    real_revalidate = module.revalidate_authorized_chain
 
-    def changed(path, expected):
+    def changed(path, expected, authority, sandbox_root):
         nonlocal calls
         calls += 1
         if calls == 1:
             raise RuntimeError("destination ancestor identity changed")
-        return real_revalidate(path, expected)
+        return real_revalidate(path, expected, authority, sandbox_root)
 
-    monkeypatch.setattr(module, "revalidate_chain", changed)
+    monkeypatch.setattr(module, "revalidate_authorized_chain", changed)
     try:
         module.publish(str(source), str(destination), digest, 0o644)
     except RuntimeError as error:
@@ -951,6 +951,86 @@ def test_publish_preserves_primary_error_and_reports_cleanup_error(tmp_path: Pat
     else:
         raise AssertionError("primary publication failure was lost")
     assert "secure-publish cleanup failed: cleanup" in capsys.readouterr().err
+
+
+def test_actor_sandbox_publishes_only_beneath_private_owned_anchor(tmp_path: Path) -> None:
+    module = _publisher_module()
+    anchor = tmp_path / "actor-root"
+    anchor.mkdir(mode=0o700)
+    managed = anchor / "managed"
+    managed.mkdir(mode=0o755)
+    source = tmp_path / "source"
+    source.write_bytes(b"managed")
+    digest = __import__("hashlib").sha256(source.read_bytes()).hexdigest()
+    destination = managed / "payload"
+    module.publish(
+        str(source), str(destination), digest, 0o644,
+        module.AUTHORITY_SANDBOX, str(anchor),
+    )
+    assert destination.read_bytes() == b"managed"
+    assert destination.stat().st_uid == os.geteuid()
+    assert destination.stat().st_gid == os.getegid()
+
+
+@pytest.mark.parametrize("mode", [0o755, 0o770, 0o777])
+def test_actor_sandbox_rejects_nonprivate_anchor(tmp_path: Path, mode: int) -> None:
+    module = _publisher_module()
+    anchor = tmp_path / "actor-root"
+    anchor.mkdir(mode=mode)
+    anchor.chmod(mode)
+    with pytest.raises(PermissionError, match="anchor"):
+        module.open_actor_sandbox_chain(str(anchor), str(anchor))
+
+
+def test_actor_sandbox_rejects_escape_symlink_mixed_authority_and_race(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    module = _publisher_module()
+    anchor = tmp_path / "actor-root"
+    anchor.mkdir(mode=0o700)
+    outside = tmp_path / "outside"
+    outside.mkdir(mode=0o700)
+    with pytest.raises(PermissionError, match="production or escaped"):
+        module.open_actor_sandbox_chain(str(outside), str(anchor))
+    with pytest.raises(PermissionError, match="authority mode"):
+        module.open_authorized_chain(str(anchor), module.AUTHORITY_ROOT, str(anchor))
+    link = anchor / "link"
+    link.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(OSError):
+        module.open_actor_sandbox_chain(str(link), str(anchor))
+
+    source = tmp_path / "source"
+    source.write_bytes(b"managed")
+    digest = __import__("hashlib").sha256(source.read_bytes()).hexdigest()
+    real = module.revalidate_authorized_chain
+    monkeypatch.setattr(
+        module,
+        "revalidate_authorized_chain",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("destination ancestor identity changed")),
+    )
+    with pytest.raises(RuntimeError, match="identity changed"):
+        module.publish(
+            str(source), str(anchor / "payload"), digest, 0o644,
+            module.AUTHORITY_SANDBOX, str(anchor),
+        )
+    monkeypatch.setattr(module, "revalidate_authorized_chain", real)
+    assert not (anchor / "payload").exists()
+
+
+def test_privilege_receipts_remain_private_and_use_fixed_privileged_reader() -> None:
+    text = PRIVILEGE.read_text(encoding="utf-8")
+    read_record = text.split("rldyour::privilege::read_record()", 1)[1].split("\n}", 1)[0]
+    assert '"$RLDYOUR_PRIVILEGE_RECEIPT"|"$RLDYOUR_PRIVILEGE_TRANSACTION"' in read_record
+    assert "rldyour::privilege::root_exec /bin/cat" in read_record
+    assert "*" not in read_record.split("case", 1)[1].split("esac", 1)[0].replace("*)", "")
+    assert "--mode 0600" in text
+
+
+def test_hosted_native_fixture_models_clean_root_destination_authority() -> None:
+    evidence = (ROOT / "scripts/ci/platform-evidence.sh").read_text(encoding="utf-8")
+    assert "sudo chown root:root /usr/local" in evidence
+    assert "sudo chmod 0755 /usr/local" in evidence
+    assert "RLDYOUR_PRIVILEGE_SANDBOX_ROOT" not in evidence
 
 
 def test_trusted_helper_binds_full_chain_and_running_script_descriptor() -> None:

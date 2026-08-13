@@ -47,6 +47,10 @@ jobs:
         sudo apt-get update &&
         sudo apt-get install -y --no-install-recommends zsh &&
         uv venv --python 3.14 &&
-        uv pip install --require-hashes -r requirements-test.txt
-      test_command: .venv/bin/python -m pytest -q
+        uv pip install --require-hashes -r requirements-test.txt &&
+        sha256sum requirements-test.txt | awk '{print $1}' > .venv/.rldyour-requirements-test.sha256
+      test_command: >-
+        RLDYOUR_LOCKED_TEST_PYTHON="$PWD/.venv/bin/python"
+        bash scripts/ci/run-locked-test-audit.sh &&
+        .venv/bin/python -m pytest -q
       timeout_minutes: 15

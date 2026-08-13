@@ -239,7 +239,9 @@ def test_gitleaks_allowlist_stays_narrow() -> None:
     same files. Only the exact public value is exempt."""
     config = (ROOT / ".gitleaks.toml").read_text(encoding="utf-8")
     assert "useDefault = true" in config, "the default rule set must stay in force"
-    assert "EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796" in config
+    contract = json.loads((ROOT / "config/rldyour-contract.json").read_text(encoding="utf-8"))
+    chrome = next(item for item in contract["ubuntu_apt_packages"]["desktop_apps"] if item["name"] == "google-chrome-stable")
+    assert chrome["apt_source"]["key_fingerprint"] in config
     for broad in ("paths =", "files =", "commits =", "stopwords ="):
         assert broad not in config, (
             f"{broad.strip(' =')} allowlisting is too broad; exempt the value"

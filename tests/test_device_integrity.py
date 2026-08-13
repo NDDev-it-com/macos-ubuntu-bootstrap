@@ -300,7 +300,7 @@ def test_telegram_presence_probe_never_executes_the_gui(
 
 
 def _server_state_all_required_tools_present() -> dict[str, object]:
-    """A server-shaped state matching contract 3.0.1 source-tooling policy."""
+    """A server-shaped state matching contract 3.1.0 source-tooling policy."""
     contract = di.load_contract()
     rs = contract["runtime_support"]
     runtime_hosts: dict[str, object] = {}

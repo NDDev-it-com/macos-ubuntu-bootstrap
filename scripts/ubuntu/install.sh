@@ -7,6 +7,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=../lib/common.sh
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/../lib/common.sh"
+# shellcheck source=privilege.sh
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/privilege.sh"
 # shellcheck source=server.sh
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/server.sh"
@@ -83,11 +86,8 @@ APT_SOURCE_PACKAGES=(
   ca-certificates curl gpg gnupg git jq python3 python3-venv
   shellcheck shfmt clangd zsh unzip xz-utils wget zip lsb-release yamllint
   fd-find bat fzf zoxide tmux btop duf hexyl gh ripgrep httpie miller
-  wl-clipboard libsecret-tools
+  software-properties-common wl-clipboard libsecret-tools
 )
-
-APT_DESKTOP_BUILD_PACKAGES=(build-essential)
-
 
 # Registry-backed language servers + source checks, pinned to exact versions
 # for reproducibility (RVR-P2-003). Two package identities are corrected here:
@@ -226,17 +226,7 @@ EOF
 }
 
 rldyour::ubuntu::as_root() {
-  if [ "$EUID" -eq 0 ]; then
-    rldyour::run "$@"
-  elif [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
-    # A plan only renders the future privilege boundary; sudo need not exist.
-    rldyour::run sudo "$@"
-  elif command -v sudo >/dev/null 2>&1; then
-    rldyour::run sudo "$@"
-  else
-    rldyour::log "error" "Ubuntu apply requires root or sudo"
-    return 1
-  fi
+  rldyour::privilege::as_root "$@"
 }
 
 apt_install() {
@@ -284,11 +274,16 @@ validate_target() {
 
 install_apt_baseline() {
   rldyour::section "Install Ubuntu package baseline"
-  rldyour::ubuntu::as_root apt-get update
-  apt_install software-properties-common "${APT_SOURCE_PACKAGES[@]}"
-  if [ "$PROFILE" != "server" ]; then
-    apt_install "${APT_DESKTOP_BUILD_PACKAGES[@]}"
+  if [ "$PROFILE" != server ]; then
+    if [ "$GUI_ENABLED" -eq 1 ]; then
+      rldyour::privilege::operation ubuntu-desktop-gui-system
+    else
+      rldyour::privilege::operation ubuntu-desktop-system
+    fi
+    return
   fi
+  rldyour::ubuntu::as_root apt-get update
+  apt_install "${APT_SOURCE_PACKAGES[@]}"
 }
 
 ensure_node_link() {
@@ -1567,7 +1562,6 @@ install_gui_apps() {
     return 0
   fi
   rldyour::section "Install verified Ubuntu GUI applications"
-  apt_install fonts-jetbrains-mono || rldyour::log "warn" "fonts-jetbrains-mono unavailable"
   # Desktop customization: GNOME dock, Russian layout, Chrome, Firefox removal.
   rldyour::section "Configure Ubuntu desktop (dock, keyboard, browser)"
   local desktop_script
@@ -1644,6 +1638,11 @@ main() {
   rldyour::assert_root "$REPO_ROOT"
   rldyour::ensure_path
   validate_target
+  local privilege_required=0
+  if [ "$SKIP_SYSTEM" -eq 0 ] || { [ "$PROFILE" != server ] && [ "$GUI_ENABLED" -eq 1 ]; }; then
+    privilege_required=1
+  fi
+  rldyour::privilege::preflight "$PROFILE" "$GUI_ENABLED" "$privilege_required"
   rldyour::section "macos-ubuntu-bootstrap (Ubuntu) installer"
   rldyour::log "info" "mode: $([ "$RLDYOUR_DRY_RUN" -eq 1 ] && echo dry-run || echo apply); profile: $PROFILE; gui: $GUI_ENABLED; docker: $DOCKER_MODE; policy: $LOCAL_EXECUTION_POLICY"
 

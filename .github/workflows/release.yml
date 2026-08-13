@@ -101,7 +101,7 @@ jobs:
       - name: Validate release source snapshot
         run: |
           set -euo pipefail
-          bash scripts/ci/validate.sh
+          bash scripts/ci/run-clean-validation.sh
           python3 -m pytest -q
 
       - name: Validate workflow syntax

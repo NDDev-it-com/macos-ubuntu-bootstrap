@@ -13,7 +13,7 @@ typed evidence tiers, and required-versus-optional proof. Device-integrity
 receipts report the state of one installed device; they do not redefine platform
 support or promote container/structural observations to native-host evidence.
 
-## Contract 3.0.1
+## Contract 3.1.0
 
 - macOS supports `desktop`, with optional GUI, no Docker, and source-analysis
   plus local-check tooling.

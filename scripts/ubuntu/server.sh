@@ -10,6 +10,10 @@ if ! declare -F rldyour::run >/dev/null 2>&1; then
   # shellcheck disable=SC1091
   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 fi
+if ! declare -F rldyour::privilege::preflight >/dev/null 2>&1; then
+  # shellcheck disable=SC1091
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/privilege.sh"
+fi
 
 rldyour::ubuntu_server::usage() {
   cat <<'EOF'
@@ -163,22 +167,11 @@ rldyour::ubuntu_server::validate_port() {
 }
 
 rldyour::ubuntu_server::require_apply_privilege() {
-  if [ "$RLDYOUR_DRY_RUN" -eq 1 ] || [ "$EUID" -eq 0 ]; then
-    return 0
-  fi
-  if ! command -v sudo >/dev/null 2>&1; then
-    rldyour::log "error" "apply mode requires root or sudo"
-    return 1
-  fi
-  rldyour::run sudo -v
+  rldyour::privilege::preflight server 0 1
 }
 
 rldyour::ubuntu_server::as_root() {
-  if [ "$EUID" -eq 0 ]; then
-    rldyour::run "$@"
-  else
-    rldyour::run sudo "$@"
-  fi
+  rldyour::privilege::as_root "$@"
 }
 
 # Read-only privileged probes must execute even in plan mode. Avoid routing
@@ -188,10 +181,8 @@ rldyour::ubuntu_server::as_root() {
 rldyour::ubuntu_server::probe_as_root() {
   if [ "$EUID" -eq 0 ]; then
     "$@"
-  elif [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
-    sudo -n "$@"
   else
-    sudo "$@"
+    /usr/bin/sudo -n -- "$@"
   fi
 }
 
@@ -218,7 +209,7 @@ rldyour::ubuntu_server::root_file_equals() {
   elif [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
     return 1
   else
-    sudo cmp -s -- "$source" "$destination"
+    /usr/bin/sudo -n -- /usr/bin/cmp -s -- "$source" "$destination"
   fi
 }
 
@@ -1040,7 +1031,8 @@ rldyour::ubuntu_server::canonicalize_cidr() {
   local allow_cidr=$1
 
   [ -n "$allow_cidr" ] || return 1
-  env -u PYTHONHOME -u PYTHONPATH python3 -I - "$allow_cidr" 2>/dev/null <<'PY'
+  # python-surface: server-cidr
+  /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I - "$allow_cidr" 2>/dev/null <<'PY'
 import ipaddress
 import sys
 
@@ -1064,7 +1056,8 @@ rldyour::ubuntu_server::validate_ufw_operator_source() {
       return 1
     }
     client_address=$1
-    if ! env -u PYTHONHOME -u PYTHONPATH python3 -I - "$client_address" "$allow_cidr" 2>/dev/null <<'PY'
+    # python-surface: server-operator-source
+    if ! /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I - "$client_address" "$allow_cidr" 2>/dev/null <<'PY'
 import ipaddress
 import sys
 
@@ -1370,7 +1363,8 @@ rldyour::ubuntu_server::ssh_match_context() {
     rldyour::log "error" "SSH Match validation needs client address, local address, and local port; pass explicit values outside an SSH session" >&2
     return 1
   fi
-  if ! env -u PYTHONHOME -u PYTHONPATH python3 -I - "$address" "$local_address" 2>/dev/null <<'PY'
+  # python-surface: server-ssh-address
+  if ! /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/python3 -I - "$address" "$local_address" 2>/dev/null <<'PY'
 import ipaddress
 import sys
 

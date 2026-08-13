@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>NDDev</vendor>
+  <vendor_url>https://github.com/NDDev-it-com/macos-ubuntu-bootstrap</vendor_url>
+  <action id="com.nddev.rldyour.bootstrap.desktop">
+    <description>Install the declared rldyour Ubuntu desktop system layer</description>
+    <message>Authentication is required to install the declared Ubuntu desktop system layer</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/rldyour-bootstrap-privileged</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">ubuntu-desktop-gui-system</annotate>
+  </action>
+</policyconfig>

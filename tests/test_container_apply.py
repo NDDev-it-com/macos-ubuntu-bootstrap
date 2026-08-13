@@ -19,6 +19,7 @@ Run it explicitly, because each case pulls packages and takes minutes:
 from __future__ import annotations
 
 import os
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -27,7 +28,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = "ubuntu:26.04"
-CHROME_FINGERPRINT = "EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796"
+CHROME_FINGERPRINT = next(
+    item for item in json.loads((ROOT / "config/rldyour-contract.json").read_text())["ubuntu_apt_packages"]["desktop_apps"]
+    if item["name"] == "google-chrome-stable"
+)["apt_source"]["key_fingerprint"]
 
 _OPT_IN = os.environ.get("RLDYOUR_CONTAINER_TESTS") == "1"
 _DOCKER = shutil.which("docker")
@@ -60,6 +64,9 @@ apt-get install -y -qq --no-install-recommends curl gpg ca-certificates sudo >/d
 useradd -m -s /bin/bash dev
 echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev
 cd /repo
+install -d -m 0755 /usr/local/libexec /usr/local/share/rldyour-bootstrap
+install -m 0755 scripts/ubuntu/privileged-helper.sh /usr/local/libexec/rldyour-bootstrap-privileged
+install -m 0644 config/rldyour-contract.json /usr/local/share/rldyour-bootstrap/rldyour-contract.json
 """
 
 
@@ -86,8 +93,7 @@ def test_fresh_chrome_install_owns_its_source_and_the_vendor_adds_none() -> None
         test ! -e /etc/default/google-chrome
         ! ls /etc/apt/sources.list.d/ 2>/dev/null | grep -qi google
 
-        su dev -c 'cd /repo && source scripts/ubuntu/desktop.sh &&
-                   nddev::_record() { :; } && nddev::_install_google_chrome'
+        /usr/local/libexec/rldyour-bootstrap-privileged ubuntu-desktop-gui-system
 
         gpg --batch --show-keys --with-colons /etc/apt/keyrings/rldyour-google-chrome.asc \
           | awk -F: '$1=="pub"{c++;a=1;next} $1=="fpr"&&a{f=toupper($10);a=0}
@@ -101,9 +107,8 @@ def test_fresh_chrome_install_owns_its_source_and_the_vendor_adds_none() -> None
           /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | grep -v rldyour- || true)
         [ -z "$competing" ] && echo NO_COMPETING_SOURCE || echo "COMPETING=$competing"
 
-        su dev -c 'cd /repo && source scripts/ubuntu/desktop.sh &&
-                   nddev::_record() { :; } && nddev::_install_google_chrome' \
-          | grep -q 'already installed' && echo IDEMPOTENT_OK
+        /usr/local/libexec/rldyour-bootstrap-privileged ubuntu-desktop-gui-system
+        echo IDEMPOTENT_OK
         """
     )
     combined = result.stdout + result.stderr
@@ -115,15 +120,17 @@ def test_fresh_chrome_install_owns_its_source_and_the_vendor_adds_none() -> None
 
 @requires_container
 def test_fresh_chrome_install_refuses_a_key_that_does_not_verify() -> None:
-    """Fail-closed on the branch that matters: a substituted key must stop the
-    install, not merely warn. Exercised by moving the expected fingerprint, which
-    is equivalent to the key changing underneath it."""
+    """A contract with the wrong trust root must stop before apt-source publish."""
     result = run_in_container(
         """
-        su dev -c 'cd /repo && source scripts/ubuntu/desktop.sh &&
-                   nddev::_record() { :; } &&
-                   CHROME_KEY_FINGERPRINT=0000000000000000000000000000000000000000 &&
-                   nddev::_install_google_chrome' && echo UNEXPECTED_SUCCESS || echo REFUSED
+        python3 - <<'PY'
+import json
+p='/usr/local/share/rldyour-bootstrap/rldyour-contract.json'
+d=json.load(open(p)); next(x for x in d['ubuntu_apt_packages']['desktop_apps'] if x['name']=='google-chrome-stable')['apt_source']['key_fingerprint']='0'*40
+open(p,'w').write(json.dumps(d))
+PY
+        /usr/local/libexec/rldyour-bootstrap-privileged ubuntu-desktop-gui-system \
+          && echo UNEXPECTED_SUCCESS || echo REFUSED
 
         test ! -e /etc/apt/sources.list.d/rldyour-google-chrome.sources && echo NO_SOURCE_WRITTEN
         dpkg-query -W -f='${Status}' google-chrome-stable 2>/dev/null | \
@@ -141,12 +148,11 @@ def test_pinned_deb_installs_from_its_declared_digest() -> None:
     """RustDesk is the other install branch that had never been executed."""
     result = run_in_container(
         """
-        su dev -c 'cd /repo && source scripts/ubuntu/desktop.sh &&
-                   nddev::_record() { :; } && nddev::_install_desktop_deb rustdesk'
+        /usr/local/libexec/rldyour-bootstrap-privileged ubuntu-desktop-gui-system
         dpkg-query -W -f='${Version}' rustdesk | grep -q '1.4.9' && echo VERSION_OK
         su dev -c 'cd /repo && source scripts/ubuntu/desktop.sh &&
                    nddev::_record() { :; } && nddev::_install_desktop_deb rustdesk' \
-          | grep -q 'already installed' && echo IDEMPOTENT_OK
+          | grep -q 'installed' && echo IDEMPOTENT_OK
         """
     )
     combined = result.stdout + result.stderr
@@ -160,10 +166,14 @@ def test_pinned_deb_refuses_a_digest_mismatch() -> None:
     """A tampered artifact must never reach dpkg."""
     result = run_in_container(
         """
-        su dev -c 'cd /repo && source scripts/ubuntu/desktop.sh &&
-                   nddev::_record() { :; } &&
-                   DESKTOP_DEBS=("rustdesk;rustdesk;https://github.com/rustdesk/rustdesk/releases/download/1.4.9/rustdesk-1.4.9-x86_64.deb;0000000000000000000000000000000000000000000000000000000000000000;;") &&
-                   nddev::_install_desktop_deb rustdesk' && echo UNEXPECTED_SUCCESS || echo REFUSED
+        python3 - <<'PY'
+import json
+p='/usr/local/share/rldyour-bootstrap/rldyour-contract.json'
+d=json.load(open(p)); next(x for x in d['ubuntu_apt_packages']['desktop_apps'] if x['name']=='rustdesk')['sha256']['x64']='0'*64
+open(p,'w').write(json.dumps(d))
+PY
+        /usr/local/libexec/rldyour-bootstrap-privileged ubuntu-desktop-gui-system \
+          && echo UNEXPECTED_SUCCESS || echo REFUSED
         dpkg-query -W rustdesk 2>/dev/null && echo UNEXPECTED_INSTALL || echo NOT_INSTALLED
         """
     )

@@ -5,9 +5,25 @@ remains available in immutable Git tags.
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-13
+
+- Added an explicit Ubuntu privilege state machine for root, one-time TTY
+  `sudo -v` plus non-interactive cache use, passwordless sudo, and a narrowly
+  allowlisted pre-provisioned PolicyKit desktop helper. Password transport and
+  arbitrary privileged command channels remain forbidden; real GUI prompting
+  is explicitly not proven by hosted evidence.
+- Centralized Chrome signing identity in the machine-readable contract and
+  made the privileged installer and independent verifier consume it fail
+  closed, including single-key and normalized-fingerprint validation.
+- Added no-follow, no-replace, fsync-ordered publication for the root-owned
+  helper bundle, with immutable transaction evidence and race-safe preservation
+  of unmanaged or divergent targets.
 - Added a canonical machine-readable clean-system support/evidence matrix and
   made hosted evidence fail closed when a required capability is unproven or a
   runner/lane architecture is outside the declared proof boundary.
+- Bound unprivileged validation tools to explicit root-owned or declared
+  managed-package trust classes, including exact Homebrew bottle/keg receipts
+  and content-addressed bundle identities; undeclared PATH shadows fail closed.
 
 ### Fixed
 

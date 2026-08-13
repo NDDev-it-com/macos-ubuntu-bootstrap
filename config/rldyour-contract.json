@@ -1,8 +1,183 @@
 {
   "schema_version": 2,
+  "ci_validation": {
+    "managed_package_anchors": [
+      {
+        "command": "shellcheck",
+        "provider": "homebrew",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "package": "shellcheck",
+        "version": "0.11.0",
+        "prefix": "/opt/homebrew",
+        "bottle_sha256": "102f7f385855df8eabf5c9017b8d729a02a5ccca810aa23e3ae700a46226ab70",
+        "executable": "bin/shellcheck",
+        "executable_sha256": "29dca91c54b8bb41ad841bff1c941a9d5dec714242c3ab69ca05594bd69a9020",
+        "version_argument": "--version",
+        "version_pattern": "version: 0.11.0"
+      },
+      {
+        "command": "rg",
+        "provider": "homebrew",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "package": "ripgrep",
+        "version": "15.2.0",
+        "prefix": "/opt/homebrew",
+        "bottle_sha256": "70d2dd4c77e3095797b768a1b6c1d092a1ef6db5ba81b38b422920b7b87c9886",
+        "executable": "bin/rg",
+        "executable_sha256": "a7b47abdfd0f38777d09521f4fd1043d0c499bd1bc4ffd62da4cece661d2ef46",
+        "version_argument": "--version",
+        "version_pattern": "ripgrep 15.2.0"
+      },
+      {
+        "command": "rg",
+        "provider": "codex-bundle",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "package": "@openai/codex",
+        "version": "0.147.0-darwin-arm64",
+        "root": "$HOME/.bun/install/global/node_modules/@openai/codex-darwin-arm64",
+        "receipt": "package.json",
+        "receipt_sha256": "85512c9529c29d6ec526b9d8a23e6855deccafcd14cb7d3eba9267d5afb7c9ae",
+        "executable": "vendor/aarch64-apple-darwin/codex-path/rg",
+        "executable_sha256": "842e37b57c419f66f1914009a88d8a0ad7d12199bfd8dbebc9cce8842634e7af",
+        "version_argument": "--version",
+        "version_pattern": "ripgrep 15.2.0"
+      }
+    ],
+    "required_commands": [
+      {"command": "bash", "source": "os-base"},
+      {"command": "dirname", "source": "os-base"},
+      {"command": "find", "source": "os-base"},
+      {"command": "sort", "source": "os-base"},
+      {"command": "uname", "source": "os-base"},
+      {"command": "python3", "source": "ubuntu_apt_packages.baseline"},
+      {"command": "rg", "source": "ubuntu_apt_packages.baseline:ripgrep"},
+      {"command": "shellcheck", "source": "ubuntu_apt_packages.baseline"}
+    ]
+  },
   "adapter": {
     "id": "macos-ubuntu-bootstrap",
-    "version": "3.0.1"
+    "version": "3.1.0"
+  },
+  "privilege": {
+    "schema_version": 1,
+    "shell_control_flow": {
+      "canonical_form": "explicit-if-v1",
+      "guards": [
+        {"id": "capture-size", "path": "scripts/ubuntu/privileged-helper.sh", "function": "load_contract_values", "predicate": "integer-range", "minimum": 1, "maximum": 4096, "failure_exit": 1, "before": "record-parse"},
+        {"id": "capture-record", "path": "scripts/ubuntu/privileged-helper.sh", "function": "load_contract_values", "predicate": "nonempty-no-cr-key-value", "failure_exit": 1, "before": "record-append"},
+        {"id": "policykit-uid", "path": "scripts/ubuntu/privileged-helper.sh", "function": "policykit_subject_valid", "predicate": "positive-decimal", "failure_exit": 1, "before": "pkexec-parent-validation"},
+        {"id": "policykit-runtime", "path": "scripts/ubuntu/privileged-helper.sh", "function": "policykit_subject_valid", "predicate": "directory-not-symlink", "failure_exit": 1, "before": "runtime-owner-validation"},
+        {"id": "trusted-root-input", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::trusted_root_path", "predicate": "absolute-existing-not-symlink", "failure_exit": 1, "before": "ancestry-walk"},
+        {"id": "trusted-record", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::record_valid", "predicate": "trusted-regular-file", "failure_exit": 1, "before": "receipt-read"},
+        {"id": "trusted-bundle-entry", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::bundle_matches_record", "predicate": "trusted-regular-file", "failure_exit": 1, "before": "hash-compare"},
+        {"id": "published-bundle-entry", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::provision_bundle", "predicate": "regular-not-symlink", "failure_exit": 1, "before": "published-hash-compare"}
+      ]
+    },
+    "authority_graph": {
+      "chrome_trust": {
+        "producer": "config/rldyour-contract.json#ubuntu_apt_packages.desktop_apps[name=google-chrome-stable].apt_source",
+        "installer": "scripts/ubuntu/privileged-helper.sh",
+        "verifier": "scripts/ubuntu/verify.sh",
+        "unprivileged_observer": "scripts/ubuntu/desktop.sh"
+      },
+      "privilege_dispatch": {
+        "authority": "scripts/ubuntu/privilege.sh",
+        "collection_semantics": {
+          "callers": "keyed-identity-set",
+          "direct_tool_owners": "keyed-identity-set",
+          "module_owned_root_execution": "keyed-identity-set"
+        },
+        "callers": {
+          "scripts/ubuntu/install.sh": [
+            "rldyour::privilege::operation",
+            "rldyour::privilege::preflight"
+          ],
+          "scripts/ubuntu/desktop.sh": [
+            "rldyour::privilege::refresh"
+          ],
+          "scripts/ubuntu/server.sh": [
+            "rldyour::privilege::as_root"
+          ]
+        },
+        "direct_tool_owners": {
+          "/usr/bin/pkexec": [
+            "rldyour::privilege::operation",
+            "rldyour::privilege::preflight"
+          ],
+          "/usr/bin/sudo": [
+            "rldyour::privilege::as_root",
+            "rldyour::privilege::operation",
+            "rldyour::privilege::preflight",
+            "rldyour::privilege::refresh",
+            "rldyour::privilege::root_exec"
+          ]
+        },
+        "module_owned_root_execution": {
+          "scripts/ubuntu/server.sh": [
+            "rldyour::ubuntu_server::probe_as_root",
+            "rldyour::ubuntu_server::root_file_equals"
+          ]
+        }
+      }
+    },
+    "system_python_minimum": "3.12",
+    "system_python_surfaces": [
+      {"id": "privilege-source-contract", "path": "scripts/ubuntu/privilege.sh", "kind": "heredoc"},
+      {"id": "privilege-profile-allowance", "path": "scripts/ubuntu/privilege.sh", "kind": "heredoc"},
+      {"id": "publisher-record", "path": "scripts/ubuntu/privilege.sh", "kind": "script"},
+      {"id": "publisher-file", "path": "scripts/ubuntu/privilege.sh", "kind": "script"},
+      {"id": "publisher-directory", "path": "scripts/ubuntu/privilege.sh", "kind": "script"},
+      {"id": "helper-trusted-path", "path": "scripts/ubuntu/privileged-helper.sh", "kind": "heredoc"},
+      {"id": "helper-contract-values", "path": "scripts/ubuntu/privileged-helper.sh", "kind": "heredoc"},
+      {"id": "helper-pkexec-parent", "path": "scripts/ubuntu/privileged-helper.sh", "kind": "heredoc"},
+      {"id": "verifier-runtime-contract", "path": "scripts/ubuntu/verify.sh", "kind": "heredoc"},
+      {"id": "verifier-herdr-contract", "path": "scripts/ubuntu/verify.sh", "kind": "heredoc"},
+      {"id": "verifier-chrome-trust", "path": "scripts/ubuntu/verify.sh", "kind": "script"},
+      {"id": "server-cidr", "path": "scripts/ubuntu/server.sh", "kind": "heredoc"},
+      {"id": "server-operator-source", "path": "scripts/ubuntu/server.sh", "kind": "heredoc"},
+      {"id": "server-ssh-address", "path": "scripts/ubuntu/server.sh", "kind": "heredoc"}
+    ],
+    "runtime": {
+      "helper": "/usr/local/libexec/rldyour-bootstrap-privileged",
+      "contract": "/usr/local/share/rldyour-bootstrap/rldyour-contract.json",
+      "policy": "/usr/share/polkit-1/actions/com.nddev.rldyour.bootstrap.policy"
+    },
+    "operations": [
+      "ubuntu-desktop-system",
+      "ubuntu-desktop-gui-system",
+      "ubuntu-server-system"
+    ],
+    "operation_owners": {
+      "ubuntu-desktop-system": "scripts/ubuntu/privileged-helper.sh",
+      "ubuntu-desktop-gui-system": "scripts/ubuntu/privileged-helper.sh",
+      "ubuntu-server-system": "scripts/ubuntu/server.sh"
+    },
+    "profiles": {
+      "desktop:gui-0": {
+        "operations": ["ubuntu-desktop-system"],
+        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
+      },
+      "desktop:gui-1": {
+        "operations": ["ubuntu-desktop-gui-system"],
+        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty", "policykit"]
+      },
+      "desktop-builds:gui-0": {
+        "operations": ["ubuntu-desktop-system", "ubuntu-server-system"],
+        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
+      },
+      "desktop-builds:gui-1": {
+        "operations": ["ubuntu-desktop-gui-system", "ubuntu-server-system"],
+        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
+      },
+      "server:gui-0": {
+        "operations": ["ubuntu-server-system"],
+        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
+      }
+    },
+    "gui_authorization_evidence": "NOT_PROVEN_REAL_HOST_REQUIRED"
   },
   "verified_on": "2026-08-13",
   "support_evidence": {
@@ -444,6 +619,18 @@
         "version_policy": "tracks-stable-channel",
         "apt_source": {
           "uri": "https://dl.google.com/linux/chrome/deb/",
+          "accepted_source_identities": [
+            {
+              "scheme": "https",
+              "host": "dl.google.com",
+              "path": "/linux/chrome/deb"
+            },
+            {
+              "scheme": "https",
+              "host": "dl.google.com",
+              "path": "/linux/chrome-stable/deb"
+            }
+          ],
           "suites": "stable",
           "components": "main",
           "architectures": "amd64",

@@ -4,6 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+[ "${RLDYOUR_VALIDATION_PATH_READY:-0}" = 1 ] || {
+  echo "validation must run through scripts/ci/run-clean-validation.sh" >&2
+  exit 2
+}
 
 check_cmd() {
   if command -v "$1" >/dev/null 2>&1; then
@@ -80,8 +84,15 @@ require_file "$REPO_ROOT/scripts/bootstrap.sh"
 require_file "$REPO_ROOT/scripts/auth-handoff.sh"
 require_file "$REPO_ROOT/scripts/support_evidence.py"
 require_file "$REPO_ROOT/config/support-evidence-matrix.json"
+require_file "$REPO_ROOT/config/script-inventory.json"
+require_file "$REPO_ROOT/scripts/ci/shell_contract.py"
+require_file "$REPO_ROOT/scripts/ci/audit_test_modules.py"
+require_file "$REPO_ROOT/scripts/ci/run-locked-test-audit.sh"
+require_file "$REPO_ROOT/scripts/ci/run-clean-validation.sh"
+require_file "$REPO_ROOT/scripts/ci/resolve_validation_path.py"
 require_file "$REPO_ROOT/scripts/ci/validate.sh"
 require_file "$REPO_ROOT/scripts/ci/lint.sh"
+require_file "$REPO_ROOT/scripts/ci/script_inventory.py"
 require_file "$REPO_ROOT/scripts/lib/common.sh"
 require_file "$REPO_ROOT/scripts/macos/install.sh"
 require_file "$REPO_ROOT/scripts/macos/verify.sh"
@@ -90,8 +101,8 @@ require_file "$REPO_ROOT/scripts/ubuntu/server.sh"
 require_file "$REPO_ROOT/scripts/ubuntu/verify.sh"
 require_file "$REPO_ROOT/scripts/ubuntu/verify-server.sh"
 
+python3 -I "$REPO_ROOT/scripts/ci/script_inventory.py" validate
 python3 "$REPO_ROOT/scripts/support_evidence.py" validate
-
 bash "$REPO_ROOT/scripts/ci/lint.sh"
 
 COMMON_PLAN=(--plan --skip-system --skip-ai --skip-lsps --skip-checks)

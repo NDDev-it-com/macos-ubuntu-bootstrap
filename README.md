@@ -1,7 +1,7 @@
 # rldyour macOS and Ubuntu bootstrap
 
 Plan-first bootstrap for Apple Silicon macOS, Ubuntu 24.04/26.04 desktops, and
-headless Ubuntu servers. The current contract is `3.0.1`.
+headless Ubuntu servers. The current contract is `3.1.0`.
 
 ## Profiles
 
@@ -35,6 +35,16 @@ The Ubuntu server profile installs and verifies a server baseline, Docker,
 unattended security updates, and time synchronization. UFW, key-only SSH, and
 Fail2ban remain independent explicit opt-ins to prevent accidental lockout.
 
+Ubuntu privilege handling is explicit and fail closed. Root executes the
+sourceable server layer directly; a terminal owner authenticates once with
+`sudo -v`, after which every step uses only `sudo -n`; passwordless or already
+cached sudo also remains non-interactive. A non-TTY Ubuntu desktop GUI may use
+PolicyKit only when the root-owned, receipt-verified helper was provisioned by
+an earlier trusted root/TTY run. That helper exposes one fixed desktop-GUI
+operation and accepts no caller paths, packages, URLs, hashes, environment, or
+arbitrary command. The real GUI authorization prompt is `NOT_PROVEN` on hosted
+runners and requires disposable real-host evidence.
+
 ## Usage
 
 ```bash
@@ -64,9 +74,15 @@ bash scripts/auth-handoff.sh check
 
 ```bash
 bash scripts/ci/lint.sh
-bash scripts/ci/validate.sh
+bash scripts/ci/run-clean-validation.sh
 python3 -m pytest
 ```
+
+`config/script-inventory.json` is the canonical classification of repository
+scripts by platform, trust role, interpreter, dependency class, launcher,
+evidence class, and applicable gate. Its isolated stdlib validator validates
+its own manifest identity before serving gate selections; validation fails
+closed when the source tree or launcher graph drifts.
 
 Real platform behavior must also be verified on the corresponding macOS or
 Ubuntu host; container checks are not evidence for launchd, systemd, GNOME,

@@ -218,8 +218,10 @@ def test_server_contract_contains_rollback_and_context_guards() -> None:
 
     installer = (ROOT / "scripts/ubuntu/install.sh").read_text(encoding="utf-8")
     assert "rldyour::ubuntu::as_root" in installer
-    # sudo exists only inside the root-aware helper; all call sites delegate.
-    assert installer.count("rldyour::run sudo") == 2
+    # Privilege acquisition is owned by the typed state machine; this caller
+    # contains only its narrow compatibility adapter and no direct tool dispatch.
+    assert "rldyour::privilege::as_root" in installer
+    assert "/usr/bin/sudo" not in installer and "/usr/bin/pkexec" not in installer
     assert "sudo apt-get" not in installer
     assert "sudo install" not in installer
 

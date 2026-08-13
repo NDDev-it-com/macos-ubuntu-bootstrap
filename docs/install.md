@@ -39,6 +39,17 @@ not Linux ARM64; Google Chrome has the same architecture boundary. Ubuntu ARM64
 therefore supports `--no-gui` profiles only, and a real ARM64 GUI apply fails
 before changing the host rather than claiming a partial GUI installation.
 
+On Ubuntu, apply selects privilege once before changing the machine. A terminal
+session performs an ordinary `sudo -v` prompt when required, then bootstrap uses
+only cached, non-interactive `sudo -n` checks. Root is supported by the
+sourceable server layer; the full desktop compositor remains a non-root owner
+process. A non-TTY desktop GUI can request PolicyKit authorization only after a
+trusted root/TTY run has installed the narrow receipt-owned helper. A clean
+machine cannot safely elevate a user-writable checkout through pkexec, so an
+absent helper fails before mutation with instructions to run once from a TTY.
+Denied, cancelled, unavailable, or timed-out authorization never falls back to
+another prompt mechanism. No mode accepts a password through bootstrap input.
+
 Server hardening is explicit:
 
 ```bash
@@ -49,5 +60,18 @@ bash scripts/bootstrap.sh --platform ubuntu --profile server --apply \
 Keep the current SSH session open until a second key-authenticated connection
 succeeds. UFW alone does not contain Docker-published ports.
 
-Validate changes with `bash scripts/ci/lint.sh`, `bash scripts/ci/validate.sh`,
+Validate changes with `bash scripts/ci/lint.sh`, `bash scripts/ci/run-clean-validation.sh`,
 and `python3 -m pytest`. Platform verification requires real target machines.
+
+Repository script ownership is declared once in `config/script-inventory.json`.
+Its isolated stdlib meta-validator rejects missing, renamed, duplicate, newly
+unclassified, or cyclic tools, interpreter/dependency/launcher drift, invalid
+platform assignments, and inapplicable evidence gates.
+Diagnostics use stable typed codes and canonical phase precedence: schema and
+cardinality, filesystem path identity, launcher target resolution, launcher
+cycles, then role/dependency/gate invariants. Within a phase the lexically first
+`(code, path, detail)` is authoritative, independent of manifest entry order.
+Shell lint selection is emitted as a versioned JSON receipt containing the
+sorted unique paths, exact cardinality, and SHA-256 of their newline-delimited
+representation. `lint.sh` consumes only a validator-verified receipt, so both
+pinned and current ShellCheck runs share the same subject boundary.

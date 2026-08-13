@@ -25,34 +25,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/../lib/common.sh"
-
-# Desktop applications upstream publishes only as a .deb. One row per
-# application, one generic installer: a second bespoke install path is how an
-# application quietly stops being verified.
-#
-# Row format (semicolon-separated, no spaces inside a field):
-#   name;package;url_x64;sha256_x64;url_arm64;sha256_arm64
-#
-# An empty arm64 pair means upstream publishes no arm64 build; the step reports
-# `skipped` on that architecture rather than failing a device that cannot have
-# the application at all. Every digest below was confirmed by downloading the
-# artifact, not copied from a release note.
-DESKTOP_DEBS=(
-  "rustdesk;rustdesk;https://github.com/rustdesk/rustdesk/releases/download/1.4.9/rustdesk-1.4.9-x86_64.deb;7244ba47c40e804172044bfbe659467c54ce46554c98e78c8c0406f1d612fda3;https://github.com/rustdesk/rustdesk/releases/download/1.4.9/rustdesk-1.4.9-aarch64.deb;ce62c996f14d33f3bbe3a330e953644a44bace7f05885a7953f7395d69fb49c0"
-)
-
-# Google Chrome. Deliberately NOT pinned to a SHA-256: pinning a browser to an
-# old build is a security liability, not a reproducibility gain, so the supply
-# chain is controlled by the signing key instead. This primary fingerprint was
-# confirmed against two independent sources -- the published
-# dl.google.com/linux/linux_signing_key.pub and the key embedded in the
-# package's own /etc/cron.daily/google-chrome.
-CHROME_KEY_URL="https://dl.google.com/linux/linux_signing_key.pub"
-CHROME_KEY_FINGERPRINT="EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796"
-CHROME_REPO_URI="https://dl.google.com/linux/chrome/deb/"
-CHROME_MANAGED_KEYRING="/etc/apt/keyrings/rldyour-google-chrome.asc"
-CHROME_MANAGED_SOURCE="/etc/apt/sources.list.d/rldyour-google-chrome.sources"
-CHROME_DEFAULTS_FILE="/etc/default/google-chrome"
+# shellcheck source=privilege.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/privilege.sh"
 
 # ----------------------------- helpers -----------------------------
 info() { printf '\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -107,10 +82,10 @@ nddev::desktop_configure() {
     return 0
   fi
 
-  # Each step is independent: one failing step does not abort the others.
-  # Steps that need sudo call nddev::_sudo_refresh first.
-  info "Authenticating sudo (will be refreshed as needed)"
-  sudo -v || die "sudo authentication failed — cannot continue"
+  case "$RLDYOUR_PRIVILEGE_MODE" in
+    root|sudo-noninteractive|sudo-tty|policykit) ;;
+    *) die "privilege state was not preflighted by scripts/ubuntu/install.sh" ;;
+  esac
 
   nddev::_step gnome_dock nddev::_gnome_dock_bottom
   nddev::_step russian_layout nddev::_russian_keyboard_layout
@@ -152,10 +127,7 @@ nddev::desktop_configure() {
 
 # Refresh sudo timestamp before a sudo-requiring step. Dies if it cannot.
 nddev::_sudo_refresh() {
-  if ! sudo -n true 2>/dev/null; then
-    info "Refreshing sudo credentials"
-    sudo -v || die "sudo authentication expired and could not be refreshed"
-  fi
+  rldyour::privilege::refresh || die "privilege authorization expired; rerun bootstrap preflight"
 }
 
 # ----------------------------- GNOME dock -----------------------------
@@ -183,10 +155,6 @@ nddev::_russian_keyboard_layout() {
       return 0
     }
 
-  nddev::_sudo_refresh
-  # System locale.
-  sudo sed -i 's/^# *ru_RU\.UTF-8 UTF-8/ru_RU.UTF-8 UTF-8/' /etc/locale.gen
-  sudo locale-gen >/dev/null 2>&1
   if locale -a | command grep -qi 'ru_RU.utf8'; then
     ok "ru_RU.UTF-8 generated"
   else
@@ -194,8 +162,7 @@ nddev::_russian_keyboard_layout() {
     return 1
   fi
 
-  # System X11 keymap: us,ru + Alt+Shift toggle.
-  sudo localectl --no-convert set-x11-keymap us,ru pc105 , grp:alt_shift_toggle
+  # System X11 keymap: us,ru + Alt+Shift toggle is part of desktop-locale.
   ok "X11 keymap set to us,ru with Alt+Shift toggle"
 
   # A GNOME session does not read the system X11 keymap: it reads the per-user
@@ -249,172 +216,35 @@ PY
 
 # ----------------------------- pinned .deb applications -----------------------------
 
-# Install one row from DESKTOP_DEBS. Idempotent: an already-installed package is
-# preserved untouched. The download is SHA-256 verified before dpkg ever sees
-# it, and a failure returns rather than exiting so the remaining steps still run.
+# Verify a package installed by the single privileged desktop transaction.
+# Artifact URLs and hashes live only in the machine-readable root contract.
 nddev::_install_desktop_deb() {
-  local wanted=$1 row name package url_x64 sha_x64 url_arm64 sha_arm64
-  local url sha arch tmp
-
-  for row in "${DESKTOP_DEBS[@]}"; do
-    IFS=';' read -r name package url_x64 sha_x64 url_arm64 sha_arm64 <<<"$row"
-    [ "$name" = "$wanted" ] && break
-    name=""
-  done
-  if [ -z "$name" ]; then
-    warn "no DESKTOP_DEBS row named ${wanted}"
+  local wanted=$1 package
+  case "$wanted" in
+    rustdesk) package=rustdesk ;;
+    *)
+    warn "unknown required desktop package: ${wanted}"
     return 1
-  fi
-
-  arch="$(dpkg --print-architecture 2>/dev/null)"
-  case "$arch" in
-    amd64) url=$url_x64; sha=$sha_x64 ;;
-    arm64) url=$url_arm64; sha=$sha_arm64 ;;
-    *) url=""; sha="" ;;
+    ;;
   esac
-  if [ -z "$url" ] || [ -z "$sha" ]; then
-    warn "${name}: upstream publishes no ${arch:-unknown} build"
-    nddev::_record "$name" skipped
-    return 0
-  fi
 
-  info "Installing ${name} (pinned .deb, SHA-256 verified)"
+  info "Verifying ${wanted} from the completed privileged desktop transaction"
   if dpkg-query -W -f='${Status}' "$package" 2>/dev/null |
     command grep -q "install ok installed"; then
-    ok "${name} already installed"
+    ok "${wanted} installed"
     return 0
   fi
-
-  nddev::_sudo_refresh
-  tmp="$(mktemp --suffix=.deb)" || return 1
-  if ! rldyour::download_verified_file "$url" "$sha" "$tmp"; then
-    rm -f "$tmp"
-    warn "${name} .deb download or SHA-256 verification failed"
-    return 1
-  fi
-  ok "downloaded and verified ($(du -h "$tmp" | cut -f1))"
-
-  sudo dpkg -i "$tmp" 2>/dev/null || sudo apt-get install -f -y 2>/dev/null
-  rm -f "$tmp"
-
-  # `die` here used to exit the whole script from inside a `step || warn`
-  # chain, so a failed install silently skipped every step after it. A step
-  # reports its own failure and returns.
-  if dpkg-query -W -f='${Status}' "$package" 2>/dev/null |
-    command grep -q "install ok installed"; then
-    ok "${name} installed"
-    return 0
-  fi
-  warn "${name} installation failed"
+  warn "${wanted} missing after the privileged desktop transaction"
   return 1
-}
-
-# ----------------------------- Google Chrome -----------------------------
-
-# Return 0 when $1 is a keyring whose single primary key matches the expected
-# Chrome signing fingerprint. Mirrors the Docker key gate in server.sh: exactly
-# one primary key, exact fingerprint, no trust-on-first-use.
-nddev::_chrome_keyring_verifies() {
-  local keyring=$1 primary
-  [ -f "$keyring" ] || return 1
-  primary="$(gpg --batch --show-keys --with-colons "$keyring" 2>/dev/null |
-    awk -F: '
-      $1 == "pub" { primary_count++; awaiting=1; next }
-      $1 == "fpr" && awaiting { fpr = toupper($10); awaiting = 0 }
-      END {
-        if (primary_count != 1 || fpr == "") exit 1
-        print fpr
-      }
-    ')" || return 1
-  [ "$primary" = "$CHROME_KEY_FINGERPRINT" ]
-}
-
-# Find an apt source already pointing at the Chrome repository, whatever wrote
-# it. Prints its path, or nothing.
-nddev::_chrome_existing_source() {
-  local file
-  for file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list \
-    /etc/apt/sources.list.d/*.sources; do
-    [ -f "$file" ] || continue
-    # Google's cron writes `linux/chrome/deb`; a source created through
-    # Ubuntu's repolib tooling uses `linux/chrome-stable/deb`. Either is the
-    # same product and must not be duplicated.
-    if command grep -qF 'dl.google.com/linux/chrome' "$file"; then
-      printf '%s\n' "$file"
-      return 0
-    fi
-  done
-  return 1
-}
-
-# Extract the Signed-By keyring a source file names.
-nddev::_chrome_source_keyring() {
-  local file=$1
-  command sed -n -E 's/^[[:space:]]*Signed-By:[[:space:]]*//p; s/.*\[[^]]*signed-by=([^] ]+).*/\1/p' \
-    "$file" | head -1
 }
 
 nddev::_install_google_chrome() {
   info "Installing Google Chrome (signed apt source, stable channel)"
-  local existing keyring tmp_key tmp_source
 
   if [ "$(dpkg --print-architecture 2>/dev/null)" != "amd64" ]; then
     warn "Google publishes no Linux build for this architecture"
     nddev::_record google_chrome skipped
     return 0
-  fi
-
-  # An existing source for the same repository -- typically written by Chrome's
-  # own installer -- is preserved rather than duplicated. Two sources for one
-  # repository make apt ambiguous, and the vendor's cron re-enables its own file
-  # after a distro upgrade, so competing with it would never converge. What must
-  # hold either way is the key.
-  if existing="$(nddev::_chrome_existing_source)"; then
-    keyring="$(nddev::_chrome_source_keyring "$existing")"
-    if [ -z "$keyring" ]; then
-      warn "existing Chrome apt source names no Signed-By keyring: $existing"
-      return 1
-    fi
-    if ! nddev::_chrome_keyring_verifies "$keyring"; then
-      warn "existing Chrome apt source is signed by an unverified key: $keyring"
-      return 1
-    fi
-    ok "existing Chrome apt source verified against $CHROME_KEY_FINGERPRINT"
-  else
-    nddev::_sudo_refresh
-    tmp_key="$(mktemp)"
-    if ! curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
-      "$CHROME_KEY_URL" --output "$tmp_key"; then
-      rm -f "$tmp_key"
-      warn "could not download the Chrome signing key"
-      return 1
-    fi
-    if ! nddev::_chrome_keyring_verifies "$tmp_key"; then
-      rm -f "$tmp_key"
-      warn "Chrome signing key fingerprint verification failed"
-      return 1
-    fi
-    tmp_source="$(mktemp)"
-    cat >"$tmp_source" <<EOF
-# Managed by macos-ubuntu-bootstrap: desktop-app-google-chrome-v1
-Types: deb
-URIs: ${CHROME_REPO_URI}
-Suites: stable
-Components: main
-Architectures: amd64
-Signed-By: ${CHROME_MANAGED_KEYRING}
-EOF
-    # Stop the package's postinst from adding a second, competing source. This
-    # is the vendor's own documented switch, the same shape as Telegram's
-    # externalupdater.d: work with the supported mechanism, never around it.
-    sudo install -d -m 0755 /etc/apt/keyrings /etc/default
-    printf 'repo_add_once="false"\nrepo_reenable_on_distupgrade="true"\n' |
-      sudo tee "$CHROME_DEFAULTS_FILE" >/dev/null
-    sudo install -m 0644 "$tmp_key" "$CHROME_MANAGED_KEYRING"
-    sudo install -m 0644 "$tmp_source" "$CHROME_MANAGED_SOURCE"
-    rm -f "$tmp_key" "$tmp_source"
-    ok "installed managed Chrome apt source verified against $CHROME_KEY_FINGERPRINT"
-    sudo apt-get update -qq || true
   fi
 
   if dpkg-query -W -f='${Status}' google-chrome-stable 2>/dev/null |
@@ -423,34 +253,19 @@ EOF
     return 0
   fi
 
-  nddev::_sudo_refresh
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    --no-install-recommends google-chrome-stable || {
-    warn "Google Chrome installation failed"
-    return 1
-  }
-  ok "Google Chrome installed"
+  warn "Google Chrome missing after the privileged desktop transaction"
+  return 1
 }
 
 # ----------------------------- Firefox removal -----------------------------
 nddev::_remove_firefox() {
   info "Removing Firefox (snap + apt stub)"
-  nddev::_sudo_refresh
-  # Snap first (Ubuntu's primary firefox is snap).
-  if snap list firefox >/dev/null 2>&1; then
-    sudo snap remove --purge firefox
-    ok "snap firefox removed"
-  else
-    ok "snap firefox not present"
+  if snap list firefox >/dev/null 2>&1 ||
+    dpkg-query -W -f='${Status}' firefox 2>/dev/null | command grep -q 'install ok installed'; then
+    warn "Firefox remains after the privileged desktop transaction"
+    return 1
   fi
-  # Apt transitional stub package.
-  if dpkg -l firefox 2>/dev/null | command grep -q '^ii'; then
-    sudo apt-get purge -y firefox
-    sudo apt-get autoremove -y 2>/dev/null || true
-    ok "apt firefox stub purged"
-  else
-    ok "apt firefox not present"
-  fi
+  ok "Firefox absent"
 }
 
 # Guard so the main flow only runs when executed directly, not when sourced.

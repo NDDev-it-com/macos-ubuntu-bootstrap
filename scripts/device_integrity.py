@@ -646,7 +646,7 @@ def _verify_contract_versions(state: dict[str, Any], *, profile: str = "desktop"
     contract. Here the contract is the single source of truth.
 
     ``profile`` scopes profile-specific user tools. Runtime hosts and pinned
-    source tools are required on every Ubuntu profile by contract 3.0.1.
+    source tools are required on every Ubuntu profile by contract 3.1.0.
     """
     contract = load_contract()
     runtime_support = contract.get("runtime_support", {})

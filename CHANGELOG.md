@@ -32,6 +32,21 @@ remains available in immutable Git tags.
 
 ### Fixed
 
+- The privilege state machine can use sudo on Ubuntu 26.04. `absolute_tool`
+  required a privileged tool to be a real file at a fixed path, but 26.04 ships
+  sudo through the alternatives system — `/usr/bin/sudo` →
+  `/etc/alternatives/sudo` → `/usr/bin/sudo.ws` — because the release carries
+  both the classic implementation and sudo-rs. The strict check refused it, the
+  sudo-noninteractive branch was skipped, and a non-TTY 26.04 host fell through
+  to `NONINTERACTIVE_AUTH_UNAVAILABLE`: sudo was unusable on a release the
+  contract claims to support, and every 26.04 sandbox lane failed on it. The
+  check now follows an alternatives chain, bounded against loops, requiring
+  every hop to be root-owned and every containing directory to be root-owned
+  and closed to others — the property that actually matters, since repointing
+  such a link needs root. Symlink modes are not consulted because Linux does
+  not enforce them. Artifacts this repository publishes keep the strict,
+  symlink-free check, and a test asserts only `/usr/bin/*` tools use the
+  link-following one.
 - Key-only SSH hardening no longer refuses a valid `authorized_keys` on Ubuntu
   26.04. The preflight asked `test -r` through `sudo`, and coreutils 9.5
   answers `-r` via `access(2)` without granting root its usual override, so a

@@ -8,28 +8,39 @@ on:
       - "config/**"
       - "templates/**"
       - "VERSION"
-  # Deliberately NOT `push: [main]`. A release candidate does need evidence, but
-  # adding a default-branch trigger here would give this workflow -- which checks
-  # out a contributor's exact head SHA and runs it -- write access to the
-  # default-branch Actions cache scope. `release.yml` instead proves that the
-  # candidate's tree is identical to a head whose `evidence-gate` is green, which
-  # is a property `main`'s ruleset already guarantees. See verify-candidate.
+  # `pull_request` is the ONLY trigger, deliberately (issue #75).
   #
-  # No `sha` input either. It accepted any commit reachable from this repository,
-  # which includes a fork's PR head under refs/pull/*, and a dispatch runs in the
-  # default-branch context. A dispatch now verifies the ref it was dispatched
-  # against, which the dispatcher could already push to.
-  workflow_dispatch:
+  # These jobs check out a contributor's exact head SHA and execute it -- they
+  # run `scripts/ci/platform-evidence.sh`, which applies the bootstrap with sudo.
+  # Any trigger that can write the default-branch Actions cache scope therefore
+  # turns this workflow into a cache-poisoning path: unreviewed code running
+  # where it can plant an entry a privileged workflow later restores. CodeQL
+  # reported exactly that, and the honest response to an alert about a capability
+  # is to give up the capability.
+  #
+  # A `pull_request` run's cache scope is the pull request's own branch, which is
+  # the isolation CodeQL's guidance asks for.
+  #
+  # Nothing needed the other triggers:
+  #
+  # - `workflow_dispatch` existed to produce evidence for a chosen commit. Its
+  #   `sha` input accepted anything reachable from this repository, including a
+  #   fork's PR head under `refs/pull/*`. Re-running a lane is still possible
+  #   through re-run-jobs on the original pull request's run.
+  # - `push: [main]` was tried, to give release candidates their own evidence,
+  #   and reverted for the same reason. `release.yml` proves instead that the
+  #   candidate's tree is identical to a head whose `evidence-gate` is green,
+  #   which `main`'s strict required-status-checks policy already guarantees.
 
 permissions: {}
 
 concurrency:
-  group: platform-evidence-${{ github.event.pull_request.number || github.sha }}
+  group: platform-evidence-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   macos-native:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -38,7 +49,7 @@ jobs:
     steps:
       - name: Checkout exact public commit without credentials
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           git init .
@@ -47,7 +58,7 @@ jobs:
           git checkout --detach "$EVIDENCE_SHA"
       - name: Native Apple Silicon apply and strict verification
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: bash scripts/ci/platform-evidence.sh "${{ matrix.lane }}" "$RUNNER_TEMP/evidence"
       - name: Upload sanitized evidence
         if: always()
@@ -59,7 +70,7 @@ jobs:
           retention-days: 1
 
   ubuntu-native:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -74,7 +85,7 @@ jobs:
     steps:
       - name: Checkout exact public commit without credentials
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           git init .
@@ -83,7 +94,7 @@ jobs:
           git checkout --detach "$EVIDENCE_SHA"
       - name: Native Ubuntu evidence
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: bash scripts/ci/platform-evidence.sh "${{ matrix.lane }}" "$RUNNER_TEMP/evidence"
       - name: Upload sanitized evidence
         if: always()
@@ -95,7 +106,7 @@ jobs:
           retention-days: 1
 
   ubuntu-systemd-sandbox:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -113,7 +124,7 @@ jobs:
     steps:
       - name: Checkout exact public commit without credentials
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           git init .
@@ -122,7 +133,7 @@ jobs:
           git checkout --detach "$EVIDENCE_SHA"
       - name: Disposable systemd apply and strict verification
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: bash scripts/ci/platform-evidence.sh "${{ matrix.lane }}" "$RUNNER_TEMP/evidence"
       - name: Upload sanitized evidence
         if: always()
@@ -134,12 +145,12 @@ jobs:
           retention-days: 1
 
   ubuntu-safeguards:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact public commit without credentials
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           git init .
@@ -148,7 +159,7 @@ jobs:
           git checkout --detach "$EVIDENCE_SHA"
       - name: Disposable SSH, UFW, and Fail2ban apply evidence
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: bash scripts/ci/platform-evidence.sh sandbox-server-hardening "$RUNNER_TEMP/evidence"
       - name: Upload sanitized evidence
         if: always()
@@ -184,7 +195,7 @@ jobs:
       # a matrix. The steps below open every artifact.
       - name: Checkout exact public commit without credentials
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           git init .
@@ -200,7 +211,7 @@ jobs:
 
       - name: Verify the evidence supports what the matrix declares
         env:
-          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           python3 scripts/ci/verify_evidence_artifacts.py downloaded-evidence --sha "$EVIDENCE_SHA"

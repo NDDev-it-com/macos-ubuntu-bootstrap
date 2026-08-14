@@ -225,19 +225,27 @@ def test_evidence_gate_opens_the_artifacts_it_gates_on() -> None:
     assert "scripts/ci/verify_evidence_artifacts.py" in gate_job
 
 
-def test_evidence_has_no_default_branch_trigger() -> None:
-    """The lanes check out a contributor's head SHA and run it.
+def test_evidence_runs_only_from_pull_request() -> None:
+    """`pull_request` must be the only trigger (#75).
 
-    A default-branch trigger would give that write access to the default-branch
-    Actions cache scope -- the cache-poisoning shape CodeQL reports for this file.
-    The release gate locates evidence by tree identity instead, so the trigger
-    set stays low-trust.
+    These jobs check out a contributor's head SHA and execute it. Any trigger
+    that can write the default-branch Actions cache scope makes that a
+    cache-poisoning path, which is the CodeQL finding this file carried. A
+    `pull_request` run's cache scope is the PR's own branch.
+
+    The release gate does not need another trigger: it proves the candidate's
+    tree is identical to a head whose `evidence-gate` is green.
     """
     triggers = EVIDENCE_WORKFLOW.split("\npermissions:", 1)[0]
-    assert not re.search(r"^  push:", triggers, re.M), (
-        "platform-evidence gained a default-branch trigger; see verify-candidate"
+    declared = re.findall(r"^  ([a-z_]+):", triggers, re.M)
+    assert declared == ["pull_request"], (
+        f"platform-evidence declares triggers beyond pull_request: {declared}"
     )
-    assert "inputs:" not in triggers, "workflow_dispatch regained an attacker-choosable ref"
+    # And no job may re-admit one through its condition.
+    for condition in re.findall(r"^    if: (.+)$", EVIDENCE_WORKFLOW, re.M):
+        assert "workflow_dispatch" not in condition and "'push'" not in condition, (
+            f"a job condition still admits a write-capable trigger: {condition}"
+        )
 
 
 def test_evidence_gate_is_in_the_required_check_projection() -> None:

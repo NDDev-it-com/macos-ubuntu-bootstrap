@@ -5,6 +5,22 @@ remains available in immutable Git tags.
 
 ## [Unreleased]
 
+### Security
+
+- Removed `workflow_dispatch` from `platform-evidence`, leaving `pull_request`
+  as its only trigger. Those jobs check out a contributor's exact head SHA and
+  execute it — they run the bootstrap with `sudo` — so any trigger able to write
+  the default-branch Actions cache scope made this a cache-poisoning path:
+  unreviewed code running where it can plant an entry a privileged workflow
+  later restores. CodeQL reported four such alerts against this file, all of
+  them predating the evidence-gate work. A `pull_request` run's cache scope is
+  the pull request's own branch, which is the isolation the finding asks for.
+  Nothing needed the trigger: re-running a lane still works through re-run-jobs
+  on the original run, and the release gate proves a candidate's tree is
+  identical to a head whose `evidence-gate` is green rather than asking for a
+  fresh run. A test now binds the trigger set and rejects a job condition that
+  re-admits one.
+
 ### Added
 <!-- The privilege state machine below is unreleased work on the #55 line.
      It carried a dated `## [3.1.0] - 2026-08-13` heading while the latest

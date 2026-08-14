@@ -1,7 +1,7 @@
 # rldyour macOS and Ubuntu bootstrap
 
 Plan-first bootstrap for Apple Silicon macOS, Ubuntu 24.04/26.04 desktops, and
-headless Ubuntu servers. The current contract is `3.1.0`.
+headless Ubuntu servers. The current contract is `3.0.1`.
 
 ## Profiles
 

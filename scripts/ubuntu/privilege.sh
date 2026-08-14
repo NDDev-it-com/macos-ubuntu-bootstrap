@@ -416,6 +416,43 @@ rldyour::privilege::as_root() {
   esac
 }
 
+# Wait for one pkexec-authorized operation, bounded by the authentication
+# timeout, and distinguish "never authorized" from "authorized and still
+# running". The helper announces itself on stderr before it mutates anything, so
+# the marker is what separates the two states -- not a guess from elapsed time.
+rldyour::privilege::policykit_wait() {
+  local operation=$1 marker pid waited=0 status
+  marker="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$marker'" RETURN
+
+  # Preserve the helper's stderr for the caller while also recording it, so the
+  # started marker can be observed without swallowing the result lines.
+  { /usr/bin/pkexec --disable-internal-agent \
+      "$RLDYOUR_PRIVILEGE_HELPER" "$operation" 2>&1 1>&3 \
+      | /usr/bin/tee -a "$marker" >&2; } 3>&1 &
+  pid=$!
+
+  while [ "$waited" -lt "$RLDYOUR_PRIVILEGE_AUTH_TIMEOUT" ]; do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  if kill -0 "$pid" 2>/dev/null; then
+    # Still running at the deadline. Which state depends on whether the root
+    # helper ever started, and that is recorded rather than inferred.
+    if grep -Fq 'RLDYOUR_PRIVILEGE_RESULT=STARTED' "$marker"; then
+      return 125
+    fi
+    return 124
+  fi
+
+  wait "$pid"
+  status=$?
+  return "$status"
+}
+
 rldyour::privilege::operation() {
   local operation=$1 status
   rldyour::privilege::source_contract_allows "$RLDYOUR_PRIVILEGE_PROFILE" \
@@ -430,16 +467,32 @@ rldyour::privilege::operation() {
       /usr/bin/sudo -n -- "$RLDYOUR_PRIVILEGE_HELPER" "$operation"
       ;;
     policykit)
-      if /usr/bin/timeout --foreground --signal=TERM --kill-after=10s \
-        "$RLDYOUR_PRIVILEGE_AUTH_TIMEOUT" /usr/bin/pkexec --disable-internal-agent \
-        "$RLDYOUR_PRIVILEGE_HELPER" "$operation"; then
-        rldyour::privilege::result AUTHORIZED
-        return 0
-      else
-        status=$?
-      fi
+      # This wait is an AUTHENTICATION bound and says so. It is not, and cannot
+      # be, an operation bound.
+      #
+      # The previous code used `timeout --foreground`, which promised neither.
+      # GNU coreutils documents that mode as "children of COMMAND will not be
+      # timed out", so apt-get, dpkg and curl were outside it by design. Worse,
+      # the signal it does send goes to pkexec -- a setuid-root process this
+      # unprivileged launcher may not signal at all, so the TERM fails with
+      # EPERM while `timeout` still exits 124 on the deadline. The launcher
+      # reported AUTH_TIMEOUT while a root transaction kept running.
+      #
+      # Only root can bound root, so the descendant guarantee lives in the
+      # helper (see terminate_descendants there), which owns its process group
+      # and escalates TERM -> KILL over it. What is left here is the honest
+      # part: stop waiting, and report which of the two states this is.
+      rldyour::privilege::policykit_wait "$operation"
+      status=$?
       case "$status" in
-        124|137|143) rldyour::privilege::result AUTH_TIMEOUT ;;
+        0) rldyour::privilege::result AUTHORIZED; return 0 ;;
+        # Nothing was authorized, so nothing privileged began. Provable: pkexec
+        # exits before exec'ing the helper when authentication does not complete.
+        124) rldyour::privilege::result AUTH_TIMEOUT ;;
+        # The helper had already started. This process cannot signal it, and the
+        # helper bounds itself; saying "timeout" alone would claim a guarantee
+        # this side does not have.
+        125) rldyour::privilege::result AUTH_TIMEOUT_OPERATION_RESIDUAL ;;
         126) rldyour::privilege::result AUTH_CANCELLED ;;
         127) rldyour::privilege::result AUTH_DENIED_OR_UNAVAILABLE ;;
         *) rldyour::privilege::result OPERATION_FAILED ;;

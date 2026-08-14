@@ -80,7 +80,7 @@
   },
   "adapter": {
     "id": "macos-ubuntu-bootstrap",
-    "version": "3.1.0"
+    "version": "3.0.1"
   },
   "privilege": {
     "schema_version": 1,
@@ -149,7 +149,7 @@
         },
         "direct_tool_owners": {
           "/usr/bin/pkexec": [
-            "rldyour::privilege::operation",
+            "rldyour::privilege::policykit_wait",
             "rldyour::privilege::preflight"
           ],
           "/usr/bin/sudo": [

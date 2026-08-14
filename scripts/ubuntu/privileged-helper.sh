@@ -26,9 +26,143 @@ readonly -a GUI_APT_PACKAGES
 result() { /usr/bin/printf 'RLDYOUR_PRIVILEGE_RESULT=%s operation=%s\n' "$1" "${2:-redacted}" >&2; }
 clean_env() { /usr/bin/env -i PATH="$SAFE_PATH" LANG=C.UTF-8 LC_ALL=C.UTF-8 "$@"; }
 cleanup() { [ -z "$tmp_dir" ] || /bin/rm -rf -- "$tmp_dir"; }
+
+# Descendant ownership lives here rather than in the launcher, because only this
+# process can enforce it. The launcher runs as the unprivileged owner; pkexec
+# gives it a setuid-root child, and an unprivileged process may not signal a root
+# one. `timeout --foreground` therefore bounded nothing: GNU coreutils documents
+# that mode as "children of COMMAND will not be timed out", its TERM to the root
+# pkexec fails with EPERM, and it still exits 124 on the deadline. The launcher
+# reported a timeout while apt-get, dpkg or curl kept running as root.
+#
+# This helper is root and owns its own process group, so the guarantee is
+# real here. Every descendant it starts is in that group; nothing outside it is
+# ever signalled.
+readonly RLDYOUR_TERM_GRACE_SECONDS=10
+
+# True when this process leads its own process group AND that group can be
+# signalled safely. main() re-executes through setsid when it does not.
+#
+# The PID 1 exclusion is not defensive noise. `kill -- -1` does not mean "process
+# group 1": POSIX defines it as every process the caller may signal. A root
+# helper that is PID 1 -- which it is inside a container, and can be inside a
+# minimal namespace -- would therefore signal the entire namespace. The container
+# test for unrelated-process preservation caught exactly that, killing a process
+# in a different session.
+own_process_group() {
+  [ "$$" -ne 1 ] || return 1
+  local pgid
+  read -r pgid < <(/usr/bin/ps -o pgid= -p $$)
+  [ "${pgid// /}" = "$$" ]
+}
+
+# Group members still alive, excluding this process, into RLDYOUR_RESIDUAL.
+#
+# Deliberately a global array rather than a printed value, and deliberately
+# built from /proc with shell built-ins.
+#
+# Every obvious spelling counts itself. `pgrep -g $$ | grep -vx $$` enumerates a
+# group that pgrep and grep are members of. Returning a string instead is no
+# better: `$(residual_process_group)` forks a subshell whose PID differs from
+# `$$` but whose process group does not, so the function sees the very process
+# that called it. Both were observed keeping the residual set permanently
+# non-empty, which turned the grace loop into a full-length wait and then a KILL
+# round against a set that had never contained anything real.
+#
+# Assigning to a global from a function called directly forks nothing at all.
+RLDYOUR_RESIDUAL=()
+scan_residual() {
+  local entry pid stat rest state pgid
+  RLDYOUR_RESIDUAL=()
+  for entry in /proc/[0-9]*; do
+    pid=${entry#/proc/}
+    [ "$pid" = "$$" ] && continue
+    [ -r "$entry/stat" ] || continue
+    read -r stat <"$entry/stat" 2>/dev/null || continue
+    # `comm` is parenthesised and may contain spaces; fields resume after it.
+    rest=${stat##*') '}
+    read -r state _ pgid _ <<<"$rest"
+    [ -n "${state:-}" ] || continue
+    # A zombie is not residual privileged work. It has already exited, holds no
+    # resources and can mutate nothing; it is waiting for a parent to reap it,
+    # and when that parent was a subshell this helper no longer has, the reaper
+    # is the namespace's init rather than this process. Counting them made the
+    # escalation report RESIDUAL_PRIVILEGED_PROCESSES for work that had finished.
+    [ "$state" = Z ] && continue
+    [ "$pgid" = "$$" ] && RLDYOUR_RESIDUAL+=("$pid")
+  done
+}
+
+# Signal every group member except this process. Callers re-scan between rounds,
+# because a descendant forked during the previous round has not been asked to
+# stop yet.
+#
+# The tempting spelling is `kill -- -$$`, one syscall for the whole group. It is
+# wrong twice over. `kill -- -1` is not "group 1" but "every process the caller
+# may signal", which a root helper running as PID 1 in a container would obey.
+# And a group signal reaches the caller too, so the KILL round would kill this
+# helper in the middle of its own cleanup, after its traps are already cleared.
+RLDYOUR_SIGNALLED=()
+signal_descendants() {
+  local signal=$1 pid
+  for pid in ${RLDYOUR_RESIDUAL[@]+"${RLDYOUR_RESIDUAL[@]}"}; do
+    [ "$pid" = "$$" ] && continue
+    RLDYOUR_SIGNALLED+=("$pid")
+    /bin/kill -"$signal" "$pid" 2>/dev/null || true
+  done
+}
+
+# TERM, then KILL what ignored it, then report what survived even that.
+terminate_descendants() {
+  local waited=0
+  own_process_group || return 0
+  scan_residual
+  [ "${#RLDYOUR_RESIDUAL[@]}" -gt 0 ] || return 0
+
+  while [ "$waited" -lt "$RLDYOUR_TERM_GRACE_SECONDS" ]; do
+    scan_residual
+    [ "${#RLDYOUR_RESIDUAL[@]}" -gt 0 ] || break
+    signal_descendants TERM
+    /usr/bin/sleep 1
+    waited=$((waited + 1))
+  done
+
+  # Whatever ignored TERM for the whole grace period will not honour it.
+  waited=0
+  while [ "$waited" -lt 3 ]; do
+    scan_residual
+    [ "${#RLDYOUR_RESIDUAL[@]}" -gt 0 ] || break
+    signal_descendants KILL
+    /usr/bin/sleep 1
+    waited=$((waited + 1))
+  done
+
+  # Reap by PID, never bare `wait`.
+  #
+  # `wait` with no arguments blocks on every background job of this shell, which
+  # includes any job outside this process group -- a process this helper is
+  # explicitly forbidden to disturb, and one it has therefore not signalled. The
+  # container test hung for the full lifetime of exactly such a process. Waiting
+  # on a specific PID returns immediately for a child already dead and errors
+  # immediately for a process that is not a child, so this is bounded either way.
+  local reaped
+  for reaped in ${RLDYOUR_SIGNALLED[@]+"${RLDYOUR_SIGNALLED[@]}"}; do
+    wait "$reaped" 2>/dev/null || true
+  done
+  RLDYOUR_SIGNALLED=()
+
+  scan_residual
+  if [ "${#RLDYOUR_RESIDUAL[@]}" -gt 0 ]; then
+    result RESIDUAL_PRIVILEGED_PROCESSES "${RLDYOUR_RESIDUAL[*]}"
+    return 1
+  fi
+  return 0
+}
+
 on_exit() {
   local status=$?
   trap - EXIT HUP INT TERM
+  terminate_descendants || { [ "$status" -ne 0 ] || status=1; }
   if ! cleanup; then
     result CLEANUP_FAILED cleanup
     [ "$status" -ne 0 ] || status=1
@@ -38,6 +172,9 @@ on_exit() {
 on_signal() {
   local status=$1
   trap - EXIT HUP INT TERM
+  # Bound the privileged work before unwinding: a cancelled or timed-out
+  # authentication must not leave a root apt transaction running.
+  terminate_descendants || true
   cleanup || result CLEANUP_FAILED cleanup
   exit "$status"
 }
@@ -234,6 +371,39 @@ apt_arguments_allowed() {
   done
 }
 
+# Removal is its own operation with its own grammar and its own package list.
+#
+# The alternative -- teaching apt_install to accept `--purge` and `firefox` --
+# would widen the install channel into a remove channel: every package already
+# on the install allowlist would become removable, and the flag position would
+# become a place where a flag can appear at all. An operation that removes
+# software is not a variation of an operation that adds it.
+#
+# `apt-get purge` is also the correct verb. The previous call was
+# `apt-get install -y --no-install-recommends --no-upgrade --purge firefox`,
+# which does not remove Firefox: it installs it. Had the allowlist accepted the
+# arguments, a GUI apply would have installed the browser it is supposed to
+# remove.
+REMOVABLE_APT_PACKAGES=(firefox)
+
+apt_removal_allowed() {
+  local argument allowed match
+  [ "$#" -gt 0 ] || return 1
+  for argument in "$@"; do
+    match=0
+    for allowed in "${REMOVABLE_APT_PACKAGES[@]}"; do
+      if [ "$argument" = "$allowed" ]; then match=1; break; fi
+    done
+    [ "$match" -eq 1 ] || return 1
+  done
+}
+
+apt_remove() {
+  apt_removal_allowed "$@" || { result INTERNAL_ALLOWLIST_REJECTED apt-remove; return 2; }
+  /usr/bin/env -i PATH="$SAFE_PATH" DEBIAN_FRONTEND=noninteractive \
+    /usr/bin/apt-get purge -y "$@"
+}
+
 desktop_baseline() {
   /usr/bin/apt-get update
   apt_install "${DESKTOP_APT_PACKAGES[@]}"
@@ -274,13 +444,21 @@ desktop_gui() {
   install_chrome "$key_url" "$fingerprint" "$repo_uri" "$keyring" "$source"
   if /usr/bin/snap list firefox >/dev/null 2>&1; then /usr/bin/snap remove --purge firefox; fi
   if /usr/bin/dpkg-query -W -f='${Status}' firefox 2>/dev/null | /usr/bin/grep -q 'install ok installed'; then
-    apt_install --purge firefox
+    apt_remove firefox
     /usr/bin/env -i PATH="$SAFE_PATH" DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get autoremove -y
   fi
 }
 
 main() {
   local operation contract_fd
+  # Lead a process group of this helper's own, so terminate_descendants signals
+  # exactly the tree this helper created. Without it the group is pkexec's, or
+  # the caller's, and signalling it would reach processes this helper does not
+  # own. RLDYOUR_PRIVILEGE_SETSID_DONE stops the re-exec from recursing.
+  if [ -z "${RLDYOUR_PRIVILEGE_SETSID_DONE:-}" ] && ! own_process_group; then
+    RLDYOUR_PRIVILEGE_SETSID_DONE=1 exec /usr/bin/setsid --wait "$0" "$@"
+  fi
+  unset RLDYOUR_PRIVILEGE_SETSID_DONE
   trap on_exit EXIT
   trap 'on_signal 129' HUP
   trap 'on_signal 130' INT
@@ -294,6 +472,13 @@ main() {
   fi
   validate_external_request "$@" || return $?
   operation=$1
+  # Announce before the first mutation. The launcher cannot signal this process
+  # and must not guess from elapsed time whether a root operation began: this
+  # marker is what separates AUTH_TIMEOUT (authentication never completed,
+  # nothing ran) from AUTH_TIMEOUT_OPERATION_RESIDUAL (this helper is running
+  # and bounds itself). Emitted after validation and before tmp_dir, so a
+  # rejected request never claims to have started.
+  result STARTED "$operation"
   tmp_dir=$(/usr/bin/mktemp -d /var/tmp/rldyour-privilege.XXXXXX)
   /usr/bin/chmod 0700 "$tmp_dir"
   load_contract_values "$tmp_dir/contract.records" "/proc/$$/fd/$contract_fd" || { result CONTRACT_INVALID "$operation"; return 1; }

@@ -233,6 +233,36 @@ def parse_static_array(source: str, name: str) -> list[str]:
     return values
 
 
+# `<<` followed by an optional `-`, then the delimiter in one of three
+# spellings. The quoted forms are captured separately from the bare one because
+# the difference is the whole point: Bash expands the body of a heredoc whose
+# delimiter is unquoted, and leaves it verbatim when it is quoted.
+_HEREDOC_RE = re.compile(
+    r"""<<(?P<dash>-?)[ \t]*(?:'(?P<single>[^']*)'|"(?P<double>[^"]*)"|(?P<bare>[A-Za-z_][A-Za-z0-9_]*))"""
+)
+
+
+def _heredoc_spec(logical: str) -> tuple[str, bool, bool] | None:
+    """Return (delimiter, strip_tabs, expands) for the first heredoc, or None.
+
+    Read from the raw logical line rather than from `_shell_tokens`, because
+    `shlex(posix=True)` strips quotes: `<<'PY'` and `<<PY` both tokenize to
+    `PY`, so the inventory could not tell a literal body from one Bash expands
+    before Python ever sees it. That is exactly the distinction a privileged
+    surface has to be judged on.
+    """
+    match = _HEREDOC_RE.search(logical)
+    if match is None:
+        return None
+    delimiter = match.group("single")
+    if delimiter is None:
+        delimiter = match.group("double")
+    expands = delimiter is None
+    if delimiter is None:
+        delimiter = match.group("bare")
+    return delimiter, bool(match.group("dash")), expands
+
+
 def _shell_tokens(command: str) -> list[str]:
     lexer = shlex.shlex(command, posix=True, punctuation_chars="();<>|&")
     lexer.whitespace_split = True
@@ -280,19 +310,23 @@ def python_surfaces(path: Path, root: Path) -> list[dict[str, str]]:
         kind = "script"
         body = ""
         if "<<" in tokens:
-            delimiter_index = tokens.index("<<") + 1
-            strip_tabs = False
-            if delimiter_index < len(tokens) and tokens[delimiter_index] == "-":
-                strip_tabs = True
-                delimiter_index += 1
-            if delimiter_index >= len(tokens):
+            spec = _heredoc_spec(logical)
+            if spec is None:
                 raise ShellContractError(f"missing heredoc delimiter in {path}:{start + 1}")
-            delimiter = tokens[delimiter_index]
-            if delimiter.startswith("-"):
-                strip_tabs = True
-                delimiter = delimiter[1:]
+            delimiter, strip_tabs, expands = spec
             if not delimiter:
                 raise ShellContractError(f"empty heredoc delimiter in {path}:{start + 1}")
+            if expands:
+                # Bash expands the body before Python receives it, so `$(...)`,
+                # backticks and `${...}` inside what reads as a Python literal
+                # are shell code running at this surface's privilege. Every
+                # production surface is quoted today; this makes that a rule
+                # rather than a habit.
+                raise ShellContractError(
+                    f"unquoted heredoc delimiter <<{delimiter} on a system-Python surface in "
+                    f"{path}:{start + 1}; quote it as <<'{delimiter}' so Bash does not expand "
+                    "the body"
+                )
             body_lines: list[str] = []
             while index < len(lines):
                 candidate = lines[index].lstrip("\t") if strip_tabs else lines[index]

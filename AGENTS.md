@@ -13,7 +13,7 @@ typed evidence tiers, and required-versus-optional proof. Device-integrity
 receipts report the state of one installed device; they do not redefine platform
 support or promote container/structural observations to native-host evidence.
 
-## Contract 3.1.0
+## Contract 3.0.1
 
 - macOS supports `desktop`, with optional GUI, no Docker, and source-analysis
   plus local-check tooling.
@@ -63,9 +63,15 @@ existing packages or healthy Docker implicitly.
 
 ```bash
 bash scripts/ci/lint.sh
-bash scripts/ci/validate.sh
+bash scripts/ci/run-clean-validation.sh
 python3 -m pytest
 ```
+
+`run-clean-validation.sh` is the only supported entrypoint, and it is what
+`.github/workflows/ci.yml` runs. It resolves the validation path from a clean
+`PATH` before delegating to `scripts/ci/validate.sh`, which refuses to run
+without that resolution and exits 2. Do not invoke `validate.sh` directly: it
+is the inner half, not the command.
 
 Use the strict platform verifiers on real target machines when platform behavior
 changes. Do not claim runtime evidence that was not produced.

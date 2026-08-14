@@ -671,6 +671,8 @@ def test_package_and_tool_arrays_have_one_owner_and_a_consumer() -> None:
         ("scripts/ubuntu/install.sh", "TELEGRAM_DESKTOP_ASSETS"),
         ("scripts/ubuntu/privileged-helper.sh", "DESKTOP_APT_PACKAGES"),
         ("scripts/ubuntu/privileged-helper.sh", "GUI_APT_PACKAGES"),
+        # Removal has its own allowlist rather than widening the install one.
+        ("scripts/ubuntu/privileged-helper.sh", "REMOVABLE_APT_PACKAGES"),
     }
     server = (ROOT / "scripts/ubuntu/server.sh").read_text(encoding="utf-8")
     docker_body = server.split("rldyour::ubuntu_server::install_docker_packages() {", 1)[1].split("\n}", 1)[0]
@@ -810,7 +812,7 @@ def test_structural_heredoc_scanner_handles_control_and_redirection_forms(tmp_pa
         "/usr/bin/python3 -I - <<'FIRST' || exit 7\n"
         "print('first')\nFIRST\n"
         "# python-surface: tabbed-redirection\n"
-        "/usr/bin/python3 -I - 2>/dev/null <<-SECOND && :\n"
+        "/usr/bin/python3 -I - 2>/dev/null <<-'SECOND' && :\n"
         "\tprint('second')\n\tSECOND\n",
         encoding="utf-8",
     )
@@ -819,6 +821,49 @@ def test_structural_heredoc_scanner_handles_control_and_redirection_forms(tmp_pa
         ("quoted-control", "heredoc"), ("tabbed-redirection", "heredoc")
     ]
     assert [item["body"] for item in surfaces] == ["print('first')\n", "print('second')\n"]
+
+
+def test_scanner_records_delimiter_quoting_and_refuses_an_expanding_body(
+    tmp_path: Path,
+) -> None:
+    """`<<'PY'` and `<<PY` are not the same surface.
+
+    The scanner tokenized with `shlex(posix=True)`, which strips quotes, so both
+    spellings produced the token `PY` and the inventory could not tell them
+    apart. Bash expands the body of the unquoted form before Python receives it,
+    so `$(...)`, backticks and `${...}` inside what reads as a Python literal are
+    shell code running at this surface's privilege.
+
+    Every production surface is quoted today, so this is not a live injection --
+    it is the gate being unable to refuse the next one.
+    """
+    for spelling in ("<<PY", "<<-PY"):
+        fixture = tmp_path / f"expanding{spelling.count('-')}.sh"
+        fixture.write_text(
+            "# python-surface: expanding\n"
+            f"/usr/bin/python3 -I - {spelling}\n"
+            "print('x')\nPY\n",
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, "-I", str(SHELL_CONTRACT),
+             "python-surfaces", "--root", str(ROOT), "--path", str(fixture)],
+            text=True, capture_output=True, check=False, timeout=10,
+        )
+        assert result.returncode != 0, result.stdout
+        assert "unquoted heredoc delimiter" in result.stderr, result.stderr
+
+    # Both quoted spellings stay accepted, and the tab-stripping form still works.
+    for spelling in ("<<'PY'", '<<"PY"'):
+        fixture = tmp_path / f"quoted{len(spelling)}.sh"
+        fixture.write_text(
+            "# python-surface: quoted\n"
+            f"/usr/bin/python3 -I - {spelling}\n"
+            "print('x')\nPY\n",
+            encoding="utf-8",
+        )
+        surfaces = _python_surfaces(fixture)
+        assert [item["body"] for item in surfaces] == ["print('x')\n"]
 
 
 def test_all_privileged_python_surfaces_match_manifest_and_python_312() -> None:
@@ -1340,7 +1385,21 @@ def test_policykit_failure_results_are_typed_and_never_fall_back() -> None:
         assert status in operation
     policy_block = operation.split("policykit)", 1)[1].split("plan)", 1)[0]
     assert "/usr/bin/sudo" not in policy_block
-    assert policy_block.count("/usr/bin/pkexec") == 1
+    # pkexec moved into rldyour::privilege::policykit_wait, which is where the
+    # authentication bound now lives; the branch that types the outcome must not
+    # invoke it a second time.
+    assert policy_block.count("/usr/bin/pkexec") == 0
+    assert "rldyour::privilege::policykit_wait" in policy_block
+    wait_block = text.split("rldyour::privilege::policykit_wait() {", 1)[1].split("\n}", 1)[0]
+    assert wait_block.count("/usr/bin/pkexec") == 1
+    # The bound it applies is authentication, and it must no longer be applied
+    # through `timeout --foreground`, which GNU coreutils documents as not timing
+    # out children at all. Comments are stripped first: the replacement explains
+    # what it replaced, and naming the old spelling must stay allowed.
+    executable = "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert "timeout --foreground" not in executable
 
 
 def test_profile_callers_use_only_composed_contract_operations() -> None:

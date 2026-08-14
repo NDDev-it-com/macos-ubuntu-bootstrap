@@ -17,8 +17,8 @@ SKIP_CHECKS="${RLDYOUR_SKIP_CHECKS:-0}"
 GUI_ENABLED="${RLDYOUR_GUI_ENABLED:-1}"
 LOCAL_EXECUTION_POLICY="${RLDYOUR_LOCAL_EXECUTION_POLICY:-source-lsp-only}"
 
-HOMEBREW_PKG_VERSION="6.0.9"
-HOMEBREW_PKG_SHA256="525599bd2dcbda29857120234336b0103ad5283a3dc8511f72066eeb917abd3c"
+HOMEBREW_PKG_VERSION="6.0.17"
+HOMEBREW_PKG_SHA256="70079078573ca0acafbb487c2442f806706a54bf973fe8390da0bd3ac1536d04"
 HOMEBREW_INSTALLER_TEAM="927JGANW46"
 HERDR_VERSION="0.8.0"
 HERDR_MACOS_AARCH64_SHA256="d53a9f93fccfdfcc55632927bf51002f5add0aa7990bcdf508ffbd84ac658178"
@@ -43,6 +43,10 @@ BREW_SOURCE_PACKAGES=(
   ripgrep fd eza bat git-delta jq yq ast-grep
   starship atuin fzf zoxide carapace antidote zsh-completions
   gh lazygit yazi xh jaq jnv duckdb difftastic tmux
+  # The reverse of the Ubuntu gap: these three were apt packages on
+  # Ubuntu and in no macOS manifest, so their zshrc abbreviations were
+  # dead on macOS instead.
+  btop duf hexyl
 )
 
 # Registry-backed language servers, pinned to exact versions for reproducibility
@@ -105,8 +109,14 @@ ensure_homebrew() {
 
 ensure_formula() {
   local formula="$1"
-  if [ "$RLDYOUR_DRY_RUN" -eq 1 ] && ! command -v brew >/dev/null 2>&1; then
-    rldyour::log "info" "[DRY-RUN] brew install ${formula}"
+  # A plan states the formula it will converge on; it does not ask Homebrew.
+  # The guard used to fire only when brew was ABSENT, so on the machine this
+  # installer actually targets -- where brew is always present -- a plan ran
+  # `brew list` once per formula. That is an execution during a dry run, and
+  # Homebrew materializes ~/Library/Caches/Homebrew/bootsnap on the first call,
+  # so the plan wrote to the home directory it was only describing.
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] ensure Homebrew formula: ${formula}"
     return 0
   fi
   if brew list --formula "$formula" >/dev/null 2>&1; then
@@ -123,7 +133,7 @@ install_source_packages() {
     ensure_formula "$formula"
   done
   # `dart-sdk` backs the Dart analysis server and the `dart mcp-server` transport
-  # (ADR 0006). Homebrew cannot pin an exact patch, so unlike Ubuntu there is no
+  # (ADR 0005). Homebrew cannot pin an exact patch, so unlike Ubuntu there is no
   # receipt here — but the telemetry opt-out is identical on both platforms and
   # shares one helper.
   if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
@@ -295,8 +305,9 @@ verify_existing_cask_app() {
 ensure_cask() {
   local cask="$1"
   local app_path=""
-  if [ "$RLDYOUR_DRY_RUN" -eq 1 ] && ! command -v brew >/dev/null 2>&1; then
-    rldyour::log "info" "[DRY-RUN] brew install --cask ${cask}"
+  # Same contract as ensure_formula: no Homebrew invocation during a plan.
+  if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
+    rldyour::log "info" "[DRY-RUN] ensure Homebrew cask: ${cask}"
     return 0
   fi
   if brew list --cask "$cask" >/dev/null 2>&1; then
@@ -350,6 +361,12 @@ install_bun_lsps() {
     version="${entry##*@}"
     # Reproducible: skip only when the EXACT pinned version is already installed;
     # otherwise install the pin so a stale/divergent version is corrected.
+    if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
+      # `bun pm ls -g` creates ~/.bun/install/global before it can answer, so a
+      # plan may not ask. State the pin the apply will converge on.
+      rldyour::log "info" "[DRY-RUN] ensure pinned Bun source tool: ${entry}"
+      continue
+    fi
     if bun pm ls -g 2>/dev/null | grep -Fq "${name}@${version}"; then
       rldyour::log "ok" "pinned Bun source tool present: ${entry}"
     else

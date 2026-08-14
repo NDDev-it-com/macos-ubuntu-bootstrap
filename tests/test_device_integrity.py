@@ -683,3 +683,241 @@ def _run_cli(*args: str) -> int:
         return di.main()
     finally:
         sys.argv = old
+
+
+# --------------------------------------------------------------------------
+# The receipt has a caller, and the ownership check has something to check (#67)
+#
+# device_integrity.py was 846 lines with no runtime caller, and its harness
+# ownership check read a contract key that did not exist -- so it reported
+# no drift because it could observe none. ADR 0007 and AGENTS.md described it
+# as a working mechanism. These tests bind the mechanism to its callers and
+# prove the ownership check can now fail.
+# --------------------------------------------------------------------------
+
+CONTRACT = json.loads((ROOT / "config/rldyour-contract.json").read_text(encoding="utf-8"))
+UBUNTU_INSTALL = (ROOT / "scripts/ubuntu/install.sh").read_text(encoding="utf-8")
+UBUNTU_VERIFY = (ROOT / "scripts/ubuntu/verify.sh").read_text(encoding="utf-8")
+
+
+def _fake_harness(home: Path, prefix_rel: str, command: str) -> Path:
+    target = home / prefix_rel / command
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    target.chmod(0o755)
+    return target
+
+
+def test_every_active_harness_has_a_detection_entry() -> None:
+    """The policy names three harnesses; all three must be observable."""
+    detection = CONTRACT["harnesses"]["detection"]
+    for name in CONTRACT["harnesses"]["active"]:
+        assert name in detection, f"{name} is active but has no detection entry"
+        spec = detection[name]
+        assert spec["enforcement"] in {"owned-prefix", "observe-only"}
+        assert spec["owned_prefix_default"].startswith("${HOME}")
+        assert len(spec.get("rationale", "")) > 30, f"{name} states no rationale"
+
+
+def test_at_least_one_harness_is_actually_enforced() -> None:
+    """An all-observe-only block would be the old no-op with more words."""
+    detection = CONTRACT["harnesses"]["detection"]
+    enforced = [
+        name for name, spec in detection.items()
+        if isinstance(spec, dict) and spec.get("enforcement") == "owned-prefix"
+    ]
+    assert enforced, "no harness is enforced; the ownership check observes nothing"
+
+
+def test_harness_inside_its_owned_prefix_is_not_drift(tmp_path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    codex = _fake_harness(home, ".local/share/rldyour/npm/bin", "codex")
+    bin_dir = home / ".local/bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    (bin_dir / "codex").symlink_to(codex)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+    state = {"harnesses": di._harness_state(home)}
+    assert state["harnesses"]["codex"]["inside_owned_prefix"] == "True"
+    assert di._verify_harness_ownership(state) == []
+
+
+def test_a_second_copy_shadowing_the_owner_is_reported(tmp_path, monkeypatch) -> None:
+    """The exact failure the one-owner-per-harness policy exists to catch."""
+    home = tmp_path / "home"
+    _fake_harness(home, ".local/share/rldyour/npm/bin", "codex")
+    impostor = _fake_harness(home, ".bun/bin", "codex")
+    monkeypatch.setenv("PATH", str(impostor.parent))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+    state = {"harnesses": di._harness_state(home)}
+    drifts = di._verify_harness_ownership(state)
+    assert len(drifts) == 1
+    assert "codex" in drifts[0]
+    assert str(impostor) in drifts[0]
+
+
+def test_observe_only_harnesses_never_produce_drift(tmp_path, monkeypatch) -> None:
+    """The vendor installer owns those targets; recording is not enforcing."""
+    home = tmp_path / "home"
+    claude = _fake_harness(home, "somewhere/else", "claude")
+    grok = _fake_harness(home, "another/place", "grok")
+    monkeypatch.setenv("PATH", f"{claude.parent}:{grok.parent}")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+    state = {"harnesses": di._harness_state(home)}
+    assert state["harnesses"]["claude-code"]["inside_owned_prefix"] == "False"
+    assert state["harnesses"]["grok-build"]["inside_owned_prefix"] == "False"
+    assert di._verify_harness_ownership(state) == []
+
+
+def _contract_drifts(state: dict, platform: str, monkeypatch) -> str:
+    """Return the drift message `_verify_contract_versions` raises, or ""."""
+    monkeypatch.setattr(di, "_current_os", lambda: platform)
+    try:
+        di._verify_contract_versions(state, profile="desktop")
+    except di.IntegrityError as exc:
+        return str(exc)
+    return ""
+
+
+def test_exact_versions_are_only_asserted_where_the_contract_pins_them(monkeypatch) -> None:
+    """macOS resolves runtime hosts through Homebrew, so `ubuntu_*` is not its contract.
+
+    Homebrew resolves current metadata and preserves an already installed
+    formula, so a macOS device legitimately carries a different patch than the
+    `ubuntu_*` fields pin. Asserting those fields there reported drift that was
+    not drift. `user_tools` are unaffected: herdr is an exact pinned artifact on
+    both platforms and stays asserted everywhere.
+    """
+    assert di.EXACT_VERSION_PLATFORMS == ("linux",)
+    state = {
+        "runtime_hosts": {name: {"normalized": "0.0.0"} for name in di.RUNTIME_HOSTS},
+        "pinned_source_tools": {name: "0.0.0" for name in
+                                CONTRACT["runtime_support"]["ubuntu_pinned_source_tools"]},
+        "user_tools": {},
+        "harnesses": {},
+    }
+
+    on_linux = _contract_drifts(state, "linux", monkeypatch)
+    on_macos = _contract_drifts(state, "macos", monkeypatch)
+
+    # Every runtime host and pinned tool is wrong; Linux must name them all.
+    for name in di.RUNTIME_HOSTS:
+        assert f"{name}: installed 0.0.0" in on_linux, f"{name} not asserted on Linux"
+    for name in CONTRACT["runtime_support"]["ubuntu_pinned_source_tools"]:
+        assert f"{name}: installed 0.0.0" in on_linux, f"{name} not asserted on Linux"
+
+    # macOS must not report any of them.
+    for name in di.RUNTIME_HOSTS:
+        assert f"{name}: installed 0.0.0" not in on_macos, f"{name} wrongly asserted on macOS"
+    for name in CONTRACT["runtime_support"]["ubuntu_pinned_source_tools"]:
+        assert f"{name}: installed 0.0.0" not in on_macos, f"{name} wrongly asserted on macOS"
+
+
+def test_apply_writes_a_receipt_and_strict_verify_checks_it() -> None:
+    """No document may describe a mechanism that does not run."""
+    assert "build_device_receipt" in UBUNTU_INSTALL
+    assert "device_integrity.py\" build --profile" in UBUNTU_INSTALL
+    # The receipt records a state something else already proved, so it is built
+    # after strict verification rather than instead of it.
+    verify_apply = UBUNTU_INSTALL.split("verify_apply() {", 1)[1].split("\n}", 1)[0]
+    assert verify_apply.index("verify.sh\" --strict") < verify_apply.index("build_device_receipt")
+    assert "device_integrity.py\" verify --receipt" in UBUNTU_VERIFY
+
+
+def test_no_document_claims_the_harness_collector_observes_nothing() -> None:
+    """#62 added that caveat as an interim mitigation; it is no longer true."""
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "currently observe nothing" not in source
+    assert "carries no ``harnesses.detection``" not in source
+
+
+def test_policy_hashes_accept_a_repository_the_applying_user_does_not_own() -> None:
+    """The hosted native evidence lanes stage the repository as root.
+
+    `platform-evidence.sh` does `sudo cp -a` the checkout to
+    /opt/rldyour-evidence-source and then applies it as an unprivileged
+    `rldyourevidence`. That is a legitimate shape -- a read-only repository
+    staged by an administrator and applied by a user who cannot modify it -- and
+    it is safer than the alternative, yet it made `policy_hashes` fail with
+    `path is not owned by the current UID`. The device receipt could not be
+    built in the very lanes that are supposed to gate it.
+
+    A repository source is pinned into the receipt by its content hash, not by
+    who owns it: the first path checked is `device_integrity.py` itself, so
+    anyone who owns it already controls the check.
+    """
+    import inspect
+
+    source = inspect.getsource(di.policy_hashes)
+    assert "enforce_owner=False" in source
+
+    # And the primitive still enforces ownership by default, for device files.
+    signature = inspect.signature(di.regular_owned)
+    assert signature.parameters["enforce_owner"].default is True
+
+
+def test_regular_owned_still_rejects_a_foreign_owner_for_device_files(tmp_path) -> None:
+    """Ownership remains enforced where it means something."""
+    import inspect
+
+    target = tmp_path / "receipt.json"
+    target.write_text("{}", encoding="utf-8")
+    # Owned by us, so it passes with the check on.
+    di.regular_owned(target, enforce_private_mode=False)
+    # The device-state collectors must not have opted out of it.
+    for name in ("_user_tool_state", "_desktop_entry_state"):
+        source = inspect.getsource(getattr(di, name))
+        assert "enforce_owner=False" not in source, f"{name} opted out of ownership"
+
+
+# Functions whose `regular_owned` targets are repository sources rather than
+# files this installer wrote on the device.
+_REPOSITORY_SOURCE_READERS = {"load_contract", "policy_hashes"}
+
+
+def test_every_repository_source_check_opts_out_of_ownership() -> None:
+    """Catch the class, not the instance.
+
+    Fixing `policy_hashes` alone moved the hosted lane's failure from
+    `scripts/device_integrity.py` to `config/rldyour-contract.json`, because
+    `load_contract` performed the same check independently. This walks the AST
+    and requires every `regular_owned` call inside a repository-source reader to
+    pass `enforce_owner=False` -- and, symmetrically, every call outside one NOT
+    to, since a file this installer wrote is where ownership means something.
+
+    Classification is by enclosing function rather than by argument name: the
+    receipt path in `load_receipt` and the loop variable in `policy_hashes` are
+    both called `path`, so the name says nothing.
+    """
+    import ast
+
+    tree = ast.parse(MODULE_PATH.read_text(encoding="utf-8"))
+    checked = 0
+    for function in ast.walk(tree):
+        if not isinstance(function, ast.FunctionDef):
+            continue
+        reads_repository = function.name in _REPOSITORY_SOURCE_READERS
+        for node in ast.walk(function):
+            if not (isinstance(node, ast.Call)
+                    and getattr(node.func, "id", None) == "regular_owned"):
+                continue
+            checked += 1
+            keywords = {kw.arg: kw.value for kw in node.keywords}
+            value = keywords.get("enforce_owner")
+            opted_out = isinstance(value, ast.Constant) and value.value is False
+            if reads_repository:
+                assert opted_out, (
+                    f"{function.name} (line {node.lineno}) reads a repository source but "
+                    "still enforces current-UID ownership; the hosted lanes stage the "
+                    "repository as root and apply it as an unprivileged user"
+                )
+            else:
+                assert not opted_out, (
+                    f"{function.name} (line {node.lineno}) opted out of ownership for a "
+                    "device file; ownership is a real property there"
+                )
+
+    assert checked >= 3, f"expected at least three call sites, found {checked}"

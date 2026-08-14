@@ -311,3 +311,59 @@ def test_install_compiled_language_hosts_has_no_server_exclusion() -> None:
     start = source.index("install_compiled_language_hosts()")
     body = source[start : start + 300]
     assert '"$PROFILE" = "server"' not in body
+
+
+# ------------- optional-layer failure must not strand required layers -------------
+
+
+def _main_with_failing_user_tools(tmp_path: Path) -> tuple[int, list[str]]:
+    """Run main() with a failing user-tool layer and record which layers ran."""
+    calls = tmp_path / "calls"
+    body = """
+install_user_tools() { printf 'install_user_tools\\n' >>"$CALLS_FILE"; return 1; }
+install_gui_apps()   { printf 'install_gui_apps\\n'   >>"$CALLS_FILE"; }
+run_server_layer()   { printf 'run_server_layer\\n'   >>"$CALLS_FILE"; }
+install_ai_runtimes(){ printf 'install_ai_runtimes\\n' >>"$CALLS_FILE"; }
+verify_apply()       { printf 'verify_apply\\n'       >>"$CALLS_FILE"; }
+main
+"""
+    result = source_install(
+        body,
+        env={
+            "CALLS_FILE": str(calls),
+            "RLDYOUR_DRY_RUN": "1",
+            "RLDYOUR_PROFILE": "server",
+            "RLDYOUR_GUI_ENABLED": "0",
+            "RLDYOUR_DOCKER_MODE": "rootful",
+            "RLDYOUR_LOCAL_EXECUTION_POLICY": "container-execution-only",
+            "RLDYOUR_SKIP_SYSTEM": "1",
+            "RLDYOUR_SKIP_LSPS": "1",
+            "RLDYOUR_SKIP_AI": "0",
+        },
+    )
+    recorded = calls.read_text(encoding="utf-8").splitlines() if calls.exists() else []
+    return result.returncode, recorded
+
+
+def test_failing_user_tool_still_runs_the_server_and_harness_layers(tmp_path: Path) -> None:
+    """Herdr is a user tool on every profile, including server.
+
+    Reporting that failure before install_gui_apps, run_server_layer and
+    install_ai_runtimes left a server without Docker, without the vendor AI
+    CLIs and without verification -- while logging that every repair had been
+    attempted. The failure must stay fatal to the run, not to the layers
+    behind it.
+    """
+    returncode, recorded = _main_with_failing_user_tools(tmp_path)
+    assert "install_user_tools" in recorded
+    assert "run_server_layer" in recorded, "the server layer was stranded by a user-tool failure"
+    assert "install_ai_runtimes" in recorded, "the AI CLI layer was stranded by a user-tool failure"
+    assert "install_gui_apps" in recorded
+    assert recorded.index("install_user_tools") < recorded.index("run_server_layer")
+
+
+def test_failing_user_tool_still_fails_the_run(tmp_path: Path) -> None:
+    """Deferring the report must not turn a real failure into a success."""
+    returncode, recorded = _main_with_failing_user_tools(tmp_path)
+    assert returncode != 0, "a divergent user tool was reported as a successful apply"
+    assert "verify_apply" not in recorded, "verification ran after a failed apply"

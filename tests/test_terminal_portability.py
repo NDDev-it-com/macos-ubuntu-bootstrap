@@ -85,27 +85,32 @@ expected_abbrs=(
 
 
 def test_portable_aliases_are_guarded_in_the_template() -> None:
+    """Every alias is guarded, and the guarded set comes from the contract.
+
+    This test used to carry a literal list of twelve commands. Six of them --
+    dust, dua, procs, doggo, gping and viddy -- were installed by no profile on
+    either platform, so the test asserted the presence of guards that could
+    never fire and made the divergence look intentional. The guarded set is now
+    derived from contract terminal_tools, which is itself bound to both
+    installers by the tests at the end of this file.
+    """
+    import json as _json
+
     template = ZSHRC.read_text(encoding="utf-8")
-    assert "if command -v eza" in template
+    contract = _json.loads(
+        (ROOT / "config/rldyour-contract.json").read_text(encoding="utf-8")
+    )
+
+    # Debian renames these two, so the template needs both spellings.
     assert "if command -v bat" in template
     assert "elif command -v batcat" in template
     assert "if command -v fd" in template
     assert "elif command -v fdfind" in template
-    for command in (
-        "lazygit",
-        "difft",
-        "jaq",
-        "dust",
-        "dua",
-        "duf",
-        "procs",
-        "btop",
-        "doggo",
-        "gping",
-        "hexyl",
-        "viddy",
-    ):
-        assert f"command -v {command}" in template
+
+    for command in contract["terminal_tools"]["shared"]:
+        assert f"command -v {command}" in template, (
+            f"{command} is declared shared but no zshrc guard uses it"
+        )
 
 
 def _plugin_lines() -> list[str]:
@@ -456,3 +461,121 @@ def test_agent_gate_stays_first_in_zshrc() -> None:
     # The early `return` inside the agent branch precedes any plugin sourcing.
     idx_return = template.index("return", template.index("if _is_agent"))
     assert idx_return < idx_plugins
+
+
+# --------------------------------------------------------------------------
+# Per-platform tool parity (#68)
+#
+# The zshrc guards every alias and abbreviation with `command -v`, so a tool
+# only one platform installs degrades silently instead of erroring: the shell
+# offers less than the template describes and nothing reports it. These tests
+# bind the guard set to the contract's declared per-platform tool sets, and
+# bind those sets to what the two installers actually publish.
+# --------------------------------------------------------------------------
+
+import json  # noqa: E402  (module-level imports above predate this block)
+
+CONTRACT = json.loads((ROOT / "config/rldyour-contract.json").read_text(encoding="utf-8"))
+MACOS_INSTALL = ROOT / "scripts/macos/install.sh"
+
+# Homebrew formula name -> the command it publishes, where they differ.
+_BREW_COMMAND = {"difftastic": "difft", "git-delta": "delta", "ripgrep": "rg"}
+# Debian renames two binaries to avoid clashes; the zshrc handles both spellings.
+_APT_COMMAND = {"fd-find": "fdfind", "bat": "batcat", "ripgrep": "rg"}
+
+# Guards that are not tool availability checks.
+_NON_TOOL_GUARDS = {"abbr", "git"}
+
+
+def _bash_array(path: Path, name: str) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    match = re.search(rf"^{name}=\(\n(.*?)^\)", text, re.S | re.M)
+    assert match, f"{name} not found in {path.name}"
+    body = re.sub(r"#.*$", "", match.group(1), flags=re.M)
+    return body.split()
+
+
+def _macos_commands() -> set[str]:
+    formulae = _bash_array(MACOS_INSTALL, "BREW_SOURCE_PACKAGES")
+    return {_BREW_COMMAND.get(f, f) for f in formulae}
+
+
+def _ubuntu_commands() -> set[str]:
+    apt = {_APT_COMMAND.get(p, p) for p in _bash_array(UBUNTU_INSTALL, "APT_SOURCE_PACKAGES")}
+    rows = re.search(r"^PINNED_SOURCE_TOOLS=\(\n(.*?)^\)", UBUNTU_INSTALL.read_text(encoding="utf-8"),
+                     re.S | re.M).group(1)
+    # `links` is the sixth field: the names actually published into ~/.local/bin.
+    published: set[str] = set()
+    for line in rows.splitlines():
+        line = line.strip()
+        if line.startswith('"'):
+            published |= set(line.strip('"').split(";")[5].split(","))
+    # starship / atuin / carapace have their own ensure_* functions rather than rows.
+    return apt | published | {"starship", "atuin", "carapace"}
+
+
+def _zshrc_guards() -> set[str]:
+    guards = set(re.findall(r"command -v ([\w-]+)", ZSHRC.read_text(encoding="utf-8")))
+    return guards - _NON_TOOL_GUARDS
+
+
+def test_every_zshrc_guard_names_a_declared_terminal_tool() -> None:
+    """No alias may be guarded on a command the contract does not publish.
+
+    Six guards used to name dust, dua, procs, doggo, gping and viddy, which no
+    profile installs on either platform: those abbreviations could not exist on
+    any device this repository produces.
+    """
+    declared = set(CONTRACT["terminal_tools"]["shared"])
+    declared |= set(CONTRACT["terminal_tools"]["debian_renamed"].values())
+    undeclared = _zshrc_guards() - declared
+    assert not undeclared, (
+        f"zshrc guards commands absent from contract terminal_tools: {sorted(undeclared)}"
+    )
+
+
+def test_shared_terminal_tools_are_installed_on_both_platforms() -> None:
+    """`shared` must mean shared. A tool on one platform is a silent no-op."""
+    renamed = CONTRACT["terminal_tools"]["debian_renamed"]
+    mac, ubuntu = _macos_commands(), _ubuntu_commands()
+    missing_mac = [t for t in CONTRACT["terminal_tools"]["shared"] if t not in mac]
+    missing_ubuntu = [
+        t for t in CONTRACT["terminal_tools"]["shared"]
+        if t not in ubuntu and renamed.get(t) not in ubuntu
+    ]
+    assert not missing_mac, f"declared shared but no macOS formula publishes: {missing_mac}"
+    assert not missing_ubuntu, f"declared shared but no Ubuntu manifest publishes: {missing_ubuntu}"
+
+
+def test_macos_only_tools_are_absent_from_every_ubuntu_manifest() -> None:
+    """A tool declared macOS-only must not quietly appear on Ubuntu."""
+    ubuntu = _ubuntu_commands()
+    leaked = [t for t in CONTRACT["terminal_tools"]["macos_only"] if t in ubuntu]
+    assert not leaked, f"declared macOS-only but Ubuntu publishes: {leaked}"
+
+
+def test_every_macos_only_tool_states_why() -> None:
+    """The boundary is a decision, so each entry carries its reason."""
+    for tool, reason in CONTRACT["terminal_tools"]["macos_only"].items():
+        assert len(reason) > 30, f"{tool} is declared macOS-only without a reason"
+
+
+def test_pinned_source_tool_rows_match_the_contract() -> None:
+    """Every added row is bound to the contract's version and both digests."""
+    declared = CONTRACT["runtime_support"]["ubuntu_pinned_source_tools"]
+    rows = re.search(r"^PINNED_SOURCE_TOOLS=\(\n(.*?)^\)", UBUNTU_INSTALL.read_text(encoding="utf-8"),
+                     re.S | re.M).group(1)
+    seen = set()
+    for line in rows.splitlines():
+        line = line.strip()
+        if not line.startswith('"'):
+            continue
+        fields = line.strip('"').split(";")
+        name, version, _kind = fields[0], fields[1], fields[2]
+        sha_x64, sha_arm64 = fields[6], fields[7]
+        assert name in declared, f"row {name} is not declared in the contract"
+        assert declared[name]["version"] == version, f"{name} version drift"
+        assert declared[name]["sha256"]["x64"] == sha_x64, f"{name} x64 digest drift"
+        assert declared[name]["sha256"]["arm64"] == sha_arm64, f"{name} arm64 digest drift"
+        seen.add(name)
+    assert seen == set(declared), f"contract and installer disagree on the row set: {seen ^ set(declared)}"

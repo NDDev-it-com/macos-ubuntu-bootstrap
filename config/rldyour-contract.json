@@ -1,230 +1,10 @@
 {
   "schema_version": 2,
-  "ci_validation": {
-    "managed_package_anchors": [
-      {
-        "command": "shellcheck",
-        "provider": "homebrew",
-        "platform": "darwin",
-        "architecture": "arm64",
-        "package": "shellcheck",
-        "version": "0.11.0",
-        "prefix": "/opt/homebrew",
-        "executable": "bin/shellcheck",
-        "provenance_variants": [
-          {
-            "formula_revision": "4a47db2a60995b1e7a5a0024b7406de197647c15",
-            "bottle_tag": "arm64_tahoe",
-            "bottle_rebuild": 0,
-            "bottle_sha256": "a8c12e69512ed369ded8a58cfb81c8d42eea53d8ac51119fe3f83e050e6a6f4d",
-            "executable_sha256": "29dca91c54b8bb41ad841bff1c941a9d5dec714242c3ab69ca05594bd69a9020"
-          },
-          {
-            "formula_revision": "11b85b79adabddf823a733445e86b9ad2e9b0141",
-            "bottle_tag": "arm64_tahoe",
-            "bottle_rebuild": 1,
-            "bottle_sha256": "102f7f385855df8eabf5c9017b8d729a02a5ccca810aa23e3ae700a46226ab70",
-            "executable_sha256": "68b842bed0fa9af12b3c63d0d99b5bbbfe33cb13f911179913020da2041ce1f5"
-          }
-        ],
-        "version_argument": "--version",
-        "version_pattern": "version: 0.11.0"
-      },
-      {
-        "command": "rg",
-        "provider": "homebrew",
-        "platform": "darwin",
-        "architecture": "arm64",
-        "package": "ripgrep",
-        "version": "15.2.0",
-        "prefix": "/opt/homebrew",
-        "executable": "bin/rg",
-        "provenance_variants": [
-          {
-            "formula_revision": "666e305a8f602401e66a29c2198a4139b52629ee",
-            "bottle_tag": "arm64_tahoe",
-            "bottle_rebuild": 0,
-            "bottle_sha256": "70d2dd4c77e3095797b768a1b6c1d092a1ef6db5ba81b38b422920b7b87c9886",
-            "executable_sha256": "a7b47abdfd0f38777d09521f4fd1043d0c499bd1bc4ffd62da4cece661d2ef46"
-          }
-        ],
-        "version_argument": "--version",
-        "version_pattern": "ripgrep 15.2.0"
-      },
-      {
-        "command": "rg",
-        "provider": "codex-bundle",
-        "platform": "darwin",
-        "architecture": "arm64",
-        "package": "@openai/codex",
-        "version": "0.147.0-darwin-arm64",
-        "root": "$HOME/.bun/install/global/node_modules/@openai/codex-darwin-arm64",
-        "receipt": "package.json",
-        "receipt_sha256": "85512c9529c29d6ec526b9d8a23e6855deccafcd14cb7d3eba9267d5afb7c9ae",
-        "executable": "vendor/aarch64-apple-darwin/codex-path/rg",
-        "executable_sha256": "842e37b57c419f66f1914009a88d8a0ad7d12199bfd8dbebc9cce8842634e7af",
-        "version_argument": "--version",
-        "version_pattern": "ripgrep 15.2.0"
-      }
-    ],
-    "required_commands": [
-      {"command": "bash", "source": "os-base"},
-      {"command": "dirname", "source": "os-base"},
-      {"command": "find", "source": "os-base"},
-      {"command": "sort", "source": "os-base"},
-      {"command": "uname", "source": "os-base"},
-      {"command": "python3", "source": "ubuntu_apt_packages.baseline"},
-      {"command": "rg", "source": "ubuntu_apt_packages.baseline:ripgrep"},
-      {"command": "shellcheck", "source": "ubuntu_apt_packages.baseline"}
-    ]
-  },
   "adapter": {
     "id": "macos-ubuntu-bootstrap",
     "version": "3.0.1"
   },
-  "privilege": {
-    "schema_version": 1,
-    "authority_diagnostics": {
-      "schema": "rldyour.secure-publish-authority/v1",
-      "maximum_bytes": 4096,
-      "path_disclosure": "class-and-component-index-only",
-      "directory_replacement_identity": ["device", "inode", "type"],
-      "directory_policy_revalidation": ["uid", "gid", "mode"],
-      "directory_operational_metadata": ["nlink", "size", "timestamps"]
-    },
-    "publication_authorities": {
-      "root-production": {
-        "owner": "root",
-        "group": "root",
-        "ancestor_writable_mask": "0022",
-        "destination_scope": "canonical-absolute-production"
-      },
-      "actor-sandbox": {
-        "owner": "effective-actor",
-        "group": "effective-actor-primary-group",
-        "anchor_mode": "0700",
-        "ancestor_writable_mask": "0022",
-        "destination_scope": "strictly-beneath-explicit-fd-anchored-root",
-        "production_paths": "forbidden"
-      }
-    },
-    "shell_control_flow": {
-      "canonical_form": "explicit-if-v1",
-      "guards": [
-        {"id": "capture-size", "path": "scripts/ubuntu/privileged-helper.sh", "function": "load_contract_values", "predicate": "integer-range", "minimum": 1, "maximum": 4096, "failure_exit": 1, "before": "record-parse"},
-        {"id": "capture-record", "path": "scripts/ubuntu/privileged-helper.sh", "function": "load_contract_values", "predicate": "nonempty-no-cr-key-value", "failure_exit": 1, "before": "record-append"},
-        {"id": "policykit-uid", "path": "scripts/ubuntu/privileged-helper.sh", "function": "policykit_subject_valid", "predicate": "positive-decimal", "failure_exit": 1, "before": "pkexec-parent-validation"},
-        {"id": "policykit-runtime", "path": "scripts/ubuntu/privileged-helper.sh", "function": "policykit_subject_valid", "predicate": "directory-not-symlink", "failure_exit": 1, "before": "runtime-owner-validation"},
-        {"id": "trusted-root-input", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::trusted_root_path", "predicate": "absolute-existing-not-symlink", "failure_exit": 1, "before": "ancestry-walk"},
-        {"id": "trusted-record", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::record_valid", "predicate": "trusted-regular-file", "failure_exit": 1, "before": "receipt-read"},
-        {"id": "trusted-bundle-entry", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::bundle_matches_record", "predicate": "trusted-regular-file", "failure_exit": 1, "before": "hash-compare"},
-        {"id": "published-bundle-entry", "path": "scripts/ubuntu/privilege.sh", "function": "rldyour::privilege::provision_bundle", "predicate": "regular-not-symlink", "failure_exit": 1, "before": "published-hash-compare"}
-      ]
-    },
-    "authority_graph": {
-      "chrome_trust": {
-        "producer": "config/rldyour-contract.json#ubuntu_apt_packages.desktop_apps[name=google-chrome-stable].apt_source",
-        "installer": "scripts/ubuntu/privileged-helper.sh",
-        "verifier": "scripts/ubuntu/verify.sh",
-        "unprivileged_observer": "scripts/ubuntu/desktop.sh"
-      },
-      "privilege_dispatch": {
-        "authority": "scripts/ubuntu/privilege.sh",
-        "collection_semantics": {
-          "callers": "keyed-identity-set",
-          "direct_tool_owners": "keyed-identity-set",
-          "module_owned_root_execution": "keyed-identity-set"
-        },
-        "callers": {
-          "scripts/ubuntu/install.sh": [
-            "rldyour::privilege::operation",
-            "rldyour::privilege::preflight"
-          ],
-          "scripts/ubuntu/desktop.sh": [
-            "rldyour::privilege::refresh"
-          ],
-          "scripts/ubuntu/server.sh": [
-            "rldyour::privilege::as_root"
-          ]
-        },
-        "direct_tool_owners": {
-          "/usr/bin/pkexec": [
-            "rldyour::privilege::policykit_wait",
-            "rldyour::privilege::preflight"
-          ],
-          "/usr/bin/sudo": [
-            "rldyour::privilege::as_root",
-            "rldyour::privilege::operation",
-            "rldyour::privilege::preflight",
-            "rldyour::privilege::refresh",
-            "rldyour::privilege::root_exec"
-          ]
-        },
-        "module_owned_root_execution": {
-          "scripts/ubuntu/server.sh": [
-            "rldyour::ubuntu_server::probe_as_root",
-            "rldyour::ubuntu_server::root_file_equals"
-          ]
-        }
-      }
-    },
-    "system_python_minimum": "3.12",
-    "system_python_surfaces": [
-      {"id": "privilege-source-contract", "path": "scripts/ubuntu/privilege.sh", "kind": "heredoc"},
-      {"id": "privilege-profile-allowance", "path": "scripts/ubuntu/privilege.sh", "kind": "heredoc"},
-      {"id": "publisher-record", "path": "scripts/ubuntu/privilege.sh", "kind": "script"},
-      {"id": "publisher-file", "path": "scripts/ubuntu/privilege.sh", "kind": "script"},
-      {"id": "publisher-directory", "path": "scripts/ubuntu/privilege.sh", "kind": "script"},
-      {"id": "helper-trusted-path", "path": "scripts/ubuntu/privileged-helper.sh", "kind": "heredoc"},
-      {"id": "helper-contract-values", "path": "scripts/ubuntu/privileged-helper.sh", "kind": "heredoc"},
-      {"id": "helper-pkexec-parent", "path": "scripts/ubuntu/privileged-helper.sh", "kind": "heredoc"},
-      {"id": "verifier-runtime-contract", "path": "scripts/ubuntu/verify.sh", "kind": "heredoc"},
-      {"id": "verifier-herdr-contract", "path": "scripts/ubuntu/verify.sh", "kind": "heredoc"},
-      {"id": "verifier-chrome-trust", "path": "scripts/ubuntu/verify.sh", "kind": "script"},
-      {"id": "server-cidr", "path": "scripts/ubuntu/server.sh", "kind": "heredoc"},
-      {"id": "server-operator-source", "path": "scripts/ubuntu/server.sh", "kind": "heredoc"},
-      {"id": "server-ssh-address", "path": "scripts/ubuntu/server.sh", "kind": "heredoc"}
-    ],
-    "runtime": {
-      "helper": "/usr/local/libexec/rldyour-bootstrap-privileged",
-      "contract": "/usr/local/share/rldyour-bootstrap/rldyour-contract.json",
-      "policy": "/usr/share/polkit-1/actions/com.nddev.rldyour.bootstrap.policy"
-    },
-    "operations": [
-      "ubuntu-desktop-system",
-      "ubuntu-desktop-gui-system",
-      "ubuntu-server-system"
-    ],
-    "operation_owners": {
-      "ubuntu-desktop-system": "scripts/ubuntu/privileged-helper.sh",
-      "ubuntu-desktop-gui-system": "scripts/ubuntu/privileged-helper.sh",
-      "ubuntu-server-system": "scripts/ubuntu/server.sh"
-    },
-    "profiles": {
-      "desktop:gui-0": {
-        "operations": ["ubuntu-desktop-system"],
-        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
-      },
-      "desktop:gui-1": {
-        "operations": ["ubuntu-desktop-gui-system"],
-        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty", "policykit"]
-      },
-      "desktop-builds:gui-0": {
-        "operations": ["ubuntu-desktop-system", "ubuntu-server-system"],
-        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
-      },
-      "desktop-builds:gui-1": {
-        "operations": ["ubuntu-desktop-gui-system", "ubuntu-server-system"],
-        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
-      },
-      "server:gui-0": {
-        "operations": ["ubuntu-server-system"],
-        "mechanisms": ["plan", "root", "sudo-noninteractive", "sudo-tty"]
-      }
-    },
-    "gui_authorization_evidence": "NOT_PROVEN_REAL_HOST_REQUIRED"
-  },
-  "verified_on": "2026-08-13",
+  "verified_on": "2026-08-14",
   "support_evidence": {
     "path": "config/support-evidence-matrix.json",
     "schema_version": 1,
@@ -333,18 +113,45 @@
       "launcher": "gk",
       "installer_url": "https://x.ai/cli/install.sh",
       "installer_sha256": "43d0943123edade1383a476a4f778674877acee7c1f98a00f094c4a0f7349321"
+    },
+    "detection": {
+      "_doc": "Where each active harness must resolve on an installed device, so the one-owner-per-harness policy is checkable instead of prose. `enforcement: owned-prefix` means this repository installs the harness and a resolution outside `owned_prefix_default` is drift -- normally a second copy from a package-manager global shadowing the managed one. `enforcement: observe-only` means the vendor's own installer chooses the target: the path is recorded so drift is visible, but this repository does not own it and will not fail on it.",
+      "codex": {
+        "command": "codex",
+        "enforcement": "owned-prefix",
+        "owned_prefix_default": "${HOME}/.local/share/rldyour/npm",
+        "owned_prefix_env": "RLDYOUR_CODEX_NPM_PREFIX",
+        "owner": "rldyour::install_vendor_ai_clis",
+        "rationale": "Installed from the verified npm tarball into a prefix this repository chooses, then linked as ~/.local/bin/codex. A codex resolving anywhere else means another installer won."
+      },
+      "claude-code": {
+        "command": "claude",
+        "enforcement": "observe-only",
+        "owned_prefix_default": "${HOME}/.local/share/claude",
+        "owned_prefix_env": "RLDYOUR_CLAUDE_HOME",
+        "owner": "vendor installer https://claude.ai/install.sh",
+        "rationale": "The reviewed vendor script picks its own target and may change it between releases. Recording where claude resolves is evidence; enforcing a path this repository does not choose would fail on a correct install."
+      },
+      "grok-build": {
+        "command": "grok",
+        "enforcement": "observe-only",
+        "owned_prefix_default": "${HOME}/.grok",
+        "owned_prefix_env": "RLDYOUR_GROK_HOME",
+        "owner": "vendor installer https://x.ai/cli/install.sh",
+        "rationale": "Same boundary as claude-code: the vendor installer owns the target."
+      }
     }
   },
   "runtime_support": {
-    "ubuntu_node_lts": "24.18.0",
+    "ubuntu_node_lts": "24.19.0",
     "ubuntu_node_sha256": {
-      "x64": "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742",
-      "arm64": "58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6"
+      "x64": "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
+      "arm64": "01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc"
     },
-    "ubuntu_uv": "0.11.30",
+    "ubuntu_uv": "0.12.4",
     "ubuntu_uv_sha256": {
-      "x64": "04bc7d180d6138bf6dc08387acf507a823f397a98fea55da36b0ccc7fbce3b68",
-      "arm64": "8c11d90f5f66d232930cf8ae3a085c39877690d409e10878234802b028b20e2a"
+      "x64": "c8c60f47e6f88d18dbf6f33d7279fb1fbf7ae76631768152cf5578c3d65729b4",
+      "arm64": "49d881b3403187e1f1789720881e77e4251ad4259d86c4844862657d2a35d13f"
     },
     "ubuntu_bun": "1.3.14",
     "ubuntu_bun_sha256": {
@@ -352,10 +159,10 @@
       "x64-baseline": "a063908ae08b7852ca10939bbdc6ceed3ddabce8fb9402dce83d65d73b36e6c7",
       "arm64": "a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b"
     },
-    "ubuntu_go": "1.26.5",
+    "ubuntu_go": "1.26.6",
     "ubuntu_go_sha256": {
-      "amd64": "5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053",
-      "arm64": "fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49"
+      "amd64": "708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89",
+      "arm64": "d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e"
     },
     "ubuntu_gopls": "v0.23.0",
     "ubuntu_gopls_provenance": "go-module-checksum-database",
@@ -373,10 +180,10 @@
       "rustfmt-preview",
       "rust-analyzer-preview"
     ],
-    "ubuntu_dart": "3.12.2",
+    "ubuntu_dart": "3.13.0",
     "ubuntu_dart_sha256": {
-      "x64": "28e47b44cf075f36771046c068bb0d174201cf9c7608744aed1cc23204299c2d",
-      "arm64": "f82c83ece7d168047550dfd4a664e4071ac7c488bddb72dc43102c22d7e0b518"
+      "x64": "87902573facd8acacac7ee1fe73fa8d0668e06065016068e2ed6c5c99c6b1ee0",
+      "arm64": "20141a0653327939bb20c4b87b231226beba1128d8a9aedbb30cb5af1a2790d4"
     },
     "ubuntu_dart_provides": [
       "dart",
@@ -394,10 +201,10 @@
         }
       },
       "osv-scanner": {
-        "version": "2.4.0",
+        "version": "2.5.0",
         "sha256": {
-          "x64": "15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0",
-          "arm64": "44e580752910f0ff36ec99aff59af20f65df1e859aa31e5605a8f0d055b496e9"
+          "x64": "edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c",
+          "arm64": "fe152e1a546af223e6c557cc3111a8bb3e5dc02fcbf7dbe95d26567c0f0041f2"
         }
       },
       "actionlint": {
@@ -450,10 +257,38 @@
         }
       },
       "ast-grep": {
-        "version": "0.45.0",
+        "version": "0.45.1",
         "sha256": {
-          "x64": "78931ae35ebac33d9a72b3aecea3e3d62d6e5b0b718ac8bbedfbe69d68421e41",
-          "arm64": "62b60892dafacfa76d6de87157659f880bbf85ff38bdab52db12f1f14ec60f94"
+          "x64": "76fb6555be6734fb5057dba8d2fb756430f374bb9e1af694cf1ce00e13238d63",
+          "arm64": "9ee7ec49aada3dc05135d21977af089a33fc3154ada25bab102daca90b5098f2"
+        }
+      },
+      "eza": {
+        "version": "0.23.5",
+        "sha256": {
+          "x64": "35c70c5c43c29108075e58b893234c67ef585f0b53a7eaf8e9e7d4eec9f339b4",
+          "arm64": "40b87ae8628aa2ff0f0d2dc24ab52f689631366385c3da630bae745671fd71ec"
+        }
+      },
+      "lazygit": {
+        "version": "0.64.1",
+        "sha256": {
+          "x64": "f8ea237c41f194cd799b48505518bfdaae4edf5a2ad6bd3d898e939785ee4532",
+          "arm64": "8b7ca3b344e60340ad1f89f29b9868ee39bcaba5bb92ee818bbe65476bb8b6e7"
+        }
+      },
+      "difft": {
+        "version": "0.70.0",
+        "sha256": {
+          "x64": "2997d2bbe620534edbd79b0049f00ce84eef3fedb15c7822456d58e38d8b05c9",
+          "arm64": "e729684907d67d1a1727a08f443877e19e40eeb2efebcd95c1b8f7fee4284e8e"
+        }
+      },
+      "jaq": {
+        "version": "3.1.1",
+        "sha256": {
+          "x64": "5922c7b67d9bd6841d6676d1f954410c6bf04b47203dcb661c4f052dfef7f454",
+          "arm64": "bdda42d5a8c060a2c7916b287a227e7750d5fccbd4c37aacf0ab863010921829"
         }
       }
     }
@@ -475,8 +310,8 @@
     ]
   },
   "supply_chain": {
-    "homebrew_pkg_version": "6.0.9",
-    "homebrew_pkg_sha256": "525599bd2dcbda29857120234336b0103ad5283a3dc8511f72066eeb917abd3c",
+    "homebrew_pkg_version": "6.0.17",
+    "homebrew_pkg_sha256": "70079078573ca0acafbb487c2442f806706a54bf973fe8390da0bd3ac1536d04",
     "homebrew_installer_team": "927JGANW46"
   },
   "user_tools": {
@@ -570,7 +405,8 @@
       "categories": "Development",
       "wm_class": "Ptyxis",
       "profiles": [
-        "desktop"
+        "desktop",
+        "desktop-builds"
       ],
       "os": [
         "ubuntu"
@@ -611,7 +447,8 @@
       },
       "dbus_activatable": false,
       "profiles": [
-        "desktop"
+        "desktop",
+        "desktop-builds"
       ],
       "os": [
         "ubuntu"
@@ -657,6 +494,9 @@
     ],
     "desktop_build": [
       "build-essential"
+    ],
+    "desktop_gui_fonts": [
+      "fonts-jetbrains-mono"
     ],
     "desktop_apps": [
       {
@@ -730,5 +570,554 @@
     "ubuntu_full_apply_user": "non-root-sudo-account",
     "ssh_match_validation": "full-live-connection-context",
     "ufw_cidr_operator_preflight": "required"
+  },
+  "terminal_tools": {
+    "_doc": "Interactive terminal tools the shell template binds aliases and abbreviations to. `shared` is published on both platforms, under the command name given; `macos_only` is deliberately not on Ubuntu. A guard in templates/terminal/zshrc for a command outside this block is a no-op and tests/test_terminal_portability.py rejects it.",
+    "shared": [
+      "atuin",
+      "bat",
+      "btop",
+      "carapace",
+      "difft",
+      "duf",
+      "eza",
+      "fd",
+      "hexyl",
+      "jaq",
+      "lazygit",
+      "starship",
+      "zoxide"
+    ],
+    "debian_renamed": {
+      "bat": "batcat",
+      "fd": "fdfind"
+    },
+    "macos_only": {
+      "duckdb": "Analytical SQL engine; no interactive alias binds it and no Ubuntu profile needs an embedded OLAP database.",
+      "jnv": "Interactive jq explorer; jaq covers the scripted path on both platforms.",
+      "xh": "HTTP client; Ubuntu installs httpie from apt for the same role.",
+      "yazi": "TUI file manager; no alias binds it, and its Ubuntu build needs a newer toolchain than the supported releases carry."
+    }
+  },
+  "macos_package_determinism": {
+    "_doc": "The determinism class of every package this adapter installs on macOS. ADR 0010 records the decision and why. A package in BREW_SOURCE_PACKAGES or GUI_CASKS with no class here fails tests/test_contract_parity.py, and provenance metadata may only claim what its class can support.",
+    "_adr": "docs/adr/0010-macos-package-determinism.md",
+    "classes": {
+      "immutable-upstream-artifact": "Exact URL and digest tracked in this repository; Homebrew is not the source.",
+      "rolling-homebrew-formula": "Whatever homebrew/core currently serves. An already installed keg is preserved, so two Macs may carry different patch versions of one release. A version floor is the enforced property, not an exact version.",
+      "rolling-homebrew-cask": "Whatever the cask currently serves, on the same terms as a rolling formula.",
+      "registry-pinned": "Exact version from a package registry, integrity from that registry's own transparency or digest contract."
+    },
+    "immutable-upstream-artifact": [
+      "homebrew-pkg",
+      "herdr"
+    ],
+    "rolling-homebrew-formula": [
+      "actionlint",
+      "antidote",
+      "ast-grep",
+      "atuin",
+      "basedpyright",
+      "bat",
+      "biome",
+      "btop",
+      "bun",
+      "ca-certificates",
+      "carapace",
+      "cmake-language-server",
+      "curl",
+      "dart-sdk",
+      "difftastic",
+      "docker-language-server",
+      "duckdb",
+      "duf",
+      "eza",
+      "fd",
+      "fzf",
+      "gh",
+      "git",
+      "git-delta",
+      "gitleaks",
+      "go",
+      "gopls",
+      "hadolint",
+      "helm-ls",
+      "hexyl",
+      "jaq",
+      "jnv",
+      "jq",
+      "lazygit",
+      "llvm",
+      "markdown-oxide",
+      "markdownlint-cli2",
+      "marksman",
+      "node",
+      "osv-scanner",
+      "oxlint",
+      "prettier",
+      "pyright",
+      "python",
+      "ripgrep",
+      "ruff",
+      "rust",
+      "rust-analyzer",
+      "semgrep",
+      "shellcheck",
+      "shfmt",
+      "starship",
+      "taplo",
+      "terraform-ls",
+      "tmux",
+      "ty",
+      "uv",
+      "vscode-langservers-extracted",
+      "xh",
+      "yamllint",
+      "yazi",
+      "yq",
+      "zoxide",
+      "zsh-completions"
+    ],
+    "rolling-homebrew-cask": [
+      "chatgpt",
+      "claude",
+      "cmux",
+      "ghostty",
+      "google-chrome",
+      "rustdesk",
+      "telegram"
+    ],
+    "registry-pinned": [
+      "@vtsls/language-server@0.3.0",
+      "bash-language-server@5.6.0",
+      "dockerfile-language-server-nodejs@0.15.0",
+      "gh-actions-language-server@0.0.3",
+      "typescript@7.0.2",
+      "yaml-language-server@1.24.0",
+      "@openai/codex"
+    ],
+    "provenance_may_declare": [
+      "homebrew_prefix",
+      "keg_path",
+      "keg_owner",
+      "keg_mode",
+      "executable_is_regular_file_inside_keg",
+      "reported_version"
+    ],
+    "provenance_must_not_declare": {
+      "formula_revision": "describes a build this repository does not control or pin",
+      "bottle_tag": "describes a build this repository does not control or pin",
+      "bottle_rebuild": "moves on every homebrew-core rebuild",
+      "bottle_sha256": "cannot be re-derived from an installed keg",
+      "executable_sha256": "not a pin under a rolling class: it changes whenever homebrew-core rebuilds, so freezing it turns a normal upstream event into a red required check"
+    }
+  },
+  "ci_validation": {
+    "managed_package_anchors": [
+      {
+        "command": "shellcheck",
+        "provider": "homebrew",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "package": "shellcheck",
+        "version": "0.11.0",
+        "prefix": "/opt/homebrew",
+        "executable": "bin/shellcheck",
+        "provenance_variants": [
+          {
+            "formula_revision": "4a47db2a60995b1e7a5a0024b7406de197647c15",
+            "bottle_tag": "arm64_tahoe",
+            "bottle_rebuild": 0,
+            "bottle_sha256": "a8c12e69512ed369ded8a58cfb81c8d42eea53d8ac51119fe3f83e050e6a6f4d",
+            "executable_sha256": "29dca91c54b8bb41ad841bff1c941a9d5dec714242c3ab69ca05594bd69a9020"
+          },
+          {
+            "formula_revision": "11b85b79adabddf823a733445e86b9ad2e9b0141",
+            "bottle_tag": "arm64_tahoe",
+            "bottle_rebuild": 1,
+            "bottle_sha256": "102f7f385855df8eabf5c9017b8d729a02a5ccca810aa23e3ae700a46226ab70",
+            "executable_sha256": "68b842bed0fa9af12b3c63d0d99b5bbbfe33cb13f911179913020da2041ce1f5"
+          }
+        ],
+        "version_argument": "--version",
+        "version_pattern": "version: 0.11.0"
+      },
+      {
+        "command": "rg",
+        "provider": "homebrew",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "package": "ripgrep",
+        "version": "15.2.0",
+        "prefix": "/opt/homebrew",
+        "executable": "bin/rg",
+        "provenance_variants": [
+          {
+            "formula_revision": "666e305a8f602401e66a29c2198a4139b52629ee",
+            "bottle_tag": "arm64_tahoe",
+            "bottle_rebuild": 0,
+            "bottle_sha256": "70d2dd4c77e3095797b768a1b6c1d092a1ef6db5ba81b38b422920b7b87c9886",
+            "executable_sha256": "a7b47abdfd0f38777d09521f4fd1043d0c499bd1bc4ffd62da4cece661d2ef46"
+          }
+        ],
+        "version_argument": "--version",
+        "version_pattern": "ripgrep 15.2.0"
+      },
+      {
+        "command": "rg",
+        "provider": "codex-bundle",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "package": "@openai/codex",
+        "version": "0.147.0-darwin-arm64",
+        "root": "$HOME/.bun/install/global/node_modules/@openai/codex-darwin-arm64",
+        "receipt": "package.json",
+        "receipt_sha256": "85512c9529c29d6ec526b9d8a23e6855deccafcd14cb7d3eba9267d5afb7c9ae",
+        "executable": "vendor/aarch64-apple-darwin/codex-path/rg",
+        "executable_sha256": "842e37b57c419f66f1914009a88d8a0ad7d12199bfd8dbebc9cce8842634e7af",
+        "version_argument": "--version",
+        "version_pattern": "ripgrep 15.2.0"
+      }
+    ],
+    "required_commands": [
+      {
+        "command": "bash",
+        "source": "os-base"
+      },
+      {
+        "command": "dirname",
+        "source": "os-base"
+      },
+      {
+        "command": "find",
+        "source": "os-base"
+      },
+      {
+        "command": "sort",
+        "source": "os-base"
+      },
+      {
+        "command": "uname",
+        "source": "os-base"
+      },
+      {
+        "command": "python3",
+        "source": "ubuntu_apt_packages.baseline"
+      },
+      {
+        "command": "rg",
+        "source": "ubuntu_apt_packages.baseline:ripgrep"
+      },
+      {
+        "command": "shellcheck",
+        "source": "ubuntu_apt_packages.baseline"
+      }
+    ]
+  },
+  "privilege": {
+    "schema_version": 1,
+    "authority_diagnostics": {
+      "schema": "rldyour.secure-publish-authority/v1",
+      "maximum_bytes": 4096,
+      "path_disclosure": "class-and-component-index-only",
+      "directory_replacement_identity": [
+        "device",
+        "inode",
+        "type"
+      ],
+      "directory_policy_revalidation": [
+        "uid",
+        "gid",
+        "mode"
+      ],
+      "directory_operational_metadata": [
+        "nlink",
+        "size",
+        "timestamps"
+      ]
+    },
+    "publication_authorities": {
+      "root-production": {
+        "owner": "root",
+        "group": "root",
+        "ancestor_writable_mask": "0022",
+        "destination_scope": "canonical-absolute-production"
+      },
+      "actor-sandbox": {
+        "owner": "effective-actor",
+        "group": "effective-actor-primary-group",
+        "anchor_mode": "0700",
+        "ancestor_writable_mask": "0022",
+        "destination_scope": "strictly-beneath-explicit-fd-anchored-root",
+        "production_paths": "forbidden"
+      }
+    },
+    "shell_control_flow": {
+      "canonical_form": "explicit-if-v1",
+      "guards": [
+        {
+          "id": "capture-size",
+          "path": "scripts/ubuntu/privileged-helper.sh",
+          "function": "load_contract_values",
+          "predicate": "integer-range",
+          "minimum": 1,
+          "maximum": 4096,
+          "failure_exit": 1,
+          "before": "record-parse"
+        },
+        {
+          "id": "capture-record",
+          "path": "scripts/ubuntu/privileged-helper.sh",
+          "function": "load_contract_values",
+          "predicate": "nonempty-no-cr-key-value",
+          "failure_exit": 1,
+          "before": "record-append"
+        },
+        {
+          "id": "policykit-uid",
+          "path": "scripts/ubuntu/privileged-helper.sh",
+          "function": "policykit_subject_valid",
+          "predicate": "positive-decimal",
+          "failure_exit": 1,
+          "before": "pkexec-parent-validation"
+        },
+        {
+          "id": "policykit-runtime",
+          "path": "scripts/ubuntu/privileged-helper.sh",
+          "function": "policykit_subject_valid",
+          "predicate": "directory-not-symlink",
+          "failure_exit": 1,
+          "before": "runtime-owner-validation"
+        },
+        {
+          "id": "trusted-root-input",
+          "path": "scripts/ubuntu/privilege.sh",
+          "function": "rldyour::privilege::trusted_root_path",
+          "predicate": "absolute-existing-not-symlink",
+          "failure_exit": 1,
+          "before": "ancestry-walk"
+        },
+        {
+          "id": "trusted-record",
+          "path": "scripts/ubuntu/privilege.sh",
+          "function": "rldyour::privilege::record_valid",
+          "predicate": "trusted-regular-file",
+          "failure_exit": 1,
+          "before": "receipt-read"
+        },
+        {
+          "id": "trusted-bundle-entry",
+          "path": "scripts/ubuntu/privilege.sh",
+          "function": "rldyour::privilege::bundle_matches_record",
+          "predicate": "trusted-regular-file",
+          "failure_exit": 1,
+          "before": "hash-compare"
+        },
+        {
+          "id": "published-bundle-entry",
+          "path": "scripts/ubuntu/privilege.sh",
+          "function": "rldyour::privilege::provision_bundle",
+          "predicate": "regular-not-symlink",
+          "failure_exit": 1,
+          "before": "published-hash-compare"
+        }
+      ]
+    },
+    "authority_graph": {
+      "chrome_trust": {
+        "producer": "config/rldyour-contract.json#ubuntu_apt_packages.desktop_apps[name=google-chrome-stable].apt_source",
+        "installer": "scripts/ubuntu/privileged-helper.sh",
+        "verifier": "scripts/ubuntu/verify.sh",
+        "unprivileged_observer": "scripts/ubuntu/desktop.sh"
+      },
+      "privilege_dispatch": {
+        "authority": "scripts/ubuntu/privilege.sh",
+        "collection_semantics": {
+          "callers": "keyed-identity-set",
+          "direct_tool_owners": "keyed-identity-set",
+          "module_owned_root_execution": "keyed-identity-set"
+        },
+        "callers": {
+          "scripts/ubuntu/install.sh": [
+            "rldyour::privilege::operation",
+            "rldyour::privilege::preflight"
+          ],
+          "scripts/ubuntu/desktop.sh": [
+            "rldyour::privilege::refresh"
+          ],
+          "scripts/ubuntu/server.sh": [
+            "rldyour::privilege::as_root"
+          ]
+        },
+        "direct_tool_owners": {
+          "/usr/bin/pkexec": [
+            "rldyour::privilege::policykit_wait",
+            "rldyour::privilege::preflight"
+          ],
+          "/usr/bin/sudo": [
+            "rldyour::privilege::as_root",
+            "rldyour::privilege::operation",
+            "rldyour::privilege::preflight",
+            "rldyour::privilege::refresh",
+            "rldyour::privilege::root_exec"
+          ]
+        },
+        "module_owned_root_execution": {
+          "scripts/ubuntu/server.sh": [
+            "rldyour::ubuntu_server::probe_as_root",
+            "rldyour::ubuntu_server::root_file_equals"
+          ]
+        }
+      }
+    },
+    "system_python_minimum": "3.12",
+    "system_python_surfaces": [
+      {
+        "id": "privilege-source-contract",
+        "path": "scripts/ubuntu/privilege.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "privilege-profile-allowance",
+        "path": "scripts/ubuntu/privilege.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "publisher-record",
+        "path": "scripts/ubuntu/privilege.sh",
+        "kind": "script"
+      },
+      {
+        "id": "publisher-file",
+        "path": "scripts/ubuntu/privilege.sh",
+        "kind": "script"
+      },
+      {
+        "id": "publisher-directory",
+        "path": "scripts/ubuntu/privilege.sh",
+        "kind": "script"
+      },
+      {
+        "id": "helper-trusted-path",
+        "path": "scripts/ubuntu/privileged-helper.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "helper-contract-values",
+        "path": "scripts/ubuntu/privileged-helper.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "helper-pkexec-parent",
+        "path": "scripts/ubuntu/privileged-helper.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "verifier-runtime-contract",
+        "path": "scripts/ubuntu/verify.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "verifier-herdr-contract",
+        "path": "scripts/ubuntu/verify.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "verifier-chrome-trust",
+        "path": "scripts/ubuntu/verify.sh",
+        "kind": "script"
+      },
+      {
+        "id": "server-cidr",
+        "path": "scripts/ubuntu/server.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "server-operator-source",
+        "path": "scripts/ubuntu/server.sh",
+        "kind": "heredoc"
+      },
+      {
+        "id": "server-ssh-address",
+        "path": "scripts/ubuntu/server.sh",
+        "kind": "heredoc"
+      }
+    ],
+    "runtime": {
+      "helper": "/usr/local/libexec/rldyour-bootstrap-privileged",
+      "contract": "/usr/local/share/rldyour-bootstrap/rldyour-contract.json",
+      "policy": "/usr/share/polkit-1/actions/com.nddev.rldyour.bootstrap.policy"
+    },
+    "operations": [
+      "ubuntu-desktop-system",
+      "ubuntu-desktop-gui-system",
+      "ubuntu-server-system"
+    ],
+    "operation_owners": {
+      "ubuntu-desktop-system": "scripts/ubuntu/privileged-helper.sh",
+      "ubuntu-desktop-gui-system": "scripts/ubuntu/privileged-helper.sh",
+      "ubuntu-server-system": "scripts/ubuntu/server.sh"
+    },
+    "profiles": {
+      "desktop:gui-0": {
+        "operations": [
+          "ubuntu-desktop-system"
+        ],
+        "mechanisms": [
+          "plan",
+          "root",
+          "sudo-noninteractive",
+          "sudo-tty"
+        ]
+      },
+      "desktop:gui-1": {
+        "operations": [
+          "ubuntu-desktop-gui-system"
+        ],
+        "mechanisms": [
+          "plan",
+          "root",
+          "sudo-noninteractive",
+          "sudo-tty",
+          "policykit"
+        ]
+      },
+      "desktop-builds:gui-0": {
+        "operations": [
+          "ubuntu-desktop-system",
+          "ubuntu-server-system"
+        ],
+        "mechanisms": [
+          "plan",
+          "root",
+          "sudo-noninteractive",
+          "sudo-tty"
+        ]
+      },
+      "desktop-builds:gui-1": {
+        "operations": [
+          "ubuntu-desktop-gui-system",
+          "ubuntu-server-system"
+        ],
+        "mechanisms": [
+          "plan",
+          "root",
+          "sudo-noninteractive",
+          "sudo-tty"
+        ]
+      },
+      "server:gui-0": {
+        "operations": [
+          "ubuntu-server-system"
+        ],
+        "mechanisms": [
+          "plan",
+          "root",
+          "sudo-noninteractive",
+          "sudo-tty"
+        ]
+      }
+    },
+    "gui_authorization_evidence": "NOT_PROVEN_REAL_HOST_REQUIRED"
   }
 }

@@ -14,7 +14,11 @@ headless Ubuntu servers. The current contract is `3.0.1`.
 
 Every profile receives the zsh-first terminal environment, source-analysis
 tools, language servers, Codex CLI, Claude Code, Grok Build, and the launchers
-`cx`, `cl`, and `gk`. These launchers select each vendor's explicit unrestricted
+`cx`, `cl`, and `gk`. The interactive terminal tools the shell template binds
+aliases to are the same set on both platforms — `config/rldyour-contract.json`
+declares them under `terminal_tools.shared`, and a test fails if either
+installer stops publishing one. Four macOS tools are deliberately outside that
+set (`duckdb`, `jnv`, `xh`, `yazi`); the contract records why for each. These launchers select each vendor's explicit unrestricted
 mode; use them only on machines and repositories you trust.
 
 GUI workstations install Google Chrome stable. macOS GUI additionally installs

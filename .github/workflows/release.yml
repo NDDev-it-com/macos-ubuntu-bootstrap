@@ -91,21 +91,131 @@ jobs:
             }
           fi
 
+      # The pytest lane installs its dependencies from the hash-locked lock file
+      # through uv, and records that pip is forbidden estate-wide. This lane used
+      # `pip install pytest==9.1.1`: a second, weaker dependency contract for the
+      # same test suite, on the one commit that becomes an immutable release.
+      # uv itself is acquired the way this repository acquires every pinned
+      # artifact -- exact version and SHA-256 read from the contract, verified
+      # before execution, never a network pipe into a shell.
       - name: Prepare release validation tools
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends shellcheck ripgrep zsh
-          python3 -m pip install --disable-pip-version-check pytest==9.1.1
+          uv_version="$(jq -er '.runtime_support.ubuntu_uv' config/rldyour-contract.json)"
+          uv_sha256="$(jq -er '.runtime_support.ubuntu_uv_sha256.x64' config/rldyour-contract.json)"
+          archive="$(mktemp)"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            "https://github.com/astral-sh/uv/releases/download/${uv_version}/uv-x86_64-unknown-linux-gnu.tar.gz" \
+            --output "$archive"
+          echo "${uv_sha256}  ${archive}" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/uv"
+          tar -xzf "$archive" --strip-components=1 -C "$RUNNER_TEMP/uv"
+          rm -f "$archive"
+          "$RUNNER_TEMP/uv/uv" --version | grep -Fq "uv ${uv_version}"
+          echo "$RUNNER_TEMP/uv" >>"$GITHUB_PATH"
 
       - name: Validate release source snapshot
         run: |
           set -euo pipefail
+          uv venv --python 3.14
+          uv pip install --require-hashes -r requirements-test.txt
           bash scripts/ci/run-clean-validation.sh
-          python3 -m pytest -q
+          .venv/bin/python -m pytest -q
 
       - name: Validate workflow syntax
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7
+
+  # Both mandatory gates must be green on the exact commit being released, on
+  # every trigger. This used to live inside verify-tag, which runs only on
+  # workflow_dispatch and asked for bootstrap-gate alone -- so a tag push
+  # published without anyone asking whether the hosted evidence passed.
+  #
+  # A tag push still validates after the tag exists, and this repository cannot
+  # change that: root automation is the sole tag creator. What it can do is
+  # refuse to publish a release for a candidate whose gates are not green, which
+  # turns "immutable tag burned and release published" into "tag burned, release
+  # refused" -- recoverable by bumping VERSION.
+  verify-candidate:
+    name: Verify release candidate gates
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - name: Checkout the candidate with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require bootstrap-gate on the exact candidate commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          conclusion="$(
+            gh api -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?check_name=bootstrap-gate&status=completed&filter=latest&per_page=1" \
+              --jq '.check_runs[0].conclusion // ""'
+          )"
+          [ "$conclusion" = success ] || {
+            echo "candidate ${GITHUB_SHA} has bootstrap-gate=${conclusion:-absent}" >&2
+            exit 1
+          }
+          echo "bootstrap-gate: success on ${GITHUB_SHA}"
+
+      # `platform-evidence` runs on `pull_request`, so `evidence-gate` reports
+      # against the PR head rather than the merge commit that lands. Rather than
+      # give that workflow a default-branch trigger -- it checks out a
+      # contributor's head SHA and runs it, so a default-branch trigger would
+      # hand it write access to the default-branch cache scope -- this proves the
+      # candidate is the same tree the evidence was produced from.
+      #
+      # `main`'s ruleset sets strict_required_status_checks_policy, so a branch
+      # must be up to date before it merges, and the merge commit of an
+      # up-to-date branch has the same tree as its head. That is the property
+      # relied on, and it is verified rather than assumed: a candidate whose tree
+      # differs from the head that carries the evidence fails here.
+      - name: Require evidence-gate on the head this candidate's tree came from
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr="$(
+            gh api -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq '.[0].number // ""'
+          )"
+          [ -n "$pr" ] || {
+            echo "candidate ${GITHUB_SHA} belongs to no pull request; evidence cannot be located" >&2
+            exit 1
+          }
+          head="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${pr}" --jq '.head.sha')"
+          git fetch --no-tags --depth=1 origin "$head"
+
+          candidate_tree="$(git rev-parse "${GITHUB_SHA}^{tree}")"
+          head_tree="$(git rev-parse "${head}^{tree}")"
+          [ "$candidate_tree" = "$head_tree" ] || {
+            echo "candidate ${GITHUB_SHA} tree ${candidate_tree} differs from PR #${pr} head ${head} tree ${head_tree};" >&2
+            echo "the evidence was produced from a different tree -- re-run platform-evidence for this commit" >&2
+            exit 1
+          }
+
+          conclusion="$(
+            gh api -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/commits/${head}/check-runs?check_name=evidence-gate&status=completed&filter=latest&per_page=1" \
+              --jq '.check_runs[0].conclusion // ""'
+          )"
+          [ "$conclusion" = success ] || {
+            echo "PR #${pr} head ${head} has evidence-gate=${conclusion:-absent}" >&2
+            exit 1
+          }
+          echo "evidence-gate: success on ${head}, whose tree is identical to ${GITHUB_SHA}"
 
   verify-tag:
     name: Verify exact manual release tag
@@ -136,16 +246,8 @@ jobs:
             echo "manual release commit is no longer the exact origin/main commit" >&2
             exit 1
           }
-          gate_conclusion="$(
-            gh api \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?check_name=bootstrap-gate&status=completed&filter=latest&per_page=1" \
-              --jq '.check_runs[0].conclusion // ""'
-          )"
-          [ "$gate_conclusion" = "success" ] || {
-            echo "manual release requires a successful bootstrap-gate on the exact commit" >&2
-            exit 1
-          }
+          # Gate conclusions are verified once, for every trigger, by
+          # verify-candidate. This job owns tag and branch identity only.
           if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
             echo "release '$RELEASE_VERSION' already exists and is immutable; bump VERSION" >&2
             exit 1
@@ -168,8 +270,8 @@ jobs:
   # The pinned reusable workflow owns immutable `gh release create`
   # publication with `--verify-tag`; manual dispatch only verifies an existing tag.
   supply-chain:
-    needs: [resolve, verify-tag]
-    if: ${{ always() && needs.resolve.result == 'success' && (needs.verify-tag.result == 'success' || needs.verify-tag.result == 'skipped') }}
+    needs: [resolve, verify-candidate, verify-tag]
+    if: ${{ always() && needs.resolve.result == 'success' && needs.verify-candidate.result == 'success' && (needs.verify-tag.result == 'success' || needs.verify-tag.result == 'skipped') }}
     permissions:
       contents: write
       id-token: write

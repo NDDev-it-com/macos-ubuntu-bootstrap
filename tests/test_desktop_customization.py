@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DESKTOP = ROOT / "scripts/ubuntu/desktop.sh"
 INSTALL = ROOT / "scripts/ubuntu/install.sh"
 PRIVILEGED_HELPER = ROOT / "scripts/ubuntu/privileged-helper.sh"
+VERIFY = ROOT / "scripts/ubuntu/verify.sh"
 
 # Preconditions desktop.sh checks before it does anything. Each stub is the
 # smallest program that satisfies the check without touching the real system.
@@ -235,6 +236,46 @@ def test_chrome_and_rustdesk_are_required() -> None:
     assert "OPTIONAL_STEPS=(gnome_dock russian_layout)" in source
 
 
+def _generated_keyring(directory: Path, name: str = "Not Google") -> Path:
+    """Create a throwaway armoured keyring holding exactly one primary key."""
+    directory.mkdir(parents=True, exist_ok=True)
+    gnupg = directory / "gnupg"
+    gnupg.mkdir(mode=0o700, exist_ok=True)
+    batch = directory / "batch"
+    batch.write_text(
+        "%no-protection\nKey-Type: eddsa\nKey-Curve: ed25519\n"
+        f"Name-Real: {name}\nName-Email: nobody@example.invalid\n%commit\n",
+        encoding="utf-8",
+    )
+    generated = subprocess.run(
+        ["gpg", "--batch", "--homedir", str(gnupg), "--gen-key", str(batch)],
+        capture_output=True, text=True, check=False,
+    )
+    if generated.returncode != 0:
+        pytest.skip(f"gpg could not generate a test key: {generated.stderr[:200]}")
+    exported = subprocess.run(
+        ["gpg", "--batch", "--homedir", str(gnupg), "--armor", "--export"],
+        capture_output=True, check=False,
+    )
+    keyring = directory / "keyring.asc"
+    keyring.write_bytes(exported.stdout)
+    return keyring
+
+
+def _extract(function: str, path: Path) -> str:
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    out, inside = [], False
+    for line in lines:
+        if line.startswith(f"{function}()"):
+            inside = True
+        if inside:
+            out.append(line)
+            if line.rstrip() == "}":
+                break
+    assert out, f"{function} not found in {path}"
+    return "".join(out)
+
+
 def test_chrome_key_gate_rejects_a_foreign_key(tmp_path: Path) -> None:
     """A key that is not Google's must never satisfy the gate."""
     gnupg = tmp_path / "gnupg"
@@ -278,12 +319,73 @@ def test_chrome_key_acceptance_is_contract_owned_and_rejects_override() -> None:
 
 
 def test_chrome_key_gate_rejects_a_missing_keyring(tmp_path: Path) -> None:
+    """The privileged helper's gate must fail closed on an absent keyring."""
     result = subprocess.run(
         ["bash", "-c",
-         'source "$1"; chrome_key_fingerprint "$2"', "_", str(PRIVILEGED_HELPER), str(tmp_path / "absent.asc")],
+         'source "$1"; chrome_key_fingerprint "$2"',
+         "_", str(PRIVILEGED_HELPER), str(tmp_path / "absent.asc")],
         capture_output=True, text=True, check=False,
     )
-    assert result.returncode != 0
+    assert result.returncode != 0, "a missing keyring produced a fingerprint"
+
+
+def test_verifier_chrome_gate_accepts_only_its_own_keyring(tmp_path: Path) -> None:
+    """Execute the verifier's gate; do not assert on its source text.
+
+    The gate this replaces was unexecutable -- its escaped quotes reached awk
+    verbatim inside a double-quoted command substitution -- and the only test
+    that touched it asserted on a neighbouring line, so nothing observed the
+    failure.
+    """
+    keyring = _generated_keyring(tmp_path)
+    observed = subprocess.run(
+        ["bash", "-c",
+         'set -euo pipefail\n'
+         f'source "{ROOT}/scripts/lib/common.sh"\n'
+         'rldyour::gpg_primary_fingerprint "$1"', "_", str(keyring)],
+        capture_output=True, text=True, check=False,
+    )
+    assert observed.returncode == 0, observed.stderr
+    fingerprint = observed.stdout.strip()
+    assert re.fullmatch(r"[0-9A-F]{40}", fingerprint), fingerprint
+
+    gate = _extract("rldyour::ubuntu_verify::chrome_key_trusted", VERIFY)
+
+    def run(expected: str) -> int:
+        return subprocess.run(
+            ["bash", "-c",
+             'set -euo pipefail\n'
+             f'source "{ROOT}/scripts/lib/common.sh"\n'
+             f'{gate}\n'
+             'rldyour::ubuntu_verify::chrome_key_trusted "$1" "$2"',
+             "_", str(keyring), expected],
+            capture_output=True, text=True, check=False,
+        ).returncode
+
+    assert run(fingerprint) == 0, "the verifier rejected its own keyring"
+    assert run(CHROME_FINGERPRINT) != 0, "the verifier accepted a foreign fingerprint"
+
+
+def test_verifier_chrome_gate_rejects_a_keyring_with_a_second_primary_key(
+    tmp_path: Path,
+) -> None:
+    """A keyring that also carries an unrelated primary key is not the vendor.
+
+    The previous check counted matching fingerprint lines, so a keyring holding
+    Google's key alongside an attacker's satisfied it.
+    """
+    first = _generated_keyring(tmp_path / "a", name="First Key")
+    second = _generated_keyring(tmp_path / "b", name="Second Key")
+    combined = tmp_path / "combined.asc"
+    combined.write_bytes(first.read_bytes() + second.read_bytes())
+    result = subprocess.run(
+        ["bash", "-c",
+         'set -euo pipefail\n'
+         f'source "{ROOT}/scripts/lib/common.sh"\n'
+         'rldyour::gpg_primary_fingerprint "$1"', "_", str(combined)],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0, "a two-primary-key keyring was treated as one identity"
 
 
 def test_chrome_key_gate_rejects_multiple_primary_keys(tmp_path: Path) -> None:
@@ -538,10 +640,10 @@ def test_min_version_rejects_an_old_version(tmp_path: Path) -> None:
 
 def test_min_version_reads_a_version_reported_on_stderr(tmp_path: Path) -> None:
     """The exact shape of `dart --version` on older SDKs."""
-    tool = _tool(tmp_path, "stderrtool", 'echo "Dart SDK version: 3.12.2" >&2\n')
+    tool = _tool(tmp_path, "stderrtool", 'echo "Dart SDK version: 3.13.0" >&2\n')
     result = _min_version(tool)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "3.12.2" in result.stdout
+    assert "3.13.0" in result.stdout
 
 
 def test_min_version_fails_closed_when_no_version_can_be_read(tmp_path: Path) -> None:
@@ -600,4 +702,41 @@ def test_the_macos_path_list_covers_every_applicable_script() -> None:
         entry["platform"] != "ubuntu"
         for entry in SCRIPT_INVENTORY
         if "macos-bash32" in entry["gates"]
+    )
+
+
+def test_key_identity_is_one_primitive_with_no_surviving_copies() -> None:
+    """Four call sites used to carry four copies of the same awk program.
+
+    One of those copies -- the Ubuntu verifier's -- was written inside a
+    double-quoted command substitution, so its escaped quotes reached awk
+    verbatim, awk exited 2, and under `set -o pipefail` strict Ubuntu GUI
+    verification aborted on every device in every state. The duplication was the
+    defect; one primitive is the fix.
+
+    The file list differs from `main`'s version of this test: on this line
+    Chrome is installed by the root helper, so `desktop.sh` no longer performs
+    key identity at all and `privileged-helper.sh` does.
+    """
+    library = (ROOT / "scripts/lib/common.sh").read_text(encoding="utf-8")
+    assert "rldyour::gpg_primary_fingerprint()" in library
+
+    for relative in (
+        "scripts/ubuntu/verify.sh",
+        "scripts/ubuntu/server.sh",
+        "scripts/ubuntu/verify-server.sh",
+    ):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert "rldyour::gpg_primary_fingerprint" in source, relative
+        assert "--show-keys --with-colons" not in source, (
+            f"{relative} still carries its own copy of the key-identity program"
+        )
+
+    # The privileged helper cannot source the unprivileged library -- it runs as
+    # root from a fixed path with a scrubbed environment -- so it carries its
+    # own gate. What must not come back is the broken spelling.
+    helper = PRIVILEGED_HELPER.read_text(encoding="utf-8")
+    assert "chrome_key_fingerprint" in helper
+    assert 'awk -F: \'$1 == \\"fpr\\"' not in helper, (
+        "the helper regained the escaped-quote awk program that aborted the verifier"
     )

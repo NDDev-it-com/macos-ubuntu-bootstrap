@@ -7,6 +7,10 @@ Comment=Launch herdr terminal workspace manager for AI coding agents
 # Opens herdr in a new Ptyxis window. Ptyxis is the default GNOME terminal
 # on Ubuntu 26.04. The trailing exec replaces the bash process with herdr
 # so the window closes cleanly on exit.
+# TryExec keeps the entry hidden where Ptyxis is absent -- Ubuntu 24.04 ships
+# GNOME Terminal and has no ptyxis package -- instead of showing a launcher
+# that starts nothing.
+TryExec=ptyxis
 Exec=ptyxis --new-window --title "Herdr" -x "bash -lc 'exec herdr'"
 Icon=utilities-terminal
 Terminal=false

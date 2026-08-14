@@ -4,7 +4,7 @@ They back gopls, rust-analyzer, and the Dart analysis server over the estate's
 sources. Server project builds still belong in Docker; host toolchains are
 installed only to make source analysis and local verification available.
 
-Dart carries a second obligation (ADR 0006): the same archive provides the
+Dart carries a second obligation (ADR 0005): the same archive provides the
 `dart mcp-server` transport that the rldyour-mcps `dart-flutter` server executes,
 so the host is what makes a declared MCP server startable at all.
 """
@@ -162,12 +162,12 @@ def test_dart_opt_out_fails_when_documented_command_fails(tmp_path: Path) -> Non
 def test_dart_verifiers_reject_wrong_versions() -> None:
     ubuntu = (ROOT / "scripts/ubuntu/verify.sh").read_text(encoding="utf-8")
     macos = (ROOT / "scripts/macos/verify.sh").read_text(encoding="utf-8")
-    assert '"$(dart --version 2>&1 | awk \'NR == 1 { print $4 }\')" = "3.12.2"' in ubuntu
+    assert '"$(dart --version 2>&1 | awk \'NR == 1 { print $4 }\')" = "3.13.0"' in ubuntu
     assert "rldyour::require_cmd_min_version dart 3.12 --version" in macos
 
 
 def test_dart_host_serves_both_the_analysis_server_and_the_mcp_transport() -> None:
-    """ADR 0006. The reason Dart is admitted is that one archive backs source
+    """ADR 0005. The reason Dart is admitted is that one archive backs source
     analysis and the `dart-flutter` MCP server. Verification must prove the
     subcommand exists, not just that a `dart` binary resolves — an SDK that
     resolves but cannot serve MCP is the exact defect this replaced."""
@@ -292,3 +292,93 @@ def test_gopls_provenance_is_declared_and_not_a_tracked_hash() -> None:
     source = INSTALL.read_text(encoding="utf-8")
     assert "GOSUMDB=sum.golang.org" in source
     assert "GOFLAGS=-mod=readonly" in source
+
+
+# ---------- every installed tool is a verified tool ----------
+
+# Registry and Python package names are not command names. This table is the
+# only place that mapping is allowed to live, and the test below fails when a
+# declared package has no entry -- so adding a package forces a decision about
+# how its installation is proven, instead of letting a failed install stay
+# invisible the way cmake-language-server's did.
+PACKAGE_COMMANDS: dict[str, tuple[str, ...]] = {
+    # BUN_LSP_PACKAGES
+    "typescript": ("tsc",),
+    "@vtsls/language-server": ("vtsls",),
+    "yaml-language-server": ("yaml-language-server",),
+    "bash-language-server": ("bash-language-server",),
+    "dockerfile-language-server-nodejs": ("docker-langserver",),
+    "vscode-langservers-extracted": (
+        "vscode-html-language-server",
+        "vscode-css-language-server",
+        "vscode-json-language-server",
+    ),
+    "@taplo/cli": ("taplo",),
+    "gh-actions-language-server": ("gh-actions-language-server",),
+    "@biomejs/biome": ("biome",),
+    "oxlint": ("oxlint",),
+    "markdownlint-cli2": ("markdownlint-cli2",),
+    "prettier": ("prettier",),
+    "@ansible/ansible-language-server": ("ansible-language-server",),
+    # PYTHON_SOURCE_TOOLS
+    "pyright": ("pyright", "pyright-langserver"),
+    "ruff": ("ruff",),
+    "ty": ("ty",),
+    "cmake-language-server": ("cmake-language-server",),
+    "basedpyright": ("basedpyright",),
+    "semgrep": ("semgrep",),
+}
+
+
+def _declared_packages() -> list[str]:
+    source = INSTALL.read_text(encoding="utf-8")
+    names: list[str] = []
+    for array, separator in (("BUN_LSP_PACKAGES", "@"), ("PYTHON_SOURCE_TOOLS", "==")):
+        block = re.search(rf"^{array}=\((.*?)^\)", source, re.M | re.S)
+        assert block, f"{array} is missing"
+        for line in block.group(1).splitlines():
+            entry = line.strip().strip('"')
+            if not entry or entry.startswith("#"):
+                continue
+            # A scoped npm name starts with @, so split on the LAST separator.
+            names.append(entry[: entry.rindex(separator)])
+    return names
+
+
+def _standalone_tools() -> list[str]:
+    source = INSTALL.read_text(encoding="utf-8")
+    return sorted(set(re.findall(r"ensure_standalone_tool (\w+) ", source)))
+
+
+def test_every_declared_package_maps_to_a_command() -> None:
+    """A package with no declared command cannot be proven installed."""
+    declared = _declared_packages()
+    assert declared, "no registry or Python packages declared"
+    unmapped = [name for name in declared if name not in PACKAGE_COMMANDS]
+    assert not unmapped, f"packages with no command mapping: {unmapped}"
+
+
+def test_every_installed_command_is_verified_on_every_profile() -> None:
+    """Installed but unverified is the same defect eleven times over.
+
+    starship, atuin, carapace, semgrep, ty, biome, oxlint, markdownlint-cli2,
+    prettier, ansible-language-server and gh-actions-language-server were all
+    installed on every Ubuntu profile and checked by nothing.
+    """
+    verify = (ROOT / "scripts/ubuntu/verify.sh").read_text(encoding="utf-8")
+    required = re.search(r"^required_cmds=\((.*?)^\)", verify, re.M | re.S)
+    assert required, "required_cmds is missing"
+    verified = set(required.group(1).split())
+
+    expected: set[str] = set()
+    for package in _declared_packages():
+        expected.update(PACKAGE_COMMANDS[package])
+    expected.update(_standalone_tools())
+
+    missing = sorted(expected - verified)
+    assert not missing, f"installed on every profile but never verified: {missing}"
+
+
+def test_standalone_terminal_pillars_are_discovered_not_hardcoded() -> None:
+    """The parity check is only meaningful if it sees the real install set."""
+    assert set(_standalone_tools()) == {"starship", "atuin", "carapace"}

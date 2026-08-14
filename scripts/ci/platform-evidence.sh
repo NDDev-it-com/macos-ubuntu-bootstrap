@@ -12,7 +12,19 @@ CONTAINER_NAME=""
 
 mkdir -p "$OUTPUT_DIR"
 LOG="$OUTPUT_DIR/run.log"
+OBSERVED_STEPS="$OUTPUT_DIR/observed-steps"
+: >"$OBSERVED_STEPS"
 exec > >(tee "$LOG") 2>&1
+
+# Record one observable step. Called only AFTER the command that proves it has
+# returned successfully -- under `set -e` a failing step aborts the lane before
+# its name is written, so the ledger describes what the runner did rather than
+# what the matrix declares. finalize_evidence fails a successful lane whose
+# ledger does not cover every step its REQUIRED capabilities name.
+evidence_step() {
+  printf '%s\n' "${1:?evidence_step requires a step name}" >>"$OBSERVED_STEPS"
+  echo "evidence step observed: $1"
+}
 
 record_metadata() {
   local lane_contract
@@ -65,6 +77,7 @@ finalize_evidence() {
   EVIDENCE_RC="$rc" EVIDENCE_FINISHED_EPOCH="$(date +%s)" \
     EVIDENCE_STARTED_EPOCH="$EVIDENCE_STARTED_EPOCH" \
     EVIDENCE_SUPPORT_SCRIPT="$REPO_ROOT/scripts/support_evidence.py" \
+    EVIDENCE_OBSERVED_STEPS="$OBSERVED_STEPS" \
     EVIDENCE_OUTPUT="$OUTPUT_DIR/evidence.json" python3 - <<'PY'
 import json
 import os
@@ -83,7 +96,10 @@ payload.update({
 })
 sys.path.insert(0, str(Path(os.environ["EVIDENCE_SUPPORT_SCRIPT"]).parent))
 import support_evidence
-support_evidence.finalize_evidence(payload, payload["result"])
+
+ledger = Path(os.environ["EVIDENCE_OBSERVED_STEPS"])
+observed = ledger.read_text(encoding="utf-8").split() if ledger.exists() else []
+support_evidence.finalize_evidence(payload, payload["result"], observed)
 path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
   echo "evidence lane=$LANE result=$([ "$rc" -eq 0 ] && echo success || echo failure) duration_seconds=$(($(date +%s) - EVIDENCE_STARTED_EPOCH))"
@@ -109,20 +125,30 @@ run_native_macos() {
   fi
   [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = arm64 ]
   bash "$REPO_ROOT/scripts/bootstrap.sh" --platform macos --profile desktop "$gui_flag" --plan --strict
+  evidence_step plan
   bash "$REPO_ROOT/scripts/bootstrap.sh" --platform macos --profile desktop "$gui_flag" --apply --strict
+  evidence_step apply
   RLDYOUR_GUI_ENABLED="$gui_enabled" bash "$REPO_ROOT/scripts/macos/verify.sh" "${verify_args[@]}"
+  evidence_step strict_verify
   bash "$REPO_ROOT/scripts/bootstrap.sh" --platform macos --profile desktop "$gui_flag" --apply --strict
+  evidence_step repeat_apply
   RLDYOUR_GUI_ENABLED="$gui_enabled" bash "$REPO_ROOT/scripts/macos/verify.sh" "${verify_args[@]}"
+  evidence_step repeat_strict_verify
 }
 
 run_native_ubuntu_desktop() {
   [ "$(uname -s)" = Linux ]
   ensure_native_ubuntu_user
   native_ubuntu_cmd "bash scripts/bootstrap.sh --platform ubuntu --profile desktop --no-gui --plan --strict"
+  evidence_step plan
   native_ubuntu_cmd "bash scripts/bootstrap.sh --platform ubuntu --profile desktop --no-gui --apply --strict"
+  evidence_step apply
   native_ubuntu_cmd "RLDYOUR_PROFILE=desktop RLDYOUR_GUI_ENABLED=0 RLDYOUR_DOCKER_MODE=none bash scripts/ubuntu/verify.sh --strict"
+  evidence_step strict_verify
   native_ubuntu_cmd "bash scripts/bootstrap.sh --platform ubuntu --profile desktop --no-gui --apply --strict"
+  evidence_step repeat_apply
   native_ubuntu_cmd "RLDYOUR_PROFILE=desktop RLDYOUR_GUI_ENABLED=0 RLDYOUR_DOCKER_MODE=none bash scripts/ubuntu/verify.sh --strict"
+  evidence_step repeat_strict_verify
 }
 
 run_arm_gui_refusal() {
@@ -131,10 +157,14 @@ run_arm_gui_refusal() {
   ensure_native_ubuntu_user
   output="$(native_ubuntu_cmd "bash scripts/bootstrap.sh --platform ubuntu --profile desktop --gui --apply" 2>&1)" || rc=$?
   printf '%s\n' "$output"
+  evidence_step gui_apply_refused
   [ "$rc" -eq 2 ]
+  evidence_step refusal_exit_code
   grep -Fq "Ubuntu GUI apply requires amd64" <<<"$output"
+  evidence_step refusal_message
   [ ! -e /home/rldyourevidence/.config/rldyour ]
   [ ! -e /home/rldyourevidence/.local/share/rldyour ]
+  evidence_step no_managed_state
 }
 
 ensure_native_ubuntu_user() {
@@ -236,10 +266,15 @@ run_sandbox_profile() {
   local profile=$1 docker_mode=$2
   start_systemd_container
   container_exec_dev "cd /repo && bash scripts/bootstrap.sh --platform ubuntu --profile $profile --no-gui --docker-mode $docker_mode --plan --strict"
+  evidence_step plan
   container_exec_dev "cd /repo && bash scripts/bootstrap.sh --platform ubuntu --profile $profile --no-gui --docker-mode $docker_mode --apply --strict"
+  evidence_step apply
   container_exec_dev "cd /repo && RLDYOUR_PROFILE=$profile RLDYOUR_GUI_ENABLED=0 RLDYOUR_DOCKER_MODE=$docker_mode bash scripts/ubuntu/verify.sh --strict"
+  evidence_step strict_verify
   container_exec_dev "cd /repo && bash scripts/bootstrap.sh --platform ubuntu --profile $profile --no-gui --docker-mode $docker_mode --apply --strict"
+  evidence_step repeat_apply
   container_exec_dev "cd /repo && RLDYOUR_PROFILE=$profile RLDYOUR_GUI_ENABLED=0 RLDYOUR_DOCKER_MODE=$docker_mode bash scripts/ubuntu/verify.sh --strict"
+  evidence_step repeat_strict_verify
 }
 
 run_sandbox_hardening() {
@@ -247,9 +282,13 @@ run_sandbox_hardening() {
   docker exec "$CONTAINER_NAME" bash -lc \
     'install -d -m 0700 -o dev -g dev /home/dev/.ssh; ssh-keygen -q -t ed25519 -N "" -f /home/dev/.ssh/evidence; cat /home/dev/.ssh/evidence.pub >/home/dev/.ssh/authorized_keys; chown dev:dev /home/dev/.ssh/authorized_keys; chmod 0600 /home/dev/.ssh/authorized_keys'
   container_exec_dev "cd /repo && SSH_CONNECTION='192.0.2.10 50000 192.0.2.20 22' RLDYOUR_SERVER_SSH_USER=dev bash scripts/bootstrap.sh --platform ubuntu --profile server --no-gui --docker-mode none --harden-ssh --enable-ufw --with-fail2ban --plan --strict"
+  evidence_step plan
   container_exec_dev "cd /repo && SSH_CONNECTION='192.0.2.10 50000 192.0.2.20 22' RLDYOUR_SERVER_SSH_USER=dev bash scripts/bootstrap.sh --platform ubuntu --profile server --no-gui --docker-mode none --harden-ssh --enable-ufw --with-fail2ban --apply --strict"
+  evidence_step apply
   container_exec_dev "cd /repo && RLDYOUR_PROFILE=server RLDYOUR_GUI_ENABLED=0 RLDYOUR_DOCKER_MODE=none bash scripts/ubuntu/verify.sh --strict"
+  evidence_step strict_verify
   container_exec_dev "cd /repo && RLDYOUR_SERVER_SSH_MATCH_ADDRESS=192.0.2.10 RLDYOUR_SERVER_SSH_LOCAL_ADDRESS=192.0.2.20 bash scripts/ubuntu/verify-server.sh --docker-mode none --expect-ufw --expect-ssh-hardening --expect-fail2ban --ssh-port 22 --ssh-user dev"
+  evidence_step server_verify
 }
 
 assert_exact_source

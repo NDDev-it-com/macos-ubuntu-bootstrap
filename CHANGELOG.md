@@ -5,6 +5,7 @@ remains available in immutable Git tags.
 
 ## [Unreleased]
 
+### Added
 <!-- The privilege state machine below is unreleased work on the #55 line.
      It carried a dated `## [3.1.0] - 2026-08-13` heading while the latest
      GitHub release was 3.0.1, issue #55 was open and the required gate was
@@ -62,6 +63,123 @@ remains available in immutable Git tags.
   managed-package trust classes, including exact Homebrew bottle/keg receipts
   and content-addressed bundle identities; undeclared PATH shadows fail closed.
 
+### Changed
+
+- Refreshed every pinned upstream source against first-party release metadata
+  and recomputed each digest from the downloaded artifact: Node.js
+  24.18.0 -> 24.19.0, uv 0.11.30 -> 0.12.4, Homebrew.pkg 6.0.9 -> 6.0.17,
+  Go 1.26.5 -> 1.26.6, Dart SDK 3.12.2 -> 3.13.0, osv-scanner 2.4.0 -> 2.5.0,
+  and ast-grep 0.45.0 -> 0.45.1. Bun 1.3.14, gopls v0.23.0, Rust 1.97.1,
+  Herdr 0.8.0, Telegram 7.0.9, RustDesk 1.4.9, Codex 0.147.0, the Chrome
+  signing key, both vendor AI installer scripts, and the remaining eight
+  pinned source tools were re-downloaded and confirmed unchanged. The macOS
+  Dart floor stays at 3.12 on purpose: `dart-sdk` is a rolling Homebrew
+  formula whose determinism class is decided in #63, and raising the floor
+  before that decision would fail verification on a host whose already
+  installed formula the installer deliberately preserves.
+
+### Added
+
+- ADR 0010 takes the macOS package determinism decision the repository had
+  drifted into without recording: the Homebrew formula and cask sets are
+  intentionally rolling, and anything whose exact bytes matter is installed from
+  an immutable upstream artifact instead, as Herdr already was. Every macOS
+  package now carries a determinism class in `macos_package_determinism`, bound
+  to the installer's arrays by tests, so a package cannot be added without one.
+  The record also fixes what provenance metadata may claim -- only facts a
+  resolver can establish on the machine it runs on -- and names each field it may
+  not claim together with the reason, so `executable_sha256` cannot be re-added
+  for a rolling formula whose digest moves on every homebrew-core rebuild.
+
+### Fixed
+
+- Made `evidence-gate` prove something. It read four `needs.*.result` values and
+  never opened an artifact, and the runtime check inside `finalize_evidence`
+  re-tested an invariant the matrix validator already refused statically, so it
+  could never fire. REQUIRED capabilities now declare the steps a lane must
+  record; the lane script appends a step name only after the command that proves
+  it returns, so a successful lane that skipped a step fails. The gate downloads
+  all thirteen artifacts and requires the payload count, the (lane, architecture)
+  set, each result, each capability list, each observation ledger, each
+  `not_proven` list and each SHA to hold. `evidence-gate` is now in the
+  checked-in required-check projection.
+- Made release preparation verify both mandatory gates before publication, on
+  every trigger including a tag push, which previously published without asking
+  about hosted evidence at all. `evidence-gate` reports against a PR head rather
+  than the merge commit that lands, so rather than give `platform-evidence` a
+  default-branch trigger — it checks out a contributor's head SHA and runs it,
+  and a default-branch trigger would hand that write access to the default-branch
+  Actions cache scope — the release gate proves the candidate's tree is identical
+  to the head whose `evidence-gate` is green. `main` already guarantees that
+  through `strict_required_status_checks_policy`, and the gate verifies it rather
+  than assuming it. `platform-evidence`'s `sha` dispatch input was removed for the
+  same reason: it accepted any commit reachable from the repository, including a
+  fork's PR head under `refs/pull/*`.
+
+- Connected the device integrity receipt to the lifecycle it documents.
+  `scripts/device_integrity.py` had no runtime caller, and its
+  one-owner-per-harness check read a contract key that did not exist, so it
+  could not report drift — while ADR 0007 and `AGENTS.md` described receipts as
+  a working mechanism. Apply now writes the receipt after strict verification
+  passes, `verify.sh --strict` reads it back and compares the device to it
+  exactly, and `harnesses.detection` in the contract gives the ownership check
+  something to check: `codex` is enforced to the prefix this repository installs
+  it into, and a second copy from a package-manager global is reported by name.
+  `claude-code` and `grok-build` are observe-only because their vendor installer
+  owns the target. Exact-version assertions are now scoped to the platforms the
+  contract actually pins, so a macOS device is no longer reported as drifting
+  from `ubuntu_*` fields Homebrew cannot honour.
+
+- Closed the macOS/Ubuntu interactive tool boundary. `templates/terminal/zshrc`
+  guards every alias with `command -v`, so a tool only one platform installs
+  degrades silently rather than erroring. Ubuntu now installs `eza`, `lazygit`,
+  `difft` and `jaq` as pinned source tools, macOS gains `btop`, `duf` and
+  `hexyl`, and six guards for `dust`, `dua`, `procs`, `doggo`, `gping` and
+  `viddy` were removed because no profile has ever installed them on either
+  platform. `duckdb`, `jnv`, `xh` and `yazi` stay macOS-only, each with its
+  reason recorded. The contract now owns the boundary as `terminal_tools`, and
+  tests bind the zshrc guard set to it and it to both installers, so a future
+  addition cannot become a silent no-op. The test that previously asserted the
+  guards existed carried a literal list including all six phantom tools; it now
+  derives that list from the contract.
+
+- Bound every version the Ubuntu verifier asserts to the contract. The
+  verifier checks uv with an escaped-dot regex, so it was the one pin a
+  literal refresh could not reach: the installer and the verifier could
+  publish and demand different versions, and a strict verify would then fail
+  on a correctly installed host. Two parity tests now prove the verifier
+  asserts the contract's versions and asserts no others.
+- Repaired Ubuntu GUI strict verification, which could not pass in any state:
+  the Chrome signing-key check was written inside a double-quoted command
+  substitution, so its escaped quotes reached `awk` verbatim and the verifier
+  aborted under `set -o pipefail`. Vendor-key identity is now one library
+  primitive shared by the Chrome and Docker installers and verifiers, and it
+  rejects a keyring carrying a second primary key.
+- Stopped a failed user tool stranding the layers behind it. Herdr is a user
+  tool on every profile, so one divergent Herdr left a server without Docker,
+  without the vendor AI CLIs and without verification. Optional-layer failures
+  are now reported once, after every layer has been attempted.
+- Made plan mode read-only. A plan created `~/.local/bin`, `~/.bun/install/global`
+  and `~/.cache/uv` on every Ubuntu profile, and reported a Docker daemon health
+  verdict it had never obtained because the probe was routed through the
+  dry-run helper.
+- Verified every tool the Ubuntu installer publishes. starship, atuin, carapace,
+  semgrep, ty, biome, oxlint, markdownlint-cli2, prettier,
+  ansible-language-server and gh-actions-language-server were installed on every
+  profile and checked by nothing.
+- Aligned the desktop layer with its contract: desktop entries follow the
+  GUI-capable profile set, the GUI font is a declared package group rather than
+  an inline literal, and every managed launcher guards its own program with
+  `TryExec`.
+- Made the required plan lane exercise the full plan path instead of argument
+  parsing alone, and fail if a plan writes to the home directory it describes.
+- Removed a Dependabot ecosystem pointing at a directory deleted with the
+  browser layer, replaced the release lane's unpinned `pip` install with the
+  contract-pinned, SHA-256-verified `uv` path used everywhere else, and repaired
+  citations to the two decision records retired in 3.0.0.
+
+## [3.0.1] - 2026-08-13
+
 ### Fixed
 
 - Made Herdr permission verification deterministic across BSD/macOS and GNU/Linux
@@ -77,10 +195,6 @@ remains available in immutable Git tags.
   supported.
 - Synchronized release metadata and architecture policy across the contract,
   implementation, tests, ADRs, and operator documentation.
-
-## [3.0.1] - 2026-08-13
-
-### Fixed
 
 - Updated Herdr to `0.8.0`, with verified macOS and Linux x86_64/aarch64
   installation and verification.

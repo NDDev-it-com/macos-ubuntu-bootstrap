@@ -207,14 +207,19 @@ def test_server_contract_contains_rollback_and_context_guards() -> None:
     assert "NTPSynchronized" in server
     assert "healthy existing Docker CE installation preserved; no package transaction" in server
     assert "partial existing Docker CE package set detected; preserving it without upgrade" in server
-    assert 'primary_count != 1' in server
+    assert 'rldyour::gpg_primary_fingerprint "$tmp_key"' in server
     assert 'if [ "$enable_ufw" -eq 1 ] || [ "$harden_ssh" -eq 1 ]' in server
     assert 'args+=(--ssh-allow-cidr "$allow_cidr")' in server
 
     server_verify = (ROOT / "scripts/ubuntu/verify-server.sh").read_text(encoding="utf-8")
     assert '--ssh-allow-cidr' in server_verify
     assert 'ufw "$resolved_port" "$ssh_allow_cidr"' in server_verify
-    assert 'primary_count != 1' in server_verify
+    assert 'rldyour::gpg_primary_fingerprint "$key_path"' in server_verify
+
+    # Exactly one primary key is the invariant; it is enforced once, in the
+    # library primitive both files delegate to.
+    library = (ROOT / "scripts/lib/common.sh").read_text(encoding="utf-8")
+    assert 'primary_count != 1' in library
 
     installer = (ROOT / "scripts/ubuntu/install.sh").read_text(encoding="utf-8")
     assert "rldyour::ubuntu::as_root" in installer
@@ -233,3 +238,45 @@ def test_ssh_activation_plan_does_not_require_preinstalled_units() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "[DRY-RUN] preserve and activate" in result.stdout
+
+
+def test_plan_never_claims_docker_health_it_did_not_observe() -> None:
+    """A plan must not report a daemon verdict it never asked for.
+
+    `as_root` routes through rldyour::run, which in plan mode prints the command
+    and returns 0 without running it. The health gate used that helper, so every
+    plan on a host with the full Docker CE package set printed "healthy existing
+    Docker CE installation preserved" without ever contacting the daemon.
+    """
+    result = run_server_function(
+        """
+rldyour::ubuntu_server::check_docker_conflicts() { return 0; }
+rldyour::ubuntu_server::package_installed() { return 0; }
+rldyour::ubuntu_server::docker_rootful_runtime_active() { return 0; }
+rldyour::ubuntu_server::probe_as_root() { return 1; }
+rldyour::ubuntu_server::install_docker_packages rootful
+""",
+        env={"RLDYOUR_DRY_RUN": "1"},
+    )
+    assert result.returncode == 0, result.stderr[-1000:]
+    combined = result.stdout + result.stderr
+    assert "healthy existing Docker CE installation preserved" not in combined, (
+        "the plan claimed a daemon health verdict it never obtained"
+    )
+    assert "apply will prove daemon health" in combined
+
+
+def test_plan_reports_health_when_the_read_only_probe_succeeds() -> None:
+    """The honest positive case still reports a preserved healthy runtime."""
+    result = run_server_function(
+        """
+rldyour::ubuntu_server::check_docker_conflicts() { return 0; }
+rldyour::ubuntu_server::package_installed() { return 0; }
+rldyour::ubuntu_server::docker_rootful_runtime_active() { return 0; }
+rldyour::ubuntu_server::probe_as_root() { return 0; }
+rldyour::ubuntu_server::install_docker_packages rootful
+""",
+        env={"RLDYOUR_DRY_RUN": "1"},
+    )
+    assert result.returncode == 0, result.stderr[-1000:]
+    assert "healthy existing Docker CE installation preserved" in result.stdout + result.stderr

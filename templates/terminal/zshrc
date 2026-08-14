@@ -5,8 +5,8 @@
 
 # ── 1. Agent gate ────────────────────────────────────────────────────────────
 # Harness markers: Claude Code sets CLAUDECODE; Codex sets CODEX_THREAD_ID /
-# CODEX_SANDBOX; Cursor/Gemini legacy markers kept for safety. agy and mimo
-# expose no stable marker — the interactive check catches them and any future
+# CODEX_SANDBOX; Cursor/Gemini legacy markers kept for safety. Grok Build
+# exposes no stable marker — the interactive check catches it and any future
 # harness. Agents get plain pipes: no pagers, no prompt, no history hooks,
 # no frecency pollution.
 _is_agent() {
@@ -89,19 +89,19 @@ if command -v abbr >/dev/null; then
   fi
   command -v difft >/dev/null 2>&1 && abbr -S -qq dft='difft' 2>/dev/null
   command -v jaq >/dev/null 2>&1 && abbr -S -qq jql='jaq' 2>/dev/null
-  # 2026-07 modern-unix wave — human shells only, visible expansion
-  command -v dust >/dev/null 2>&1 && abbr -S -qq du='dust' 2>/dev/null
-  command -v dua >/dev/null 2>&1 && abbr -S -qq dui='dua i' 2>/dev/null
+  # Every guard below names a command in contract terminal_tools.shared, so it
+  # fires on both platforms. Six guards used to live here for dust, dua, procs,
+  # doggo, gping and viddy -- tools no profile has ever installed, on either
+  # platform, so those abbreviations could not exist on any device this
+  # repository produces. Adding one back means adding the tool to both
+  # manifests first; tests/test_terminal_portability.py rejects a guard whose
+  # command the contract does not publish.
   command -v duf >/dev/null 2>&1 && abbr -S -qq df='duf' 2>/dev/null
-  command -v procs >/dev/null 2>&1 && abbr -S -qq ps='procs' 2>/dev/null
   if command -v btop >/dev/null 2>&1; then
     abbr -S -qq top='btop'          2>/dev/null
     abbr -S -qq htop='btop'         2>/dev/null
   fi
-  command -v doggo >/dev/null 2>&1 && abbr -S -qq dig='doggo' 2>/dev/null
-  command -v gping >/dev/null 2>&1 && abbr -S -qq ping='gping' 2>/dev/null
   command -v hexyl >/dev/null 2>&1 && abbr -S -qq xxd='hexyl' 2>/dev/null
-  command -v viddy >/dev/null 2>&1 && abbr -S -qq watch='viddy' 2>/dev/null
 fi
 
 # ── 8. fzf keybindings (Ctrl-R handled by atuin; keep Ctrl-T / Alt-C) ───────

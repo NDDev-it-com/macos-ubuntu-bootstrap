@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-10
-- Amends: ADR 0004
+- Amends: the retired ADR 0004 (see `docs/adr/README.md`)
 - Amended: 2026-08-12 (argv is quoted once for the remote shell parse)
 
 ## Context

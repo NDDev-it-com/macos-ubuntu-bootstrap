@@ -71,6 +71,9 @@
           },
           {
             "context": "Dependency pin checks"
+          },
+          {
+            "context": "evidence-gate"
           }
         ]
       }

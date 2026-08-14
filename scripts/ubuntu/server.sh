@@ -569,15 +569,8 @@ EOF
   tmp_key=$(mktemp)
 
   curl --proto '=https' --tlsv1.2 -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$tmp_key"
-  if ! primary_fingerprint=$(gpg --batch --show-keys --with-colons "$tmp_key" |
-    awk -F: '
-      $1 == "pub" { primary_count++; awaiting_primary_fpr=1; next }
-      $1 == "fpr" && awaiting_primary_fpr { primary_fpr=toupper($10); awaiting_primary_fpr=0 }
-      END {
-        if (primary_count != 1 || primary_fpr == "") exit 1
-        print primary_fpr
-      }
-    ') || [ "$primary_fingerprint" != "$expected_fingerprint" ]; then
+  if ! primary_fingerprint=$(rldyour::gpg_primary_fingerprint "$tmp_key") ||
+    [ "$primary_fingerprint" != "$expected_fingerprint" ]; then
     rldyour::log "error" "Docker apt key fingerprint verification failed"
     return 1
   fi
@@ -608,13 +601,22 @@ rldyour::ubuntu_server::install_docker_packages() {
       rldyour::ubuntu_server::package_installed "$package" && installed_count=$((installed_count + 1))
     done
     if [ "$installed_count" -eq "${#packages[@]}" ]; then
-      if ! rldyour::ubuntu_server::docker_rootful_runtime_active ||
-        ! rldyour::ubuntu_server::as_root docker info >/dev/null 2>&1; then
-        rldyour::log "error" "existing Docker CE packages are not healthy; preserving them without upgrade or restart"
-        return 1
+      # `as_root` routes through rldyour::run, which in plan mode prints the
+      # command and returns 0 without running it -- so this gate used to report
+      # a healthy daemon it had never contacted. Read-only privileged probes
+      # belong to probe_as_root, which executes in both modes and needs no
+      # interactive credential during a plan.
+      if rldyour::ubuntu_server::docker_rootful_runtime_active &&
+        rldyour::ubuntu_server::probe_as_root docker info >/dev/null 2>&1; then
+        rldyour::log "ok" "healthy existing Docker CE installation preserved; no package transaction"
+        return 0
       fi
-      rldyour::log "ok" "healthy existing Docker CE installation preserved; no package transaction"
-      return 0
+      if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
+        rldyour::log "info" "[DRY-RUN] complete Docker CE package set detected; apply will prove daemon health before preserving it"
+        return 0
+      fi
+      rldyour::log "error" "existing Docker CE packages are not healthy; preserving them without upgrade or restart"
+      return 1
     fi
     if [ "$installed_count" -ne 0 ]; then
       rldyour::log "error" "partial existing Docker CE package set detected; preserving it without upgrade"

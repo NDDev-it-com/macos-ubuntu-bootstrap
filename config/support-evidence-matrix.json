@@ -3,8 +3,16 @@
   "adapter_version": "3.0.1",
   "verified_on": "2026-08-13",
   "expected_hosted_artifact_instances": 13,
-  "status_vocabulary": ["PROVEN", "NOT_PROVEN", "UNSUPPORTED_EXPECTED"],
-  "support_vocabulary": ["SUPPORTED", "UNSUPPORTED", "UNSUPPORTED_FAIL_CLOSED"],
+  "status_vocabulary": [
+    "PROVEN",
+    "NOT_PROVEN",
+    "UNSUPPORTED_EXPECTED"
+  ],
+  "support_vocabulary": [
+    "SUPPORTED",
+    "UNSUPPORTED",
+    "UNSUPPORTED_FAIL_CLOSED"
+  ],
   "evidence_tiers": [
     "HOSTED_NATIVE",
     "DISPOSABLE_SYSTEMD_CONTAINER",
@@ -16,162 +24,392 @@
     {
       "id": "macos-arm64-desktop",
       "os": "macos",
-      "releases": ["current-supported"],
-      "architectures": ["arm64"],
-      "profiles": ["desktop"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["none"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "current-supported"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "profiles": [
+        "desktop"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "none"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "SUPPORTED"
     },
     {
       "id": "ubuntu-amd64-desktop",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["amd64"],
-      "profiles": ["desktop"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["none"],
-      "apply_privilege": ["non-root-sudo", "preprovisioned-policykit-helper"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo", "interactive-gui-authorization"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "amd64"
+      ],
+      "profiles": [
+        "desktop"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "none"
+      ],
+      "apply_privilege": [
+        "non-root-sudo",
+        "preprovisioned-policykit-helper"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo",
+        "interactive-gui-authorization"
+      ],
       "support": "SUPPORTED"
     },
     {
       "id": "ubuntu-amd64-desktop-builds",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["amd64"],
-      "profiles": ["desktop-builds"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["rootful"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "amd64"
+      ],
+      "profiles": [
+        "desktop-builds"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "rootful"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "SUPPORTED"
     },
     {
       "id": "ubuntu-amd64-server",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["amd64"],
-      "profiles": ["server"],
-      "gui_modes": ["disabled"],
-      "docker_modes": ["none", "rootful", "rootless"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "amd64"
+      ],
+      "profiles": [
+        "server"
+      ],
+      "gui_modes": [
+        "disabled"
+      ],
+      "docker_modes": [
+        "none",
+        "rootful",
+        "rootless"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "SUPPORTED"
     },
     {
       "id": "ubuntu-arm64-desktop-no-gui",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["arm64"],
-      "profiles": ["desktop"],
-      "gui_modes": ["disabled"],
-      "docker_modes": ["none"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "profiles": [
+        "desktop"
+      ],
+      "gui_modes": [
+        "disabled"
+      ],
+      "docker_modes": [
+        "none"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "SUPPORTED"
     },
     {
       "id": "ubuntu-arm64-desktop-builds-no-gui",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["arm64"],
-      "profiles": ["desktop-builds"],
-      "gui_modes": ["disabled"],
-      "docker_modes": ["rootful"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "profiles": [
+        "desktop-builds"
+      ],
+      "gui_modes": [
+        "disabled"
+      ],
+      "docker_modes": [
+        "rootful"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "SUPPORTED"
     },
     {
       "id": "ubuntu-arm64-server",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["arm64"],
-      "profiles": ["server"],
-      "gui_modes": ["disabled"],
-      "docker_modes": ["none", "rootful", "rootless"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "profiles": [
+        "server"
+      ],
+      "gui_modes": [
+        "disabled"
+      ],
+      "docker_modes": [
+        "none",
+        "rootful",
+        "rootless"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "SUPPORTED"
     },
     {
       "id": "ubuntu-arm64-gui",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["arm64"],
-      "profiles": ["desktop", "desktop-builds"],
-      "gui_modes": ["enabled"],
-      "docker_modes": ["none", "rootful"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "profiles": [
+        "desktop",
+        "desktop-builds"
+      ],
+      "gui_modes": [
+        "enabled"
+      ],
+      "docker_modes": [
+        "none",
+        "rootful"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "UNSUPPORTED_FAIL_CLOSED",
       "reason": "Google Chrome stable and Telegram Desktop publish no supported Linux arm64 artifacts"
     },
     {
       "id": "apply-without-root-authority",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["amd64", "arm64"],
-      "profiles": ["desktop", "desktop-builds", "server"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["none", "rootful", "rootless"],
-      "apply_privilege": ["no-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "profiles": [
+        "desktop",
+        "desktop-builds",
+        "server"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "none",
+        "rootful",
+        "rootless"
+      ],
+      "apply_privilege": [
+        "no-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive"
+      ],
       "support": "UNSUPPORTED",
       "reason": "clean-system package and system configuration requires explicit root authority"
     },
     {
       "id": "macos-apply-without-root-authority",
       "os": "macos",
-      "releases": ["current-supported"],
-      "architectures": ["arm64"],
-      "profiles": ["desktop"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["none"],
-      "apply_privilege": ["no-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive"],
+      "releases": [
+        "current-supported"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "profiles": [
+        "desktop"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "none"
+      ],
+      "apply_privilege": [
+        "no-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive"
+      ],
       "support": "UNSUPPORTED",
       "reason": "clean-system package and application installation requires explicit administrator authority"
     },
     {
       "id": "macos-full-apply-as-root",
       "os": "macos",
-      "releases": ["current-supported"],
-      "architectures": ["arm64"],
-      "profiles": ["desktop"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["none"],
-      "apply_privilege": ["root"],
-      "interaction": ["interactive-terminal", "noninteractive"],
+      "releases": [
+        "current-supported"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "profiles": [
+        "desktop"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "none"
+      ],
+      "apply_privilege": [
+        "root"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive"
+      ],
       "support": "UNSUPPORTED",
       "reason": "the compositor owns a non-root user home and Homebrew refuses root execution"
     },
     {
       "id": "macos-intel",
       "os": "macos",
-      "releases": ["current-supported"],
-      "architectures": ["amd64"],
-      "profiles": ["desktop"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["none"],
-      "apply_privilege": ["non-root-sudo"],
-      "interaction": ["interactive-terminal", "noninteractive-passwordless-sudo"],
+      "releases": [
+        "current-supported"
+      ],
+      "architectures": [
+        "amd64"
+      ],
+      "profiles": [
+        "desktop"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "none"
+      ],
+      "apply_privilege": [
+        "non-root-sudo"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive-passwordless-sudo"
+      ],
       "support": "UNSUPPORTED_FAIL_CLOSED",
       "reason": "contract 3.1.0 supports Apple Silicon only"
     },
     {
       "id": "full-apply-as-root",
       "os": "ubuntu",
-      "releases": ["24.04", "26.04"],
-      "architectures": ["amd64", "arm64"],
-      "profiles": ["desktop", "desktop-builds", "server"],
-      "gui_modes": ["enabled", "disabled"],
-      "docker_modes": ["none", "rootful", "rootless"],
-      "apply_privilege": ["root"],
-      "interaction": ["interactive-terminal", "noninteractive"],
+      "releases": [
+        "24.04",
+        "26.04"
+      ],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "profiles": [
+        "desktop",
+        "desktop-builds",
+        "server"
+      ],
+      "gui_modes": [
+        "enabled",
+        "disabled"
+      ],
+      "docker_modes": [
+        "none",
+        "rootful",
+        "rootless"
+      ],
+      "apply_privilege": [
+        "root"
+      ],
+      "interaction": [
+        "interactive-terminal",
+        "noninteractive"
+      ],
       "support": "UNSUPPORTED_FAIL_CLOSED",
       "reason": "the compositor must preserve a non-root owner home; root-only automation uses the server layer"
     }
@@ -220,7 +458,10 @@
       "source": "official npm registry tarball",
       "version_discovery": "reviewed registry metadata",
       "integrity": "exact version and SHA-512",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "managed content-addressed publication and launcher verification",
       "partial_failure": "staged download; unmanaged destinations preserved",
       "update_policy": "reviewed pin update only"
@@ -231,7 +472,10 @@
       "source": "official vendor installer",
       "version_discovery": "vendor stable channel",
       "integrity": "reviewed installer SHA-256 before execution",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "vendor installer plus strict command verification",
       "partial_failure": "downloaded temporary script; no network pipe",
       "update_policy": "reviewed installer digest update"
@@ -242,7 +486,10 @@
       "source": "official vendor installer",
       "version_discovery": "vendor stable channel",
       "integrity": "reviewed installer SHA-256 before execution",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "vendor installer plus strict command verification",
       "partial_failure": "downloaded temporary script; no network pipe",
       "update_policy": "reviewed installer digest update"
@@ -253,7 +500,9 @@
       "source": "Homebrew signed pkg bootstrap and formula/cask repositories",
       "version_discovery": "Homebrew package metadata at apply time",
       "integrity": "pinned Homebrew pkg SHA-256 and Team ID; downstream bottles/casks verified by Homebrew",
-      "architectures": ["arm64"],
+      "architectures": [
+        "arm64"
+      ],
       "idempotency": "brew list plus reinstall/upgrade policy",
       "partial_failure": "package-manager transaction; existing unmanaged applications preserved",
       "update_policy": "tracks package-manager current formula/cask except separately pinned Herdr"
@@ -264,7 +513,10 @@
       "source": "Ubuntu signed apt archives",
       "version_discovery": "supported release apt candidate",
       "integrity": "apt repository signatures",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "apt install --no-upgrade",
       "partial_failure": "apt/dpkg native recovery; no implicit distribution upgrade",
       "update_policy": "install candidate only when absent; do not upgrade healthy packages"
@@ -275,7 +527,10 @@
       "source": "official upstream release assets",
       "version_discovery": "reviewed upstream tags/releases",
       "integrity": "exact per-architecture SHA-256 and runtime receipts",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "generic content-addressed installer verifies receipt and bytes",
       "partial_failure": "temporary staging and atomic publish; divergent managed state fails closed",
       "update_policy": "reviewed exact pin/hash update"
@@ -286,7 +541,11 @@
       "source": "official immutable release archives",
       "version_discovery": "reviewed upstream releases",
       "integrity": "exact architecture SHA-256 and runtime receipts",
-      "architectures": ["amd64", "amd64-baseline", "arm64"],
+      "architectures": [
+        "amd64",
+        "amd64-baseline",
+        "arm64"
+      ],
       "idempotency": "receipt, exact version, launcher, bytes and permissions",
       "partial_failure": "temporary staging and atomic publish",
       "update_policy": "reviewed exact pin/hash update"
@@ -297,7 +556,10 @@
       "source": "official SDK archives; gopls official Go module",
       "version_discovery": "official release indexes and module tag",
       "integrity": "architecture SHA-256 receipts; gopls Go checksum database",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "receipt, exact versions, components, permissions and launchers",
       "partial_failure": "staged extraction/install and atomic publish",
       "update_policy": "reviewed exact pin/hash/module update"
@@ -308,7 +570,11 @@
       "source": "official GitHub release assets",
       "version_discovery": "official tag, release and discovery-only manifest",
       "integrity": "exact per-platform SHA-256 and managed receipt",
-      "architectures": ["macos-arm64", "linux-amd64", "linux-arm64"],
+      "architectures": [
+        "macos-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
       "idempotency": "exact shape, bytes, version, permissions, receipt and launcher",
       "partial_failure": "staged atomic publish; unmanaged/divergent targets preserved",
       "update_policy": "reviewed pin only; never mutable latest/update"
@@ -319,7 +585,10 @@
       "source": "official Google stable repository on Ubuntu; Homebrew cask on macOS",
       "version_discovery": "vendor stable channel",
       "integrity": "exact Google apt primary-key fingerprint; package-manager integrity",
-      "architectures": ["macos-arm64", "linux-amd64"],
+      "architectures": [
+        "macos-arm64",
+        "linux-amd64"
+      ],
       "idempotency": "managed apt key/source and installed package/cask verification",
       "partial_failure": "key verified before source write; competing sources fail closed",
       "update_policy": "tracks stable channel"
@@ -330,7 +599,11 @@
       "source": "official GitHub release debs on Ubuntu; Homebrew cask on macOS",
       "version_discovery": "reviewed official release",
       "integrity": "exact Ubuntu per-architecture SHA-256; package-manager cask integrity",
-      "architectures": ["macos-arm64", "linux-amd64", "linux-arm64"],
+      "architectures": [
+        "macos-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
       "idempotency": "package version verification",
       "partial_failure": "digest checked before dpkg; existing application preserved",
       "update_policy": "reviewed Ubuntu pin; macOS cask channel"
@@ -341,7 +614,10 @@
       "source": "official GitHub release tarball on Ubuntu; Homebrew cask on macOS",
       "version_discovery": "reviewed official release",
       "integrity": "exact Ubuntu archive and desktop-asset SHA-256; package-manager cask integrity",
-      "architectures": ["macos-arm64", "linux-amd64"],
+      "architectures": [
+        "macos-arm64",
+        "linux-amd64"
+      ],
       "idempotency": "managed receipt, launcher, updater policy and desktop integration",
       "partial_failure": "staged publication with backups for generated integrations",
       "update_policy": "reviewed Ubuntu pin with external updater disabled; macOS cask channel"
@@ -352,7 +628,10 @@
       "source": "official upstream Git commits",
       "version_discovery": "reviewed commit pins",
       "integrity": "Git object identity and tracked-index payload manifest",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "byte/mode/symlink manifest equality and deterministic publication",
       "partial_failure": "staged atomic publish; VCS metadata excluded by construction",
       "update_policy": "reviewed commit pin update"
@@ -363,7 +642,10 @@
       "source": "official Docker apt repository",
       "version_discovery": "supported release apt candidate",
       "integrity": "exact Docker signing-key fingerprint and managed deb822 source",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "healthy existing runtime preserved; partial/custom state fails closed",
       "partial_failure": "rootful/rootless state-specific validation and recovery",
       "update_policy": "never implicitly upgrade a healthy runtime"
@@ -374,7 +656,10 @@
       "source": "Ubuntu OpenSSH, UFW, Fail2ban and unattended-upgrades packages",
       "version_discovery": "supported release apt candidate",
       "integrity": "Ubuntu apt signatures plus managed-file owner/mode validation",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "idempotency": "explicit flags, syntax/context validation and service-state preservation",
       "partial_failure": "backup/validate/rollback for SSH and Fail2ban; UFW allow-before-enable",
       "update_policy": "no implicit package upgrade or automatic reboot policy change"
@@ -385,7 +670,9 @@
       "lane": "macos-gui",
       "os": "macos",
       "release": "runner-image",
-      "architectures": ["arm64"],
+      "architectures": [
+        "arm64"
+      ],
       "profile": "desktop",
       "gui": "enabled",
       "docker": "none",
@@ -394,17 +681,45 @@
       "environment": "github-hosted-vm",
       "tier": "HOSTED_NATIVE",
       "capabilities": [
-        {"id": "plan_apply_strict_verify_repeat_apply", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "interactive_gui_launch", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "authenticated_app_login", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "plan_apply_strict_verify_repeat_apply",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "repeat_apply",
+            "repeat_strict_verify"
+          ]
+        },
+        {
+          "id": "interactive_gui_launch",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "authenticated_app_login",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     },
     {
       "lane": "macos-no-gui",
       "os": "macos",
       "release": "runner-image",
-      "architectures": ["arm64"],
+      "architectures": [
+        "arm64"
+      ],
       "profile": "desktop",
       "gui": "disabled",
       "docker": "none",
@@ -413,15 +728,34 @@
       "environment": "github-hosted-vm",
       "tier": "HOSTED_NATIVE",
       "capabilities": [
-        {"id": "plan_apply_strict_verify_repeat_apply", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "plan_apply_strict_verify_repeat_apply",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "repeat_apply",
+            "repeat_strict_verify"
+          ]
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     },
     {
       "lane": "ubuntu-desktop-no-gui",
       "os": "ubuntu",
       "release": "24.04",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "profile": "desktop",
       "gui": "disabled",
       "docker": "none",
@@ -430,15 +764,33 @@
       "environment": "github-hosted-vm",
       "tier": "HOSTED_NATIVE",
       "capabilities": [
-        {"id": "plan_apply_strict_verify_repeat_apply", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "plan_apply_strict_verify_repeat_apply",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "repeat_apply",
+            "repeat_strict_verify"
+          ]
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     },
     {
       "lane": "ubuntu-arm-gui-refusal",
       "os": "ubuntu",
       "release": "24.04",
-      "architectures": ["arm64"],
+      "architectures": [
+        "arm64"
+      ],
       "profile": "desktop",
       "gui": "enabled",
       "docker": "none",
@@ -447,14 +799,27 @@
       "environment": "github-hosted-vm",
       "tier": "EXPECTED_FAIL_CLOSED",
       "capabilities": [
-        {"id": "unsupported_gui_refusal_before_mutation", "requirement": "REQUIRED", "status": "PROVEN"}
+        {
+          "id": "unsupported_gui_refusal_before_mutation",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "gui_apply_refused",
+            "refusal_exit_code",
+            "refusal_message",
+            "no_managed_state"
+          ]
+        }
       ]
     },
     {
       "lane": "sandbox-desktop-builds-rootful",
       "os": "ubuntu",
       "release": "24.04",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "profile": "desktop-builds",
       "gui": "disabled",
       "docker": "rootful",
@@ -463,16 +828,40 @@
       "environment": "privileged-systemd-container",
       "tier": "DISPOSABLE_SYSTEMD_CONTAINER",
       "capabilities": [
-        {"id": "plan_apply_strict_verify_repeat_apply", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "vm_or_bare_metal_boundary", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "plan_apply_strict_verify_repeat_apply",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "repeat_apply",
+            "repeat_strict_verify"
+          ]
+        },
+        {
+          "id": "vm_or_bare_metal_boundary",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     },
     {
       "lane": "sandbox-server-none",
       "os": "ubuntu",
       "release": "24.04",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "profile": "server",
       "gui": "disabled",
       "docker": "none",
@@ -481,16 +870,40 @@
       "environment": "privileged-systemd-container",
       "tier": "DISPOSABLE_SYSTEMD_CONTAINER",
       "capabilities": [
-        {"id": "plan_apply_strict_verify_repeat_apply", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "vm_or_bare_metal_boundary", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "plan_apply_strict_verify_repeat_apply",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "repeat_apply",
+            "repeat_strict_verify"
+          ]
+        },
+        {
+          "id": "vm_or_bare_metal_boundary",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     },
     {
       "lane": "sandbox-server-rootful",
       "os": "ubuntu",
       "release": "24.04",
-      "architectures": ["amd64", "arm64"],
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
       "profile": "server",
       "gui": "disabled",
       "docker": "rootful",
@@ -499,16 +912,39 @@
       "environment": "privileged-systemd-container",
       "tier": "DISPOSABLE_SYSTEMD_CONTAINER",
       "capabilities": [
-        {"id": "plan_apply_strict_verify_repeat_apply", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "vm_or_bare_metal_boundary", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "plan_apply_strict_verify_repeat_apply",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "repeat_apply",
+            "repeat_strict_verify"
+          ]
+        },
+        {
+          "id": "vm_or_bare_metal_boundary",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     },
     {
       "lane": "sandbox-server-rootless",
       "os": "ubuntu",
       "release": "24.04",
-      "architectures": ["amd64"],
+      "architectures": [
+        "amd64"
+      ],
       "profile": "server",
       "gui": "disabled",
       "docker": "rootless",
@@ -517,16 +953,39 @@
       "environment": "privileged-systemd-container",
       "tier": "DISPOSABLE_SYSTEMD_CONTAINER",
       "capabilities": [
-        {"id": "plan_apply_strict_verify_repeat_apply", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "vm_or_bare_metal_boundary", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "plan_apply_strict_verify_repeat_apply",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "repeat_apply",
+            "repeat_strict_verify"
+          ]
+        },
+        {
+          "id": "vm_or_bare_metal_boundary",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     },
     {
       "lane": "sandbox-server-hardening",
       "os": "ubuntu",
       "release": "24.04",
-      "architectures": ["amd64"],
+      "architectures": [
+        "amd64"
+      ],
       "profile": "server",
       "gui": "disabled",
       "docker": "none",
@@ -535,11 +994,48 @@
       "environment": "privileged-systemd-container",
       "tier": "DISPOSABLE_SYSTEMD_CONTAINER",
       "capabilities": [
-        {"id": "ssh_ufw_fail2ban_apply_validate", "requirement": "REQUIRED", "status": "PROVEN"},
-        {"id": "second_session_ssh", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "external_firewall_connectivity", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"},
-        {"id": "reboot_persistence", "requirement": "OPTIONAL", "status": "NOT_PROVEN", "required_tier": "REAL_HOST_REQUIRED"}
+        {
+          "id": "ssh_ufw_fail2ban_apply_validate",
+          "requirement": "REQUIRED",
+          "status": "PROVEN",
+          "observable_steps": [
+            "plan",
+            "apply",
+            "strict_verify",
+            "server_verify"
+          ]
+        },
+        {
+          "id": "second_session_ssh",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "external_firewall_connectivity",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        },
+        {
+          "id": "reboot_persistence",
+          "requirement": "OPTIONAL",
+          "status": "NOT_PROVEN",
+          "required_tier": "REAL_HOST_REQUIRED"
+        }
       ]
     }
+  ],
+  "observable_step_vocabulary": [
+    "apply",
+    "gui_apply_refused",
+    "no_managed_state",
+    "plan",
+    "refusal_exit_code",
+    "refusal_message",
+    "repeat_apply",
+    "repeat_strict_verify",
+    "server_verify",
+    "strict_verify"
   ]
 }

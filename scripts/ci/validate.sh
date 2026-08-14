@@ -115,6 +115,39 @@ bash "$REPO_ROOT/scripts/bootstrap.sh" --platform ubuntu --profile server --dock
 bash "$REPO_ROOT/scripts/bootstrap.sh" --platform ubuntu --profile desktop-builds --gui "${COMMON_PLAN[@]}"
 bash "$REPO_ROOT/scripts/bootstrap.sh" --platform ubuntu --profile desktop-builds --no-gui "${COMMON_PLAN[@]}"
 
+# The lanes above pass every --skip flag, so they exercise argument parsing and
+# composition only: run_server_layer returns early under --skip-system, and no
+# installer layer is ever entered. Plan mode is read-only, so the full plan path
+# runs here too -- against a throwaway HOME, which also fails the lane if a plan
+# ever starts writing to it again.
+FULL_PLAN_HOME="$(mktemp -d)"
+FULL_PLAN_LOG="$(mktemp)"
+trap 'rm -rf "$FULL_PLAN_HOME" "$FULL_PLAN_LOG"' EXIT
+# Docker-carrying compositions are deliberately absent: install_docker_packages
+# reads the host's own package set and refuses a partial Docker CE installation,
+# which is correct for apply and makes the lane's outcome depend on the runner
+# image rather than on this repository. That branch is covered by the
+# disposable systemd-container evidence lanes. Everything else runs here.
+for target in "macos --profile desktop --gui" "macos --profile desktop --no-gui" \
+  "ubuntu --profile desktop --no-gui" \
+  "ubuntu --profile server --docker-mode none"; do
+  # A plan reports through rldyour::log, which writes to stdout, so discarding
+  # stdout would discard the reason a lane failed. Capture it and print it.
+  # shellcheck disable=SC2086
+  if ! HOME="$FULL_PLAN_HOME" bash "$REPO_ROOT/scripts/bootstrap.sh" \
+    --platform $target --plan >"$FULL_PLAN_LOG" 2>&1; then
+    echo "full plan failed: --platform $target --plan" >&2
+    cat "$FULL_PLAN_LOG" >&2
+    exit 1
+  fi
+done
+if [ -n "$(find "$FULL_PLAN_HOME" -mindepth 1 -print -quit)" ]; then
+  echo "plan mode wrote to the home directory it only describes:" >&2
+  find "$FULL_PLAN_HOME" -mindepth 1 >&2
+  exit 1
+fi
+echo "full-plan-readonly-ok"
+
 if bash "$REPO_ROOT/scripts/bootstrap.sh" --platform ubuntu --plan >/dev/null 2>&1; then
   echo "Ubuntu profile inference unexpectedly succeeded" >&2
   exit 1

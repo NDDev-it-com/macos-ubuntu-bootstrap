@@ -7,7 +7,7 @@
 typeset -U path PATH
 
 path=(
-  "$HOME/.local/bin"                # uv tools, owner launchers (cl/cx/oc)
+  "$HOME/.local/bin"                # uv tools, owner launchers (cx/cl/gk)
   "$HOME/.bun/bin"
   "$HOME/.cargo/bin"
   "$HOME/.claude/bin"

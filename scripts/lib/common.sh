@@ -34,6 +34,36 @@ rldyour::sha256_file() {
   fi
 }
 
+# Print the single primary-key fingerprint of a keyring, uppercased.
+#
+# This is the one implementation of vendor-key identity in the repository. The
+# same awk program used to be copied into the Chrome installer, the Chrome
+# verifier, the Docker installer, and the Docker verifier; the verifier copy was
+# written inside a double-quoted command substitution, so its escaped quotes
+# reached awk verbatim and the program never parsed. Under `set -o pipefail`
+# that aborted strict Ubuntu GUI verification on every device, in every state.
+#
+# Fails closed when the keyring is missing, is not a regular file, cannot be
+# parsed, or holds anything other than exactly one primary key. A keyring
+# carrying a second primary key is not the vendor identity the caller asked
+# about, even when one of its fingerprints happens to match.
+rldyour::gpg_primary_fingerprint() {
+  local keyring=${1:?keyring path is required}
+  [ -f "$keyring" ] && [ ! -L "$keyring" ] || return 1
+  gpg --batch --show-keys --with-colons "$keyring" 2>/dev/null |
+    awk -F: '
+      $1 == "pub" { primary_count++; awaiting_primary_fpr = 1; next }
+      $1 == "fpr" && awaiting_primary_fpr {
+        primary_fpr = toupper($10)
+        awaiting_primary_fpr = 0
+      }
+      END {
+        if (primary_count != 1 || primary_fpr == "") exit 1
+        print primary_fpr
+      }
+    '
+}
+
 # True when the current x86-64 CPU advertises AVX2. The standard Bun x64 build
 # requires AVX2; older CPUs must use the bun-linux-x64-baseline artifact or they
 # fail with SIGILL. Non-x86 architectures are not gated by this check.
@@ -216,10 +246,8 @@ rldyour::ensure_path() {
     "$HOME/.bun/bin"
     "$HOME/go/bin"
     "$HOME/.rldyour/bin"
-    "$HOME/.mimocode/bin"
-    # nddev-codex-app installs its standalone CLI under its own target and
-    # publishes no link into the managed prefix, so the harness target's bin
-    # directory is the only place `codex` can be resolved from.
+    # The Codex CLI installs into its own target and publishes no link into
+    # the managed prefix, so this is the only place `codex` resolves from.
     "${RLDYOUR_CODEX_HOME:-$HOME/.codex}/bin"
     # Apple Silicon Homebrew. ensure_homebrew installs brew into /opt/homebrew
     # but the Homebrew installer only edits the login shell profile, never the
@@ -327,8 +355,8 @@ rldyour::install_vendor_ai_clis() {
     grok_script="$stage/grok-install.sh"
     rldyour::download_verified_sha512_file "$RLDYOUR_CODEX_TARBALL" "$RLDYOUR_CODEX_SHA512" "$codex_tgz" || return 1
     npm_bin="$(command -v npm 2>/dev/null || true)"
-    if [ -z "$npm_bin" ] && [ -x "$HOME/.local/share/rldyour/node/v24.18.0/bin/npm" ]; then
-      npm_bin="$HOME/.local/share/rldyour/node/v24.18.0/bin/npm"
+    if [ -z "$npm_bin" ] && [ -x "$HOME/.local/share/rldyour/node/v24.19.0/bin/npm" ]; then
+      npm_bin="$HOME/.local/share/rldyour/node/v24.19.0/bin/npm"
     fi
     [ -n "$npm_bin" ] || {
       rldyour::log "error" "npm is unavailable for the verified Codex package installation"
@@ -347,7 +375,9 @@ rldyour::install_vendor_ai_clis() {
 
 rldyour::install_ai_launchers() {
   local bin="$HOME/.local/bin"
-  mkdir -p "$bin"
+  # install_managed_file is plan-aware, but this mkdir was not, so a plan
+  # created ~/.local/bin on a machine it was only supposed to describe.
+  [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ] || mkdir -p "$bin"
   rldyour::install_managed_file "$bin/cx" "# Managed by macos-ubuntu-bootstrap: ai-launcher-cx-v1" 0755 <<'EOF'
 #!/bin/sh
 # Managed by macos-ubuntu-bootstrap: ai-launcher-cx-v1

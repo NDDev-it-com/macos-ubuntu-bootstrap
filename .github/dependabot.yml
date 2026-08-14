@@ -25,31 +25,3 @@ updates:
       github-actions-security:
         applies-to: security-updates
         patterns: ['*']
-  - package-ecosystem: "npm"
-    directory: "/templates/browser/provider"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-    commit-message:
-      prefix: "chore(deps)"
-      include: scope
-    labels:
-      - dependencies
-      - npm
-    groups:
-      npm-minor:
-        applies-to: version-updates
-        update-types: ["minor", "patch"]
-        patterns: ["*"]
-      npm-major:
-        applies-to: version-updates
-        update-types: ["major"]
-        patterns: ["*"]
-      npm-security:
-        applies-to: security-updates
-        patterns: ["*"]

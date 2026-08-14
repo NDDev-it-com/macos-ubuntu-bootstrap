@@ -29,12 +29,12 @@ WITH_FAIL2BAN="${RLDYOUR_WITH_FAIL2BAN:-0}"
 # Login shell change is explicit opt-in only; never mutated silently.
 SET_LOGIN_SHELL="${RLDYOUR_SET_LOGIN_SHELL:-0}"
 
-NODE_VERSION="24.18.0"
-NODE_SHA256_X64="55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742"
-NODE_SHA256_ARM64="58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6"
-UV_VERSION="0.11.30"
-UV_SHA256_X64="04bc7d180d6138bf6dc08387acf507a823f397a98fea55da36b0ccc7fbce3b68"
-UV_SHA256_ARM64="8c11d90f5f66d232930cf8ae3a085c39877690d409e10878234802b028b20e2a"
+NODE_VERSION="24.19.0"
+NODE_SHA256_X64="14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647"
+NODE_SHA256_ARM64="01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc"
+UV_VERSION="0.12.4"
+UV_SHA256_X64="c8c60f47e6f88d18dbf6f33d7279fb1fbf7ae76631768152cf5578c3d65729b4"
+UV_SHA256_ARM64="49d881b3403187e1f1789720881e77e4251ad4259d86c4844862657d2a35d13f"
 BUN_VERSION="1.3.14"
 BUN_SHA256_X64="951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f"
 BUN_SHA256_X64_BASELINE="a063908ae08b7852ca10939bbdc6ceed3ddabce8fb9402dce83d65d73b36e6c7"
@@ -44,9 +44,9 @@ BUN_SHA256_ARM64="a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a
 # them does not authorize local project builds; the desktop execution policy
 # stays `source-lsp-only` and the server profile never receives them (project
 # builds belong in Docker under `container-execution-only`).
-GO_VERSION="1.26.5"
-GO_SHA256_AMD64="5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053"
-GO_SHA256_ARM64="fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49"
+GO_VERSION="1.26.6"
+GO_SHA256_AMD64="708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89"
+GO_SHA256_ARM64="d0507e9e9d7fe012aae570108cbd76c15de879e17130ab8cb90d4d7445cb1f2e"
 # gopls publishes no prebuilt archive. It is pinned to an exact version and its
 # provenance comes from the Go module checksum database (sum.golang.org), which
 # is a transparency log rather than a hash this repository tracks. GOFLAGS and
@@ -58,16 +58,16 @@ RUST_VERSION="1.97.1"
 RUST_CHANNEL_DATE="2026-07-16"
 RUST_SHA256_X86_64="88f28fa9af20594179f85d6df67078dfd6fa93e2f6da5e1e9b0ac4997988ca4f"
 RUST_SHA256_AARCH64="9a7a2c336b4787f1b72f6bab7c35d5b7af2fd03cbd39b4fc721466a70d402a7d"
-# Dart is the third desktop language-server host (ADR 0006), on the same footing
+# Dart is the third desktop language-server host (ADR 0005), on the same footing
 # as Go and Rust. One self-contained SDK archive carries `dart language-server`
 # (the analysis server) and `dart mcp-server` (the Dart/Flutter MCP transport the
 # rldyour-mcps marketplace declares), so a single tracked hash covers both. The
 # SDK never mutates its own install tree, which is what keeps it compatible with
 # the runtime-receipt contract; the Flutter SDK is deliberately not installed
 # here because its bin/cache self-populates at runtime and would break that.
-DART_VERSION="3.12.2"
-DART_SHA256_X64="28e47b44cf075f36771046c068bb0d174201cf9c7608744aed1cc23204299c2d"
-DART_SHA256_ARM64="f82c83ece7d168047550dfd4a664e4071ac7c488bddb72dc43102c22d7e0b518"
+DART_VERSION="3.13.0"
+DART_SHA256_X64="87902573facd8acacac7ee1fe73fa8d0668e06065016068e2ed6c5c99c6b1ee0"
+DART_SHA256_ARM64="20141a0653327939bb20c4b87b231226beba1128d8a9aedbb30cb5af1a2790d4"
 # Prompt/history/completion pillars — parity with the macOS brew baseline
 # (starship, atuin, carapace). Installed as pinned standalone artifacts, never
 # via apt (stale) or a piped install script. Linux x64 + arm64 tarball SHA-256
@@ -150,7 +150,7 @@ PINNED_SOURCE_TOOLS=(
   # Reproduce the estate's CI checks locally: these four are exactly what the
   # gitleaks, OSV, actionlint, and hadolint workflows run.
   "gitleaks;8.30.1;tar0;gitleaks;gitleaks;gitleaks;551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb;e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080;https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz;https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_arm64.tar.gz"
-  "osv-scanner;2.4.0;raw;osv-scanner;osv-scanner;osv-scanner;15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0;44e580752910f0ff36ec99aff59af20f65df1e859aa31e5605a8f0d055b496e9;https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64;https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_arm64"
+  "osv-scanner;2.5.0;raw;osv-scanner;osv-scanner;osv-scanner;edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c;fe152e1a546af223e6c557cc3111a8bb3e5dc02fcbf7dbe95d26567c0f0041f2;https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_linux_amd64;https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_linux_arm64"
   "actionlint;1.7.12;tar0;actionlint;actionlint;actionlint;8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8;325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6;https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz;https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_arm64.tar.gz"
   "hadolint;2.15.1;raw;hadolint;hadolint;hadolint;c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507;f6198ef8090f404dbb771abfee086eb8c48ac177f30da7fd3510aca35b344b5d;https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-linux-x86_64;https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-linux-arm64"
   # Markdown language server. Ubuntu uses markdown-oxide rather than macOS's
@@ -165,7 +165,7 @@ PINNED_SOURCE_TOOLS=(
   # The archive also ships an `sg` shim. It is not published: upstream prints a
   # deprecation banner and exits non-zero, and on a host that has util-linux it
   # would shadow the setgid `sg`.
-  "ast-grep;0.45.0;zip;ast-grep;ast-grep;ast-grep;78931ae35ebac33d9a72b3aecea3e3d62d6e5b0b718ac8bbedfbe69d68421e41;62b60892dafacfa76d6de87157659f880bbf85ff38bdab52db12f1f14ec60f94;https://github.com/ast-grep/ast-grep/releases/download/0.45.0/app-x86_64-unknown-linux-gnu.zip;https://github.com/ast-grep/ast-grep/releases/download/0.45.0/app-aarch64-unknown-linux-gnu.zip"
+  "ast-grep;0.45.1;zip;ast-grep;ast-grep;ast-grep;76fb6555be6734fb5057dba8d2fb756430f374bb9e1af694cf1ce00e13238d63;9ee7ec49aada3dc05135d21977af089a33fc3154ada25bab102daca90b5098f2;https://github.com/ast-grep/ast-grep/releases/download/0.45.1/app-x86_64-unknown-linux-gnu.zip;https://github.com/ast-grep/ast-grep/releases/download/0.45.1/app-aarch64-unknown-linux-gnu.zip"
   # Command runner used across the estate's repositories. Ubuntu 26.04 ships
   # 1.45.0 against upstream 1.58.0; a justfile written against a newer feature
   # would fail on the distribution build, so the recipe runner is pinned like
@@ -178,6 +178,19 @@ PINNED_SOURCE_TOOLS=(
   # are deliberately not published: only the two commands the estate uses are
   # linked, so the managed PATH stays exactly what the contract declares.
   "age;1.3.1;tar1;age,age-keygen;age,age-keygen;age,age-keygen;bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377;c6878a324421b69e3e20b00ba17c04bc5c6dab0030cfe55bf8f68fa8d9e9093a;https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz;https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-arm64.tar.gz"
+  # Interactive terminal tools that templates/terminal/zshrc binds an alias or
+  # abbreviation to. Every one of these guards was dead on Ubuntu: the tool was
+  # in the macOS brew set and in no Ubuntu manifest, so `command -v` was false
+  # and the shell silently offered less than the template describes. None is
+  # packaged acceptably across both supported releases -- eza is absent from
+  # 24.04, lazygit and difftastic are in no Ubuntu archive at all, and jaq
+  # arrived only in 24.10 -- so each is pinned rather than left to apt.
+  "eza;0.23.5;tar0;eza;eza;eza;35c70c5c43c29108075e58b893234c67ef585f0b53a7eaf8e9e7d4eec9f339b4;40b87ae8628aa2ff0f0d2dc24ab52f689631366385c3da630bae745671fd71ec;https://github.com/eza-community/eza/releases/download/v0.23.5/eza_x86_64-unknown-linux-gnu.tar.gz;https://github.com/eza-community/eza/releases/download/v0.23.5/eza_aarch64-unknown-linux-gnu.tar.gz"
+  "lazygit;0.64.1;tar0;lazygit;lazygit;lazygit;f8ea237c41f194cd799b48505518bfdaae4edf5a2ad6bd3d898e939785ee4532;8b7ca3b344e60340ad1f89f29b9868ee39bcaba5bb92ee818bbe65476bb8b6e7;https://github.com/jesseduffield/lazygit/releases/download/v0.64.1/lazygit_0.64.1_linux_x86_64.tar.gz;https://github.com/jesseduffield/lazygit/releases/download/v0.64.1/lazygit_0.64.1_linux_arm64.tar.gz"
+  # difftastic publishes its binary as `difft`; the row is named for the command
+  # it publishes, like every other row here.
+  "difft;0.70.0;tar0;difft;difft;difft;2997d2bbe620534edbd79b0049f00ce84eef3fedb15c7822456d58e38d8b05c9;e729684907d67d1a1727a08f443877e19e40eeb2efebcd95c1b8f7fee4284e8e;https://github.com/Wilfred/difftastic/releases/download/0.70.0/difft-x86_64-unknown-linux-gnu.tar.gz;https://github.com/Wilfred/difftastic/releases/download/0.70.0/difft-aarch64-unknown-linux-gnu.tar.gz"
+  "jaq;3.1.1;raw;jaq;jaq;jaq;5922c7b67d9bd6841d6676d1f954410c6bf04b47203dcb661c4f052dfef7f454;bdda42d5a8c060a2c7916b287a227e7750d5fccbd4c37aacf0ab863010921829;https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-x86_64-unknown-linux-gnu;https://github.com/01mf02/jaq/releases/download/v3.1.1/jaq-aarch64-unknown-linux-gnu"
 )
 
 # User-selected CLI tools that are not language hosts, LSPs, or scanners but
@@ -1234,7 +1247,7 @@ ensure_rust() {
   }
 }
 
-# Dart SDK host (ADR 0006). The stable channel publishes one self-contained zip
+# Dart SDK host (ADR 0005). The stable channel publishes one self-contained zip
 # per architecture whose only top-level entry is `dart-sdk/`, so the wrapper is
 # stripped exactly the way ensure_rust strips its own. `dart` is the single
 # published link: `dart language-server` backs Dart/Flutter source analysis and
@@ -1525,6 +1538,11 @@ install_python_source_tools() {
     version="${entry#*==}"
     # Reproducible: skip only when the EXACT pinned version is already installed;
     # otherwise force-install the pin so a stale/divergent version is corrected.
+    if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
+      # `uv tool list` materializes ~/.cache/uv before it can answer.
+      rldyour::log "info" "[DRY-RUN] ensure pinned uv tool: ${entry}"
+      continue
+    fi
     if uv tool list 2>/dev/null | grep -Eq "^${name}[[:space:]]+v?${version//./\\.}([[:space:]]|$)"; then
       rldyour::log "ok" "pinned uv tool present: ${entry}"
     else
@@ -1541,6 +1559,12 @@ install_bun_lsps() {
     version="${entry##*@}"
     # Reproducible: skip only when the EXACT pinned version is already installed;
     # otherwise install the pin so a stale/divergent version is corrected.
+    if [ "${RLDYOUR_DRY_RUN:-1}" -eq 1 ]; then
+      # `bun pm ls -g` creates ~/.bun/install/global before it can answer, so a
+      # plan may not ask. State the pin the apply will converge on.
+      rldyour::log "info" "[DRY-RUN] ensure pinned Bun source tool: ${entry}"
+      continue
+    fi
     if bun pm ls -g 2>/dev/null | grep -Fq "${name}@${version}"; then
       rldyour::log "ok" "pinned Bun source tool present: ${entry}"
     else
@@ -1615,6 +1639,19 @@ run_server_layer() {
   rldyour::ubuntu_server::main "${args[@]}"
 }
 
+# Record the proven device state as a canonical receipt. This runs only after
+# strict verification has passed, so the receipt describes a state something
+# else already proved -- it is a record, never the proof itself. ADR 0007
+# describes this mechanism; until this call existed, nothing invoked it and the
+# document described something that did not run.
+build_device_receipt() {
+  rldyour::section "Record the device integrity receipt"
+  python3 "$REPO_ROOT/scripts/device_integrity.py" build --profile "$PROFILE" --replace-invalid || {
+    rldyour::log "error" "device receipt could not be built from the applied state"
+    return 1
+  }
+}
+
 verify_apply() {
   if [ "$RLDYOUR_DRY_RUN" -eq 1 ]; then
     rldyour::log "info" "plan complete; verification runs only after apply"
@@ -1625,6 +1662,7 @@ verify_apply() {
       RLDYOUR_SERVER_HARDEN_SSH="$HARDEN_SSH" \
       RLDYOUR_SERVER_ENABLE_FAIL2BAN="$WITH_FAIL2BAN" \
       bash "$SCRIPT_DIR/verify.sh" --strict
+    build_device_receipt
   fi
 }
 
@@ -1689,11 +1727,6 @@ main() {
   else
     rldyour::log "info" "desktop entries skipped: gui disabled"
   fi
-  if [ "$user_tools_failed" -ne 0 ]; then
-    rldyour::log "error" "one or more user tools remain unmanaged or divergent; all repairs were attempted"
-    return 1
-  fi
-
   install_gui_apps
   run_server_layer
 
@@ -1706,8 +1739,22 @@ main() {
   # verify.sh requires. Ordering it last keeps the failure fatal, which it must be,
   # while making it fatal to itself instead of to the whole device.
   [ "$SKIP_AI" -eq 1 ] || install_ai_runtimes
+
+  # Every optional-layer failure is reported here, once, after every layer has
+  # been attempted. The user-tool result used to be reported earlier, before
+  # install_gui_apps, run_server_layer and install_ai_runtimes -- so a single
+  # divergent Herdr, which is a user tool on every profile including server,
+  # left a server without Docker, without the vendor AI CLIs and without
+  # verification, while the message claimed every repair had been attempted.
+  # A failure here must stay fatal to the run; it must not be fatal to the
+  # layers behind it.
+  if [ "$user_tools_failed" -ne 0 ]; then
+    rldyour::log "error" "one or more user tools remain unmanaged or divergent; every other layer was still attempted"
+  fi
   if [ "$GUI_LAYER_FAILED" -ne 0 ]; then
     rldyour::log "error" "desktop customization failed a required step; every other layer was still attempted"
+  fi
+  if [ "$user_tools_failed" -ne 0 ] || [ "$GUI_LAYER_FAILED" -ne 0 ]; then
     return 1
   fi
   verify_apply

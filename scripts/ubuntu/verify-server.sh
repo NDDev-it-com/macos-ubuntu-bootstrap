@@ -161,16 +161,7 @@ rldyour::ubuntu_server_verify::docker_repo_key_trusted() {
   local expected_fingerprint=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
   local primary_fingerprint
 
-  [ ! -L "$key_path" ] && [ -f "$key_path" ] || return 1
-  primary_fingerprint=$(gpg --batch --show-keys --with-colons "$key_path" 2>/dev/null |
-    awk -F: '
-      $1 == "pub" { primary_count++; awaiting_primary_fpr=1; next }
-      $1 == "fpr" && awaiting_primary_fpr { primary_fpr=toupper($10); awaiting_primary_fpr=0 }
-      END {
-        if (primary_count != 1 || primary_fpr == "") exit 1
-        print primary_fpr
-      }
-    ') || return 1
+  primary_fingerprint=$(rldyour::gpg_primary_fingerprint "$key_path") || return 1
   [ "$primary_fingerprint" = "$expected_fingerprint" ]
 }
 

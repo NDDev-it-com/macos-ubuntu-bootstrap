@@ -12,6 +12,11 @@ platform installers/verifiers, `config/rldyour-contract.json`, `README.md`, and
 typed evidence tiers, and required-versus-optional proof. Device-integrity
 receipts report the state of one installed device; they do not redefine platform
 support or promote container/structural observations to native-host evidence.
+`scripts/device_integrity.py` is written by apply after strict verification
+passes and read back by `verify.sh --strict`; ADR 0007 records both call sites
+and what the receipt does and does not assert. `harnesses.detection` in the
+contract is what makes one-owner-per-harness checkable — do not describe an
+enforcement this repository cannot observe.
 
 ## Contract 3.0.1
 
@@ -26,6 +31,11 @@ support or promote container/structural observations to native-host evidence.
   `rootless` or `none` alternatives.
 - All profiles receive Codex CLI, Claude Code, Grok Build, zsh configuration,
   modern terminal tools, source-quality tools, and applicable language servers.
+- `terminal_tools` in the contract owns the interactive tool boundary. Every
+  command `templates/terminal/zshrc` guards must appear in `shared` and be
+  published by both installers; `macos_only` entries each carry a reason. Do
+  not add a guard for a tool one platform does not install — the guard makes it
+  a silent no-op rather than an error, which is how six such guards survived.
 - `cx`, `cl`, and `gk` invoke the three AI CLIs in their documented unrestricted
   modes. Keep the ordinary vendor commands unchanged.
 - Google Chrome stable is the only installed browser. macOS GUI installs
@@ -49,6 +59,14 @@ support or promote container/structural observations to native-host evidence.
   server runtime and hardening in `scripts/ubuntu/server.sh`.
 - Preserve exact runtime receipts and architecture hashes for fixed artifacts.
 - Do not add mutable dependency resolution where a frozen/pinned path exists.
+- macOS Homebrew formulae and casks are **intentionally rolling** (ADR 0010).
+  Ubuntu pins exact artifacts; the platforms differ and
+  `macos_package_determinism` in the contract records the class of every macOS
+  package. Anything whose exact bytes matter is not a Homebrew package -- that is
+  why Herdr comes from a checksum-pinned release asset. Provenance metadata may
+  claim only what a resolver can establish locally; never re-add a frozen
+  `executable_sha256` for a rolling formula, because homebrew-core rebuilds move
+  it and freezing it turns an ordinary upstream event into a red required check.
 
 ## Ubuntu server safeguards
 

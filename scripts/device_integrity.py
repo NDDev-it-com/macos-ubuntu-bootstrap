@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Build and verify the installed device runtime receipt against the contract.
 
-This script mirrors the architecture of ``browser_runtime_integrity.py``: a
-canonical-JSON receipt is built from a proven installed state, persisted
+A canonical-JSON receipt is built from a proven installed state, persisted
 atomically, and verified by re-collecting the state and comparing exactly. It
 extends the pattern to the *whole device* — not just the browser stack — by
 also comparing every declared runtime version and pinned source tool against
@@ -48,6 +47,15 @@ DEFAULT_RECEIPT = Path.home() / ".local/share/rldyour/device-receipt.json"
 # Runtime hosts declared in the contract under runtime_support, mapped to the
 # command that reports their version and the contract field that pins it. Each
 # entry drives one version comparison during verify.
+#
+# The contract fields are named `ubuntu_*` because only Ubuntu installs these
+# from an exact tracked artifact. macOS installs them through Homebrew, which
+# resolves current metadata and preserves an already installed formula, so a
+# macOS host legitimately carries a different patch version. Comparing a macOS
+# device against `ubuntu_uv` reports drift that is not drift, so the version
+# comparison is Linux-only and macOS records the observation without asserting
+# it. Whether macOS should pin exactly is a contract decision, tracked in #63;
+# until it is made, this tool must not invent an answer.
 RUNTIME_HOSTS: dict[str, tuple[str, str]] = {
     # name: (version_flag, contract_field under runtime_support)
     "node": ("--version", "ubuntu_node_lts"),
@@ -58,6 +66,11 @@ RUNTIME_HOSTS: dict[str, tuple[str, str]] = {
     "rustc": ("--version", "ubuntu_rust"),
     "dart": ("--version", "ubuntu_dart"),
 }
+
+# The contract pins exact artifacts for these platforms only. On any other
+# platform the runtime versions and pinned source tools are observed and
+# recorded, never asserted.
+EXACT_VERSION_PLATFORMS = ("linux",)
 
 # Pinned source tools (contract: runtime_support.ubuntu_pinned_source_tools).
 # Each is installed as a managed binary under ~/.local/bin/<name>.
@@ -132,8 +145,8 @@ def _resolve_build_profile(explicit: str | None) -> str:
     When none is set we fall back to ``desktop`` — the strict superset that
     verifies every runtime host and tool. That default is fail-closed: a server
     receipt built without a profile is over-verified into a loud NOT_PROVEN, not
-    silently under-verified into a false PROVEN. The one automated caller
-    (scripts/bootstrap-device.sh run_doctor) always passes ``--profile``.
+    silently under-verified into a false PROVEN. There is currently no automated
+    caller; every invocation should pass ``--profile`` explicitly.
     """
     if explicit:
         if explicit not in VALID_PROFILES:
@@ -155,7 +168,11 @@ def _resolve_build_profile(explicit: str | None) -> str:
 
 
 def regular_owned(
-    path: Path, *, executable: bool = False, enforce_private_mode: bool = True
+    path: Path,
+    *,
+    executable: bool = False,
+    enforce_private_mode: bool = True,
+    enforce_owner: bool = True,
 ) -> os.stat_result:
     """Assert a path is a regular, non-symlink, owner-held file.
 
@@ -163,6 +180,18 @@ def regular_owned(
     file. That is genuine tamper resistance for a file the installer created
     and owns. It is meaningless for a Git-tracked repository source (Git records
     only the executable bit), so callers reading repository sources pass False.
+
+    ``enforce_owner`` is likewise about device files rather than repository
+    sources. For a file the installer wrote under ``$HOME``, current-UID
+    ownership is a real property: anyone else owning it means something outside
+    this repository wrote it. For a repository *source* it is neither necessary
+    nor sufficient. Not necessary, because staging the repository read-only as
+    root and applying it as an unprivileged user is a legitimate shape -- it is
+    what the hosted native evidence lanes do, and it is safer than the
+    alternative. Not sufficient, because the first path checked is
+    ``device_integrity.py`` itself: anyone who owns that file controls the check,
+    so the check cannot defend against them. What actually pins a repository
+    source into the receipt is its content hash, which is recorded either way.
     """
     try:
         metadata = path.lstat()
@@ -170,7 +199,7 @@ def regular_owned(
         fail(f"required path is missing: {path}")
     if not stat.S_ISREG(metadata.st_mode) or path.is_symlink():
         fail(f"path must be a regular non-symlink file: {path}")
-    if metadata.st_uid != os.getuid():
+    if enforce_owner and metadata.st_uid != os.getuid():
         fail(f"path is not owned by the current UID: {path}")
     if enforce_private_mode and metadata.st_mode & 0o022:
         fail(f"path is group/world-writable: {path}")
@@ -212,7 +241,10 @@ def ensure_under(path: Path, root: Path, label: str) -> None:
 
 
 def load_contract() -> dict[str, Any]:
-    regular_owned(CONTRACT_PATH, enforce_private_mode=False)
+    # The contract is a repository source, so neither the private-mode nor the
+    # owner check applies: see regular_owned's docstring. Its content is pinned
+    # into the receipt by policy_hashes.
+    regular_owned(CONTRACT_PATH, enforce_private_mode=False, enforce_owner=False)
     try:
         return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -238,7 +270,10 @@ def policy_hashes() -> dict[str, str]:
             if entry.is_file() and entry.suffix == ".desktop":
                 paths[f"desktop_{entry.stem}"] = entry
     for path in paths.values():
-        regular_owned(path, enforce_private_mode=False)
+        # Repository sources, not device files: see regular_owned's docstring for
+        # why neither the private-mode nor the owner check applies here. The
+        # content hash below is what pins them into the receipt.
+        regular_owned(path, enforce_private_mode=False, enforce_owner=False)
     return {name: sha256_file(path) for name, path in paths.items()}
 
 
@@ -248,8 +283,8 @@ def policy_hashes() -> dict[str, str]:
 def _run_version(binary: Path, flag: str) -> str:
     """Run ``<binary> <flag>`` in a scrubbed environment and return stdout.
 
-    Mirrors the subprocess idiom of browser_runtime_integrity.py: strip
-    PYTHONPATH/PYTHONHOME, capture output, timeout, and chain-raise on failure.
+    Strips PYTHONPATH/PYTHONHOME, captures output, applies a timeout, and
+    chain-raises on failure.
     """
     if not binary.exists():
         return "absent"
@@ -282,8 +317,8 @@ def _run_version(binary: Path, flag: str) -> str:
 def _normalize_version(raw: str, name: str) -> str:
     """Reduce a version string to the comparable token.
 
-    Each runtime emits its version differently (``v24.18.0``, ``uv 0.11.30``,
-    ``go version go1.26.5 linux/amd64``, ``rustc 1.97.1 (...)``). Pull the first
+    Each runtime emits its version differently (``v24.19.0``, ``uv 0.12.4``,
+    ``go version go1.26.6 linux/amd64``, ``rustc 1.97.1 (...)``). Pull the first
     ``X.Y.Z`` token so the comparison is against the contract's bare semver.
     """
     match = re.search(r"\d+\.\d+\.\d+", raw)
@@ -409,10 +444,15 @@ def _harness_state(home: Path) -> dict[str, dict[str, Any]]:
     """Record where each catalogued harness resolves on this device.
 
     ``one-owner-per-harness`` was prose only. Nothing on a device could say
-    whether ``codex`` resolved to the target ``nddev-codex-app`` publishes or to
-    a second copy from a package-manager global, and nothing recorded that a
-    delegated on-pause harness was installed anyway. This records the observed
-    facts; the contract, not the receipt, decides what they mean.
+    whether ``codex`` resolved to the target its own installer publishes or to a
+    second copy from a package-manager global. This records the observed facts;
+    the contract, not the receipt, decides what they mean.
+
+    ``harnesses.detection`` in the contract drives this. Each entry names the
+    command, the prefix its owner publishes into, and whether that prefix is
+    enforced. Only harnesses this repository installs itself carry
+    ``enforcement: owned-prefix``; the two whose vendor installer picks its own
+    target are observed and recorded, never failed on.
     """
     contract = load_contract()
     detection = contract.get("harnesses", {}).get("detection", {})
@@ -646,17 +686,25 @@ def _verify_contract_versions(state: dict[str, Any], *, profile: str = "desktop"
     contract. Here the contract is the single source of truth.
 
     ``profile`` scopes profile-specific user tools. Runtime hosts and pinned
-    source tools are required on every Ubuntu profile by contract 3.1.0.
+    source tools are required on every Ubuntu profile by contract 3.0.1.
+
+    The ``ubuntu_*`` contract fields pin exact artifacts, which only Ubuntu
+    installs. macOS resolves the same tools through Homebrew, which preserves
+    an already installed formula, so asserting those fields on a macOS device
+    reports drift that is not drift. Version equality is therefore checked only
+    on the platforms the contract pins exactly; elsewhere the versions are
+    still collected into the receipt, they are simply not asserted.
     """
     contract = load_contract()
     runtime_support = contract.get("runtime_support", {})
     drifts: list[str] = []
+    exact = _current_os() in EXACT_VERSION_PLATFORMS
 
     for name, _flag, field in [
         (n, RUNTIME_HOSTS[n][0], RUNTIME_HOSTS[n][1]) for n in RUNTIME_HOSTS
     ]:
         declared = runtime_support.get(field)
-        if declared is None:
+        if declared is None or not exact:
             continue
         installed = state.get("runtime_hosts", {}).get(name, {}).get("normalized")
         # Strip a leading 'v' from the declared value: the contract stores
@@ -668,7 +716,7 @@ def _verify_contract_versions(state: dict[str, Any], *, profile: str = "desktop"
         elif installed != declared_norm:
             drifts.append(f"{name}: installed {installed} != contract {declared}")
 
-    declared_tools = runtime_support.get(PINNED_SOURCE_TOOLS_CONTRACT, {})
+    declared_tools = runtime_support.get(PINNED_SOURCE_TOOLS_CONTRACT, {}) if exact else {}
     installed_tools = state.get("pinned_source_tools", {})
     for name, spec in declared_tools.items():
         declared = spec.get("version")

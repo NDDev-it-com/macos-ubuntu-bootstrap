@@ -741,14 +741,23 @@ rldyour::privilege::receipt_value() {
     )
     assert trusted_error["returncode"] != 0
 
-    for fingerprints, expected_status in (("ABC", 0), ("", 1), ("ABC\nDEF", 1)):
+    # chrome_fingerprint_set_valid used to be exercised here. It was superseded
+    # by rldyour::ubuntu_verify::chrome_key_trusted, which delegates to the
+    # shared rldyour::gpg_primary_fingerprint primitive: the old helper counted
+    # matching fingerprint *lines*, so a keyring whose subkey matched satisfied
+    # it, while the primitive requires exactly one primary key. The replacement
+    # is executed against real generated keyrings in
+    # tests/test_desktop_customization.py rather than through this structural
+    # harness, because key identity is a gpg behaviour and not a control-flow one.
+    for expected_ok, expected_fingerprint in ((True, "$observed"), (False, "0" * 40)):
         result = _run_structural_function(
             tmp_path, ROOT / "scripts/ubuntu/verify.sh",
-            "rldyour::ubuntu_verify::chrome_fingerprint_set_valid", "",
-            "rldyour::ubuntu_verify::chrome_fingerprint_set_valid ABC '"
-            + fingerprints + "'",
+            "rldyour::ubuntu_verify::chrome_key_trusted",
+            'rldyour::gpg_primary_fingerprint(){ printf "%s\\n" AAAA; }\n',
+            'rldyour::ubuntu_verify::chrome_key_trusted /dev/null '
+            + ("AAAA" if expected_ok else "BBBB"),
         )
-        assert (result["returncode"] == 0) == (expected_status == 0)
+        assert (result["returncode"] == 0) == expected_ok
 
 
 def test_package_array_inventory_rejects_orphans_and_duplicate_authorities(tmp_path: Path) -> None:

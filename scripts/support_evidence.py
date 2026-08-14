@@ -53,6 +53,11 @@ def validate_matrix(matrix: dict[str, Any], contract: dict[str, Any]) -> None:
     expected_tiers = {"HOSTED_NATIVE", "DISPOSABLE_SYSTEMD_CONTAINER", "STRUCTURAL", "EXPECTED_FAIL_CLOSED", "REAL_HOST_REQUIRED"}
     if tiers != expected_tiers:
         raise MatrixError("evidence tier vocabulary is not canonical")
+    steps_vocabulary = matrix.get("observable_step_vocabulary")
+    if not isinstance(steps_vocabulary, list) or not steps_vocabulary:
+        raise MatrixError("observable_step_vocabulary must be a non-empty list")
+    if len(set(steps_vocabulary)) != len(steps_vocabulary):
+        raise MatrixError("observable_step_vocabulary has duplicates")
 
     compositions = matrix.get("support_compositions")
     lanes = matrix.get("evidence_lanes")
@@ -131,6 +136,22 @@ def validate_matrix(matrix: dict[str, Any], contract: dict[str, Any]) -> None:
                 raise MatrixError(f"{identity}/{capability_id}: NOT_PROVEN must name REAL_HOST_REQUIRED")
             if status == "PROVEN" and "required_tier" in capability:
                 raise MatrixError(f"{identity}/{capability_id}: PROVEN cannot claim a different required tier")
+            # A REQUIRED capability must name the steps a lane has to record for
+            # it. Without this the runtime check below is a tautology: the
+            # validator already refuses REQUIRED + not-PROVEN, so the matrix
+            # cannot express the state the runtime check guarded against, and
+            # the gate could only ever confirm a declaration.
+            steps = capability.get("observable_steps")
+            if requirement == "REQUIRED":
+                if not isinstance(steps, list) or not steps:
+                    raise MatrixError(f"{identity}/{capability_id}: REQUIRED capability must declare observable_steps")
+                if len(set(steps)) != len(steps):
+                    raise MatrixError(f"{identity}/{capability_id}: duplicate observable step")
+                unknown = sorted(set(steps) - set(matrix.get("observable_step_vocabulary", [])))
+                if unknown:
+                    raise MatrixError(f"{identity}/{capability_id}: observable steps outside the vocabulary: {unknown}")
+            elif steps is not None:
+                raise MatrixError(f"{identity}/{capability_id}: only REQUIRED capabilities are observed")
 
     required_lanes = {
         "macos-gui", "macos-no-gui", "ubuntu-desktop-no-gui", "ubuntu-arm-gui-refusal",
@@ -166,7 +187,29 @@ def resolve_lane(matrix: dict[str, Any], lane_name: str, arch: str) -> dict[str,
     return {**lane, "architecture": canonical}
 
 
-def finalize_evidence(payload: dict[str, Any], result: str) -> dict[str, Any]:
+def required_observations(capabilities: list[dict[str, Any]]) -> set[str]:
+    """Every step a lane must record for its REQUIRED capabilities."""
+    needed: set[str] = set()
+    for capability in capabilities:
+        if capability.get("requirement") == "REQUIRED":
+            needed |= set(capability.get("observable_steps") or [])
+    return needed
+
+
+def finalize_evidence(
+    payload: dict[str, Any],
+    result: str,
+    observed_steps: list[str] | None = None,
+) -> dict[str, Any]:
+    """Close an evidence payload, requiring the lane to have observed its claims.
+
+    ``capabilities`` is copied from the matrix declaration, so checking it
+    against the matrix proves only that the copy is faithful. ``observed_steps``
+    is different: the lane script appends a step name after the command that
+    proves it returns successfully, so the list describes what the runner did.
+    A successful lane whose observations do not cover every step its REQUIRED
+    capabilities declare is a lane that claimed more than it ran.
+    """
     if result not in {"success", "failure"}:
         raise MatrixError(f"invalid execution result: {result}")
     capabilities = payload.get("capabilities")
@@ -176,7 +219,14 @@ def finalize_evidence(payload: dict[str, Any], result: str) -> dict[str, Any]:
         for capability in capabilities:
             if capability.get("requirement") == "REQUIRED" and capability.get("status") != "PROVEN":
                 raise MatrixError(f"successful lane left REQUIRED capability unproven: {capability.get('id')}")
+        observed = set(observed_steps or [])
+        missing = sorted(required_observations(capabilities) - observed)
+        if missing:
+            raise MatrixError(
+                "successful lane did not observe every REQUIRED step: " + ", ".join(missing)
+            )
     payload["result"] = result
+    payload["observed_steps"] = sorted(set(observed_steps or []))
     return payload
 
 

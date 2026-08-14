@@ -2,11 +2,12 @@
 
 - Status: accepted
 - Date: 2026-08-04
-- Amends: ADR 0004 (relaxes the "desktop profiles never install Docker" invariant)
+- Amends: the retired ADR 0004 (see `docs/adr/README.md`); relaxes its
+  "desktop profiles never install Docker" invariant
 
 ## Context
 
-ADR 0004 established that desktop profiles never install Docker — local
+The retired ADR 0004 established that desktop profiles never install Docker — local
 workstations "cannot accidentally become project runtime hosts through this
 bootstrap." This held while every developer machine was either a pure
 source-editing workstation (macOS/Ubuntu desktop, `source-lsp-only`) or a
@@ -62,7 +63,7 @@ chrony) is NOT installed.
 
 ## Consequences
 
-- ADR 0004's invariant "desktop profiles never install Docker" is relaxed:
+- The retired ADR 0004's invariant "desktop profiles never install Docker" is relaxed:
   the **plain desktop** profile still forbids Docker, but `desktop-builds`
   is a new, explicit, audited escape hatch.
 - The `docker_group_membership` safety policy changes from `never-automatic`

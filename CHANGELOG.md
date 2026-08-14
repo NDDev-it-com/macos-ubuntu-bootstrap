@@ -32,6 +32,13 @@ remains available in immutable Git tags.
 
 ### Fixed
 
+- Stopped superseded evidence runs holding the queue. `evidence-gate` proves
+  the artifacts belong to one exact SHA and the release gate resolves a
+  candidate through the head whose gate is green, so a run for an older head
+  answers a question nobody is asking. With the lane count doubled by 26.04
+  coverage and `max-parallel: 2` serialising the sandbox matrix, letting each
+  push queue a full run behind the one it invalidated turned two quick
+  corrections into two hours of runner time.
 - The privilege state machine can use sudo on Ubuntu 26.04. `absolute_tool`
   required a privileged tool to be a real file at a fixed path, but 26.04 ships
   sudo through the alternatives system — `/usr/bin/sudo` →

@@ -44,6 +44,18 @@
       ]
     },
     {
+      "path": "scripts/ci/discover_source_drift.py",
+      "platform": "cross-platform",
+      "role": "ci-validation",
+      "interpreter": "python",
+      "dependency_class": "runtime-stdlib",
+      "launcher": "direct",
+      "evidence": "hosted",
+      "gates": [
+        "python-compile"
+      ]
+    },
+    {
       "path": "scripts/ci/lint.sh",
       "platform": "cross-platform",
       "role": "ci-validation",

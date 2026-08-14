@@ -170,7 +170,13 @@ def test_new_security_shell_boundaries_forbid_ambiguous_and_or_fallbacks() -> No
         assert "shellcheck disable=SC2015" not in text
         logical = text.replace("\\\n", " ")
         for number, line in enumerate(logical.splitlines(), 1):
-            shell_tokens = re.sub(r"'(?:[^']*)'|\"(?:\\.|[^\"])*\"", "", line)
+            # The two branches of the double-quoted alternative must be
+            # disjoint. `\\.` and `[^"]` both match a backslash, so the
+            # alternation was ambiguous inside `*` and a run of backslashes with
+            # no closing quote backtracked exponentially (CodeQL py/redos).
+            # Excluding the backslash from the literal branch makes each
+            # character match exactly one way.
+            shell_tokens = re.sub(r"'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"", "", line)
             shell_tokens = shell_tokens.split("#", 1)[0]
             assert not re.search(r"&&.*\|\|", shell_tokens), f"{path}:{number}: {line}"
 

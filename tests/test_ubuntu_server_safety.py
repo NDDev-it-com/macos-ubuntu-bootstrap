@@ -280,3 +280,41 @@ rldyour::ubuntu_server::install_docker_packages rootful
     )
     assert result.returncode == 0, result.stderr[-1000:]
     assert "healthy existing Docker CE installation preserved" in result.stdout + result.stderr
+
+
+def test_authorized_keys_readability_is_not_probed_with_external_test() -> None:
+    """`test -r` and an actual open disagree on Ubuntu 26.04 (#57).
+
+    Measured as root, with full capabilities, on a mode 0600 file owned by
+    another user -- which is exactly what a correct `authorized_keys` is:
+
+        /usr/bin/test -r   24.04: 0    26.04: 1
+        bash builtin -r    24.04: 0    26.04: 0
+        /usr/bin/test -e   24.04: 0    26.04: 0
+
+    coreutils 9.5 answers `-r` through access(2) without granting root its
+    usual override, so `probe_as_root test -r` refused key-only SSH on 26.04
+    for a perfectly valid key file. That is a refusal on a real server, not a
+    test artifact, and it would have shipped.
+
+    Opening the file answers the question that matters and depends on no
+    coreutils or libc policy about what root "may" read.
+    """
+    server = (ROOT / "scripts/ubuntu/server.sh").read_text(encoding="utf-8")
+    block = server.split(
+        "rldyour::ubuntu_server::validate_authorized_keys() {", 1
+    )[1].split("\n}", 1)[0]
+
+    assert "probe_as_root test -r" not in block, (
+        "authorized_keys readability is probed with external `test -r` again; "
+        "it disagrees with an open on Ubuntu 26.04"
+    )
+    assert """probe_as_root sh -c 'exec 3<"$1"'""" in block, (
+        "readability is no longer answered by opening the file"
+    )
+    # The stat-based probes are unaffected and must stay as they are: only the
+    # access-permission predicate changed behaviour between releases.
+    for predicate in ("test -L", "test -f", "test -d"):
+        assert f"probe_as_root {predicate}" in block, (
+            f"{predicate} was changed without cause; it is stat-based and portable"
+        )

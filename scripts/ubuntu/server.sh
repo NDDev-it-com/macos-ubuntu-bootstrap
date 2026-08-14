@@ -1258,7 +1258,25 @@ rldyour::ubuntu_server::validate_authorized_keys() {
   ssh_dir="$home/.ssh"
   authorized_keys="$ssh_dir/authorized_keys"
   user_uid=$(id -u "$user") || return 1
-  if ! rldyour::ubuntu_server::probe_as_root test -r "$authorized_keys"; then
+  # Opened rather than probed with `test -r`, because the two disagree.
+  #
+  # `test -r` answers through access(2), and coreutils 9.5 -- Ubuntu 26.04 --
+  # returns false for root on a mode 0600 file owned by someone else, where
+  # coreutils 9.4 on 24.04 returned true. Measured, as root with full
+  # capabilities, on the same file:
+  #
+  #     /usr/bin/test -r   24.04: 0    26.04: 1
+  #     bash builtin -r    24.04: 0    26.04: 0
+  #     /usr/bin/test -e   24.04: 0    26.04: 0
+  #
+  # So on 26.04 this refused key-only SSH for a correctly configured
+  # authorized_keys -- a real refusal on a real server, not a test artifact.
+  #
+  # Opening the file answers the question that actually matters and depends on
+  # no libc or coreutils policy about what root "may" read. The descriptor is
+  # closed immediately and no key material is read.
+  # shellcheck disable=SC2016  # $1 is the inner shell's argument, not this one's
+  if ! rldyour::ubuntu_server::probe_as_root sh -c 'exec 3<"$1"' _ "$authorized_keys"; then
     rldyour::log "error" "cannot enable key-only SSH: missing readable $authorized_keys"
     return 1
   fi

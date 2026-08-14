@@ -1,0 +1,62 @@
+name: source-drift
+
+# Discovery only. This workflow reads first-party release metadata and publishes
+# a report; it has no write permission, opens no pull request, and cannot edit a
+# pin. A refresh stays a reviewed change made by a person, with every digest
+# computed from the downloaded artifact rather than copied from a release note.
+#
+# Deliberately not self-authoring PRs: that needs `contents: write` and
+# `pull-requests: write` on a public repository, which is a privilege decision
+# separate from wanting the report. See #58.
+
+on:
+  schedule:
+    # Monday morning, after the Dependabot window. Dependabot covers the
+    # github-actions ecosystem; every pin this checks is a direct upstream
+    # artifact it cannot see.
+    - cron: "20 7 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: source-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    name: Official source drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Discover drift against official sources
+        id: discover
+        env:
+          # Raises the anonymous API rate limit. Read-only, and the script only
+          # sends it to api.github.com.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          python3 scripts/ci/discover_source_drift.py --markdown > report.md
+          status=$?
+          python3 scripts/ci/discover_source_drift.py --json > report.json || true
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: source-drift-${{ github.run_id }}
+          path: |
+            report.md
+            report.json
+          if-no-files-found: error
+          retention-days: 30

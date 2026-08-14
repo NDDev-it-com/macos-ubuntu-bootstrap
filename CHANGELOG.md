@@ -5,6 +5,53 @@ remains available in immutable Git tags.
 
 ## [Unreleased]
 
+### Added
+
+- Weekly discovery of pin drift against official sources. `#66` found seven pins
+  behind their upstreams, one a whole minor version, and nothing in the
+  repository would have said so — Dependabot covers the GitHub Actions
+  ecosystem, and every pin here is a direct upstream artifact it cannot see.
+  `scripts/ci/discover_source_drift.py` reads first-party release metadata for
+  all twenty-five and reports where each stands. It is discovery only: it holds
+  no write permission, opens no pull request, downloads no install artifact, and
+  a test asserts it cannot open a file for writing. A refresh stays a reviewed
+  change with digests computed from the downloaded artifact. A source that
+  contradicts the contract — a missing architecture, a mutable download URL,
+  metadata in an unexpected shape — fails the run; a source that is merely
+  unreachable is reported as `unknown` and does not, because a report that fails
+  on a rate limit is a report people mute.
+
+- Ubuntu 26.04 hosted evidence. Every sandbox lane now runs on both supported
+  releases, and the evidence matrix expands per `(lane, release, architecture)`
+  so a 24.04 result can never stand in for its 26.04 twin — the artifact count
+  goes from 13 to 21 and the gate keys on the release. The container's release
+  is a lane property rather than the runner's, so this needs no dependency on
+  the `ubuntu-26.04` runner labels, which exist but are public preview and would
+  queue indefinitely rather than fail if withdrawn. Each artifact records the
+  release it proved and the runner's stability class.
+
+### Fixed
+
+- Key-only SSH hardening no longer refuses a valid `authorized_keys` on Ubuntu
+  26.04. The preflight asked `test -r` through `sudo`, and coreutils 9.5
+  answers `-r` via `access(2)` without granting root its usual override, so a
+  correct mode-0600 key file owned by the target user read as unreadable. On
+  24.04 the same probe returned true. Measured as root with full capabilities
+  on one file: external `test -r` gave 0 on 24.04 and 1 on 26.04, while the
+  shell builtin and `test -e` agreed on both. Readability is now answered by
+  opening the file, which depends on no coreutils policy about what root may
+  read and reads no key material. This was a refusal on a real server, not a
+  test artifact, and only the release matrix surfaced it.
+
+- Made the sandbox readiness check release-portable. It waited for systemd to
+  report `running`, but on 26.04 `systemd-modules-load.service` fails inside a
+  container — it cannot load kernel modules — so systemd settles `degraded` and
+  never reaches `running`. A correct 26.04 lane would have timed out after 30
+  attempts for a reason unrelated to the bootstrap. Readiness now accepts either
+  settled state and records a degraded boot with its failed units in the
+  evidence, rather than either rejecting it or tolerating it silently; the
+  facility assertions the lane actually depends on still have to hold.
+
 ### Security
 
 - Removed `workflow_dispatch` from `platform-evidence`, leaving `pull_request`

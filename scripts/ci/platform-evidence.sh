@@ -9,6 +9,8 @@ OUTPUT_DIR="${2:?usage: platform-evidence.sh LANE OUTPUT_DIR}"
 EVIDENCE_SHA="${EVIDENCE_SHA:?EVIDENCE_SHA is required}"
 EVIDENCE_STARTED_EPOCH="$(date +%s)"
 CONTAINER_NAME=""
+SANDBOX_SYSTEMD_STATE=""
+SANDBOX_FAILED_UNITS=""
 
 mkdir -p "$OUTPUT_DIR"
 LOG="$OUTPUT_DIR/run.log"
@@ -78,6 +80,10 @@ finalize_evidence() {
     EVIDENCE_STARTED_EPOCH="$EVIDENCE_STARTED_EPOCH" \
     EVIDENCE_SUPPORT_SCRIPT="$REPO_ROOT/scripts/support_evidence.py" \
     EVIDENCE_OBSERVED_STEPS="$OBSERVED_STEPS" \
+    EVIDENCE_SANDBOX_SYSTEMD_STATE="$SANDBOX_SYSTEMD_STATE" \
+    EVIDENCE_SANDBOX_FAILED_UNITS="$SANDBOX_FAILED_UNITS" \
+    EVIDENCE_RELEASE="${RLDYOUR_EVIDENCE_RELEASE:-}" \
+    EVIDENCE_RUNNER_STABILITY="${RLDYOUR_EVIDENCE_RUNNER_STABILITY:-generally-available}" \
     EVIDENCE_OUTPUT="$OUTPUT_DIR/evidence.json" python3 - <<'PY'
 import json
 import os
@@ -93,7 +99,18 @@ payload.update({
     "finished_epoch": finished,
     "result": "success" if int(os.environ["EVIDENCE_RC"]) == 0 else "failure",
     "started_epoch": started,
+    # Which release actually ran, and how trustworthy the runner label is. A
+    # public-preview runner produces real evidence, but evidence that says so.
+    "release": os.environ.get("EVIDENCE_RELEASE") or payload.get("composition", {}).get("release", ""),
+    "runner_stability": os.environ["EVIDENCE_RUNNER_STABILITY"],
 })
+# systemd inside a container settles `degraded` on some releases because
+# systemd-modules-load cannot load kernel modules there. That is recorded, not
+# hidden: a lane that ran degraded says which units failed.
+if os.environ.get("EVIDENCE_SANDBOX_SYSTEMD_STATE"):
+    payload["sandbox_systemd_state"] = os.environ["EVIDENCE_SANDBOX_SYSTEMD_STATE"]
+    failed = os.environ.get("EVIDENCE_SANDBOX_FAILED_UNITS", "")
+    payload["sandbox_failed_units"] = sorted(filter(None, failed.split(",")))
 sys.path.insert(0, str(Path(os.environ["EVIDENCE_SUPPORT_SCRIPT"]).parent))
 import support_evidence
 
@@ -221,9 +238,14 @@ container_exec_dev() {
 
 start_systemd_container() {
   CONTAINER_NAME="rldyour-evidence-${GITHUB_RUN_ID:-local}-${RANDOM}"
-  local image="rldyour-evidence-systemd:24.04"
-  docker build --tag "$image" - <<'DOCKERFILE'
-FROM ubuntu:24.04
+  # The sandbox release is a lane property, not the runner's. A 26.04 container
+  # runs on a 24.04 runner, so release coverage does not depend on a
+  # public-preview runner label being available.
+  local release="${RLDYOUR_EVIDENCE_RELEASE:-24.04}"
+  local image="rldyour-evidence-systemd:${release}"
+  docker build --build-arg "RELEASE=${release}" --tag "$image" - <<'DOCKERFILE'
+ARG RELEASE=24.04
+FROM ubuntu:${RELEASE}
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl dbus-user-session openssh-server python3 sudo systemd systemd-sysv \
@@ -241,19 +263,37 @@ DOCKERFILE
     --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --volume "$REPO_ROOT:/repo:ro" \
     "$image"
-  local ready=0
-  for _ in {1..30}; do
-    if docker exec "$CONTAINER_NAME" systemctl is-system-running --quiet 2>/dev/null; then
-      ready=1
-      break
-    fi
+  # `running` was never the property this lane needs, and requiring it is a
+  # release-portability bug rather than a strictness. On 26.04
+  # systemd-modules-load.service fails inside a container -- it cannot load
+  # kernel modules -- so systemd settles at `degraded` and never reaches
+  # `running`. The loop below would have timed out after 30 attempts and failed
+  # a 26.04 lane for a reason that has nothing to do with the bootstrap.
+  #
+  # What the lane needs is that systemd finished booting, and that the
+  # facilities it uses are up. Both settled states are accepted; a degraded one
+  # is recorded with its failed units rather than tolerated silently, and the
+  # facility assertions below still have to hold either way.
+  local ready=0 state=""
+  for _ in {1..60}; do
+    state="$(docker exec "$CONTAINER_NAME" systemctl is-system-running 2>/dev/null || true)"
+    case "$state" in
+      running|degraded) ready=1; break ;;
+    esac
     sleep 1
   done
   [ "$ready" -eq 1 ] || {
+    echo "systemd did not settle inside the container; last state: ${state:-unknown}" >&2
     docker logs "$CONTAINER_NAME"
     docker exec "$CONTAINER_NAME" systemctl --failed || true
     return 1
   }
+  SANDBOX_SYSTEMD_STATE="$state"
+  if [ "$state" = degraded ]; then
+    SANDBOX_FAILED_UNITS="$(docker exec "$CONTAINER_NAME" systemctl --failed --no-legend --plain 2>/dev/null |
+      awk '{ print $1 }' | paste -sd, - || true)"
+    echo "systemd settled degraded; failed units: ${SANDBOX_FAILED_UNITS:-none}"
+  fi
   local dev_uid
   dev_uid="$(docker exec "$CONTAINER_NAME" id -u dev)"
   docker exec "$CONTAINER_NAME" loginctl enable-linger dev

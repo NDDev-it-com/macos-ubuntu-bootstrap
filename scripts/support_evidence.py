@@ -115,6 +115,13 @@ def validate_matrix(matrix: dict[str, Any], contract: dict[str, Any]) -> None:
         architectures = lane.get("architectures")
         if not isinstance(architectures, list) or not architectures:
             raise MatrixError(f"{identity}: architectures must be non-empty")
+        releases = lane.get("releases")
+        if not isinstance(releases, list) or not releases:
+            raise MatrixError(f"{identity}: releases must be non-empty")
+        if len(set(releases)) != len(releases):
+            raise MatrixError(f"{identity}: duplicate release")
+        if "release" in lane:
+            raise MatrixError(f"{identity}: scalar `release` is superseded by `releases`")
         if len({canonical_arch(value) for value in architectures}) != len(architectures):
             raise MatrixError(f"{identity}: duplicate architecture aliases")
         capabilities = lane.get("capabilities")
@@ -160,7 +167,13 @@ def validate_matrix(matrix: dict[str, Any], contract: dict[str, Any]) -> None:
     }
     if lane_ids != required_lanes:
         raise MatrixError(f"evidence lane set drift: missing={sorted(required_lanes-lane_ids)} extra={sorted(lane_ids-required_lanes)}")
-    artifact_instances = sum(len({canonical_arch(value) for value in lane["architectures"]}) for lane in lanes)
+    # One artifact per (lane, release, architecture). Release is part of the
+    # expansion because 24.04 and 26.04 evidence must stay separate: a single
+    # result may not imply both.
+    artifact_instances = sum(
+        len({canonical_arch(value) for value in lane["architectures"]}) * len(lane["releases"])
+        for lane in lanes
+    )
     if artifact_instances != matrix.get("expected_hosted_artifact_instances"):
         raise MatrixError(
             f"hosted artifact instance drift: declared={matrix.get('expected_hosted_artifact_instances')} computed={artifact_instances}"
@@ -175,7 +188,9 @@ def validate_matrix(matrix: dict[str, Any], contract: dict[str, Any]) -> None:
         raise MatrixError("macOS architecture contract drift")
 
 
-def resolve_lane(matrix: dict[str, Any], lane_name: str, arch: str) -> dict[str, Any]:
+def resolve_lane(
+    matrix: dict[str, Any], lane_name: str, arch: str, release: str | None = None
+) -> dict[str, Any]:
     matches = [item for item in matrix["evidence_lanes"] if item["lane"] == lane_name]
     if len(matches) != 1:
         raise MatrixError(f"unknown or ambiguous evidence lane: {lane_name}")
@@ -184,7 +199,13 @@ def resolve_lane(matrix: dict[str, Any], lane_name: str, arch: str) -> dict[str,
     allowed = {canonical_arch(value) for value in lane["architectures"]}
     if canonical not in allowed:
         raise MatrixError(f"{lane_name}: architecture {canonical} is not declared")
-    return {**lane, "architecture": canonical}
+    if release is None:
+        if len(lane["releases"]) != 1:
+            raise MatrixError(f"{lane_name}: release is ambiguous; declare which one")
+        release = lane["releases"][0]
+    if release not in lane["releases"]:
+        raise MatrixError(f"{lane_name}: release {release} is not declared")
+    return {**lane, "architecture": canonical, "release": release}
 
 
 def required_observations(capabilities: list[dict[str, Any]]) -> set[str]:
@@ -239,6 +260,7 @@ def main(argv: list[str] | None = None) -> int:
     resolve = subparsers.add_parser("resolve")
     resolve.add_argument("--lane", required=True)
     resolve.add_argument("--arch", default=os.environ.get("RUNNER_ARCH") or platform.machine())
+    resolve.add_argument("--release", default=os.environ.get("RLDYOUR_EVIDENCE_RELEASE") or None)
     args = parser.parse_args(argv)
     matrix = load_json(args.matrix)
     contract = load_json(args.contract)
@@ -246,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "validate":
         print("support-evidence-matrix-ok")
         return 0
-    print(json.dumps(resolve_lane(matrix, args.lane, args.arch), sort_keys=True))
+    print(json.dumps(resolve_lane(matrix, args.lane, args.arch, args.release), sort_keys=True))
     return 0
 
 

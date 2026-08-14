@@ -20,8 +20,8 @@ CONTRACT = json.loads((ROOT / "config/rldyour-contract.json").read_text(encoding
 def test_canonical_matrix_validates_and_is_deterministic() -> None:
     support_evidence.validate_matrix(MATRIX, CONTRACT)
     assert CONTRACT["support_evidence"]["path"] == "config/support-evidence-matrix.json"
-    first = support_evidence.resolve_lane(MATRIX, "ubuntu-desktop-no-gui", "x86_64")
-    second = support_evidence.resolve_lane(MATRIX, "ubuntu-desktop-no-gui", "AMD64")
+    first = support_evidence.resolve_lane(MATRIX, "ubuntu-desktop-no-gui", "x86_64", "24.04")
+    second = support_evidence.resolve_lane(MATRIX, "ubuntu-desktop-no-gui", "AMD64", "24.04")
     assert first == second
     assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
 
@@ -69,9 +69,14 @@ def test_known_gaps_are_typed_optional_and_tracked() -> None:
     }
 
 
-def test_declared_hosted_artifact_count_is_exactly_thirteen() -> None:
-    assert MATRIX["expected_hosted_artifact_instances"] == 13
-    assert sum(len(lane["architectures"]) for lane in MATRIX["evidence_lanes"]) == 13
+def test_declared_hosted_artifact_count_matches_the_matrix_expansion() -> None:
+    assert MATRIX["expected_hosted_artifact_instances"] == 21
+    # One artifact per (lane, release, architecture): release is part of the
+    # expansion so a 24.04 result cannot stand in for its 26.04 twin.
+    assert sum(
+        len(lane["architectures"]) * len(lane["releases"])
+        for lane in MATRIX["evidence_lanes"]
+    ) == 21
 
 
 def test_installation_audit_covers_every_contract_install_domain() -> None:
@@ -102,7 +107,7 @@ def test_required_unproven_and_tier_escalation_fail_closed() -> None:
 
 
 def test_optional_not_proven_is_honest_and_does_not_weaken_required_gate() -> None:
-    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64")
+    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64", "runner-image")
     payload = {"capabilities": copy.deepcopy(lane["capabilities"])}
     observed = sorted(support_evidence.required_observations(lane["capabilities"]))
     result = support_evidence.finalize_evidence(payload, "success", observed)
@@ -155,26 +160,36 @@ def _matrix_instances(name: str, text: str) -> int:
     # identical shape, so a regex over the whole block counts exclusions as
     # inclusions.
     head, _, excluded_text = text.partition("        exclude:\n")
-    excluded = len(re.findall(pair, excluded_text, re.M)) if excluded_text else 0
+    # An exclude entry names runner and lane but not release, so it removes one
+    # instance per declared release rather than one instance outright.
+    excluded_entries = len(re.findall(pair, excluded_text, re.M)) if excluded_text else 0
 
     if "        include:\n" in head:
         included = len(re.findall(pair, head.split("        include:\n", 1)[1], re.M))
         if not included:
             raise AssertionError(f"{name}: include: block matched no runner/lane pair")
-        if excluded:
+        if excluded_entries:
             raise AssertionError(f"{name}: include: with exclude: is not a shape this parser handles")
         return included
 
-    lanes = re.findall(r"^          - (\S+)$", head, re.M)
-    inline = re.search(r"^        lane: \[(.*?)\]$", head, re.M)
-    if inline:
-        lanes = [item.strip() for item in inline.group(1).split(",")]
+    def inline_list(key: str) -> list[str] | None:
+        found = re.search(rf'^        {key}: \[(.*?)\]$', head, re.M)
+        if not found:
+            return None
+        return [item.strip().strip('"') for item in found.group(1).split(",")]
+
+    lanes = re.findall(r"^          - (\S+)$", head, re.M) or inline_list("lane")
+    releases = inline_list("release") or [None]
+    runners = inline_list("runner") or [None]
+
     if not lanes:
+        # A job whose only matrix dimension is the release still expands, e.g.
+        # ubuntu-safeguards, which runs one named lane per release.
+        if releases != [None]:
+            return len(releases) - excluded_entries
         raise AssertionError(f"{name}: matrix understood by neither shape:\n{text}")
 
-    runners = re.search(r"^        runner: \[(.*?)\]$", head, re.M)
-    runner_count = len([r.strip() for r in runners.group(1).split(",")]) if runners else 1
-    return len(lanes) * runner_count - excluded
+    return len(lanes) * len(releases) * len(runners) - excluded_entries * len(releases)
 
 
 def _artifact_producing_job_instances() -> int:
@@ -312,14 +327,14 @@ def test_finalize_rejects_a_success_that_observed_nothing() -> None:
     This one can: the capabilities are exactly what the matrix declares, and the
     lane still fails because it did not run the steps.
     """
-    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64")
+    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64", "runner-image")
     payload = {"capabilities": copy.deepcopy(lane["capabilities"])}
     with pytest.raises(support_evidence.MatrixError, match="did not observe every REQUIRED step"):
         support_evidence.finalize_evidence(payload, "success", ["plan", "apply"])
 
 
 def test_finalize_accepts_a_success_that_observed_every_step() -> None:
-    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64")
+    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64", "runner-image")
     payload = {"capabilities": copy.deepcopy(lane["capabilities"])}
     steps = sorted(support_evidence.required_observations(lane["capabilities"]))
     result = support_evidence.finalize_evidence(payload, "success", steps)
@@ -327,7 +342,7 @@ def test_finalize_accepts_a_success_that_observed_every_step() -> None:
 
 
 def test_a_failed_lane_is_not_required_to_have_observed_anything() -> None:
-    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64")
+    lane = support_evidence.resolve_lane(MATRIX, "macos-gui", "arm64", "runner-image")
     payload = {"capabilities": copy.deepcopy(lane["capabilities"])}
     result = support_evidence.finalize_evidence(payload, "failure", [])
     assert result["result"] == "failure"
@@ -377,21 +392,23 @@ def test_every_lane_records_every_step_that_lane_declares() -> None:
 # --------------------------------------------------------------------------
 
 
-def _write_lane(root: Path, lane_name: str, arch: str, **override) -> Path:
-    lane = support_evidence.resolve_lane(MATRIX, lane_name, arch)
+def _write_lane(root: Path, lane_name: str, arch: str, release: str | None = None,
+                **override) -> Path:
+    lane = support_evidence.resolve_lane(MATRIX, lane_name, arch, release)
     payload = {
         "lane": lane_name,
         "sha": "a" * 40,
         "result": "success",
         "capabilities": copy.deepcopy(lane["capabilities"]),
-        "composition": {"architecture": lane["architecture"]},
+        "release": lane["release"],
+        "composition": {"architecture": lane["architecture"], "release": lane["release"]},
         "observed_steps": sorted(support_evidence.required_observations(lane["capabilities"])),
         "not_proven": sorted(
             item["id"] for item in lane["capabilities"] if item["status"] == "NOT_PROVEN"
         ),
     }
     payload.update(override)
-    directory = root / f"platform-{lane_name}-{lane['architecture']}"
+    directory = root / f"platform-{lane_name}-{lane['release']}-{lane['architecture']}"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "evidence.json"
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -400,8 +417,9 @@ def _write_lane(root: Path, lane_name: str, arch: str, **override) -> Path:
 
 def _complete_evidence(root: Path) -> None:
     for lane in MATRIX["evidence_lanes"]:
-        for arch in lane["architectures"]:
-            _write_lane(root, lane["lane"], arch)
+        for release in lane["releases"]:
+            for arch in lane["architectures"]:
+                _write_lane(root, lane["lane"], arch, release)
 
 
 def test_gate_accepts_a_complete_honest_evidence_set(tmp_path) -> None:
@@ -414,8 +432,8 @@ def test_gate_rejects_a_missing_lane(tmp_path) -> None:
     _complete_evidence(tmp_path)
     import shutil
 
-    shutil.rmtree(tmp_path / "platform-sandbox-server-rootless-amd64")
-    with pytest.raises(gate.GateError, match="expected 13 evidence payloads, downloaded 12"):
+    shutil.rmtree(tmp_path / "platform-sandbox-server-rootless-24.04-amd64")
+    with pytest.raises(gate.GateError, match="expected 21 evidence payloads, downloaded 20"):
         gate.verify(tmp_path, sha="a" * 40)
 
 
@@ -466,3 +484,70 @@ def test_gate_rejects_evidence_from_a_different_commit(tmp_path) -> None:
     _write_lane(tmp_path, "macos-gui", "arm64", sha="b" * 40)
     with pytest.raises(gate.GateError, match="carries sha"):
         gate.verify(tmp_path, sha="a" * 40)
+
+
+# --------------------------------------------------------------------------
+# Ubuntu 26.04 coverage (#57)
+# --------------------------------------------------------------------------
+
+RUNNER_SCRIPT = (ROOT / "scripts/ci/platform-evidence.sh").read_text(encoding="utf-8")
+
+
+def test_sandbox_release_is_a_lane_property_not_the_runner_s() -> None:
+    """26.04 coverage must not depend on a public-preview runner label.
+
+    The sandbox container's Ubuntu release is independent of the runner's, so a
+    26.04 sandbox runs on a 24.04 runner. `ubuntu-26.04` and `ubuntu-26.04-arm`
+    exist but are public preview, and a job asking for a label no runner
+    advertises queues indefinitely rather than failing.
+    """
+    assert 'RLDYOUR_EVIDENCE_RELEASE:-24.04' in RUNNER_SCRIPT
+    assert "FROM ubuntu:${RELEASE}" in RUNNER_SCRIPT
+    assert "FROM ubuntu:24.04" not in RUNNER_SCRIPT, "the sandbox base image is hardcoded again"
+
+    sandbox = EVIDENCE_WORKFLOW.split("\n  ubuntu-systemd-sandbox:\n", 1)[1]
+    assert 'release: ["24.04", "26.04"]' in sandbox
+    assert "runs-on: ${{ matrix.runner }}" in sandbox
+    # Comments are stripped: the workflow explains why it does not use the
+    # preview label, and naming it in prose must stay allowed.
+    executable = "\n".join(
+        line for line in EVIDENCE_WORKFLOW.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert "ubuntu-26.04" not in executable, (
+        "a preview runner label entered the workflow; sandbox releases do not need one"
+    )
+
+
+def test_container_readiness_accepts_a_settled_degraded_system() -> None:
+    """`running` was never the property the lane needs.
+
+    On 26.04 `systemd-modules-load.service` fails inside a container -- it cannot
+    load kernel modules -- so systemd settles `degraded` and never reaches
+    `running`. Waiting for `running` made a correct 26.04 sandbox time out.
+    Verified by running the lane: it now boots, and the degraded state is
+    recorded with its failed unit rather than tolerated silently.
+    """
+    block = RUNNER_SCRIPT.split("start_systemd_container() {", 1)[1].split("\n}", 1)[0]
+    assert "running|degraded" in block, "readiness rejects a settled degraded system again"
+    assert "is-system-running --quiet" not in block, (
+        "the quiet form cannot distinguish `degraded` from `starting`"
+    )
+    # A degraded boot must be visible in the artifact, not swallowed.
+    assert "SANDBOX_FAILED_UNITS" in block
+    assert "sandbox_failed_units" in RUNNER_SCRIPT
+    assert "runner_stability" in RUNNER_SCRIPT
+
+
+def test_every_ubuntu_lane_declares_which_releases_it_proves() -> None:
+    """No shared result may imply both releases."""
+    for lane in MATRIX["evidence_lanes"]:
+        assert lane["releases"], lane["lane"]
+        assert "release" not in lane, f"{lane['lane']} kept the scalar spelling"
+        if lane["os"] == "ubuntu":
+            assert set(lane["releases"]) <= {"24.04", "26.04"}, lane["lane"]
+    sandbox = [l for l in MATRIX["evidence_lanes"] if l["lane"].startswith("sandbox-")]
+    assert sandbox, "no sandbox lanes found"
+    for lane in sandbox:
+        assert lane["releases"] == ["24.04", "26.04"], (
+            f"{lane['lane']} does not prove both supported releases"
+        )

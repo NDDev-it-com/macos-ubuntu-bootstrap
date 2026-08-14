@@ -2,7 +2,7 @@
   "schema_version": 1,
   "adapter_version": "3.0.1",
   "verified_on": "2026-08-13",
-  "expected_hosted_artifact_instances": 13,
+  "expected_hosted_artifact_instances": 21,
   "status_vocabulary": [
     "PROVEN",
     "NOT_PROVEN",
@@ -669,7 +669,6 @@
     {
       "lane": "macos-gui",
       "os": "macos",
-      "release": "runner-image",
       "architectures": [
         "arm64"
       ],
@@ -711,12 +710,14 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "runner-image"
       ]
     },
     {
       "lane": "macos-no-gui",
       "os": "macos",
-      "release": "runner-image",
       "architectures": [
         "arm64"
       ],
@@ -746,12 +747,14 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "runner-image"
       ]
     },
     {
       "lane": "ubuntu-desktop-no-gui",
       "os": "ubuntu",
-      "release": "24.04",
       "architectures": [
         "amd64",
         "arm64"
@@ -782,12 +785,14 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "24.04"
       ]
     },
     {
       "lane": "ubuntu-arm-gui-refusal",
       "os": "ubuntu",
-      "release": "24.04",
       "architectures": [
         "arm64"
       ],
@@ -810,12 +815,14 @@
             "no_managed_state"
           ]
         }
+      ],
+      "releases": [
+        "24.04"
       ]
     },
     {
       "lane": "sandbox-desktop-builds-rootful",
       "os": "ubuntu",
-      "release": "24.04",
       "architectures": [
         "amd64",
         "arm64"
@@ -852,12 +859,15 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "24.04",
+        "26.04"
       ]
     },
     {
       "lane": "sandbox-server-none",
       "os": "ubuntu",
-      "release": "24.04",
       "architectures": [
         "amd64",
         "arm64"
@@ -894,12 +904,15 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "24.04",
+        "26.04"
       ]
     },
     {
       "lane": "sandbox-server-rootful",
       "os": "ubuntu",
-      "release": "24.04",
       "architectures": [
         "amd64",
         "arm64"
@@ -936,12 +949,15 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "24.04",
+        "26.04"
       ]
     },
     {
       "lane": "sandbox-server-rootless",
       "os": "ubuntu",
-      "release": "24.04",
       "architectures": [
         "amd64"
       ],
@@ -977,12 +993,15 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "24.04",
+        "26.04"
       ]
     },
     {
       "lane": "sandbox-server-hardening",
       "os": "ubuntu",
-      "release": "24.04",
       "architectures": [
         "amd64"
       ],
@@ -1023,6 +1042,10 @@
           "status": "NOT_PROVEN",
           "required_tier": "REAL_HOST_REQUIRED"
         }
+      ],
+      "releases": [
+        "24.04",
+        "26.04"
       ]
     }
   ],

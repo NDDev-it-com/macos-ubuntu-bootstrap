@@ -111,8 +111,12 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 2
+      # `release` is the container's Ubuntu release, not the runner's. A 26.04
+      # sandbox runs on a 24.04 runner, so release coverage costs no dependency
+      # on the public-preview `ubuntu-26.04` runner labels.
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        release: ["24.04", "26.04"]
         lane:
           - sandbox-desktop-builds-rootful
           - sandbox-server-none
@@ -134,12 +138,13 @@ jobs:
       - name: Disposable systemd apply and strict verification
         env:
           EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
+          RLDYOUR_EVIDENCE_RELEASE: ${{ matrix.release }}
         run: bash scripts/ci/platform-evidence.sh "${{ matrix.lane }}" "$RUNNER_TEMP/evidence"
       - name: Upload sanitized evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-${{ matrix.runner }}-${{ matrix.lane }}-${{ github.run_attempt }}
+          name: platform-${{ matrix.runner }}-${{ matrix.release }}-${{ matrix.lane }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/evidence
           if-no-files-found: error
           retention-days: 1
@@ -147,6 +152,10 @@ jobs:
   ubuntu-safeguards:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["24.04", "26.04"]
     steps:
       - name: Checkout exact public commit without credentials
         env:
@@ -160,12 +169,13 @@ jobs:
       - name: Disposable SSH, UFW, and Fail2ban apply evidence
         env:
           EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
+          RLDYOUR_EVIDENCE_RELEASE: ${{ matrix.release }}
         run: bash scripts/ci/platform-evidence.sh sandbox-server-hardening "$RUNNER_TEMP/evidence"
       - name: Upload sanitized evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-ubuntu-24.04-server-safeguards-${{ github.run_attempt }}
+          name: platform-ubuntu-${{ matrix.release }}-server-safeguards-${{ github.run_attempt }}
           path: ${{ runner.temp }}/evidence
           if-no-files-found: error
           retention-days: 1

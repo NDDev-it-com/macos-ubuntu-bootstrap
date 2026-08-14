@@ -51,13 +51,19 @@ class GateError(RuntimeError):
     """The downloaded evidence does not support what the matrix declares."""
 
 
-def expected_instances(matrix: dict[str, Any]) -> set[tuple[str, str]]:
-    """Every (lane, canonical architecture) pair the matrix expects to see."""
-    pairs: set[tuple[str, str]] = set()
+def expected_instances(matrix: dict[str, Any]) -> set[tuple[str, str, str]]:
+    """Every (lane, release, canonical architecture) the matrix expects to see.
+
+    Release is part of the key because 24.04 and 26.04 evidence must stay
+    separate: a passing 24.04 lane may not stand in for its 26.04 twin, which is
+    exactly what a lane-and-architecture key would have allowed.
+    """
+    triples: set[tuple[str, str, str]] = set()
     for lane in matrix["evidence_lanes"]:
-        for arch in lane["architectures"]:
-            pairs.add((lane["lane"], support_evidence.canonical_arch(arch)))
-    return pairs
+        for release in lane["releases"]:
+            for arch in lane["architectures"]:
+                triples.add((lane["lane"], release, support_evidence.canonical_arch(arch)))
+    return triples
 
 
 def load_payloads(root: Path) -> list[tuple[Path, dict[str, Any]]]:
@@ -74,7 +80,7 @@ def load_payloads(root: Path) -> list[tuple[Path, dict[str, Any]]]:
 
 def check_payload(
     path: Path, payload: dict[str, Any], matrix: dict[str, Any], sha: str | None
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     lane_name = payload.get("lane")
     if not isinstance(lane_name, str):
         raise GateError(f"{path}: payload declares no lane")
@@ -82,8 +88,12 @@ def check_payload(
     if not isinstance(arch, str):
         raise GateError(f"{path}: payload declares no composition architecture")
 
+    release = payload.get("release") or payload.get("composition", {}).get("release")
+    if not isinstance(release, str) or not release:
+        raise GateError(f"{path}: payload declares no release")
+
     try:
-        lane = support_evidence.resolve_lane(matrix, lane_name, arch)
+        lane = support_evidence.resolve_lane(matrix, lane_name, arch, release)
     except support_evidence.MatrixError as exc:
         raise GateError(f"{path}: {exc}") from exc
 
@@ -120,7 +130,7 @@ def check_payload(
             f"{sorted(payload.get('not_proven') or [])}, expected {expected_not_proven}"
         )
 
-    return lane_name, support_evidence.canonical_arch(arch)
+    return lane_name, release, support_evidence.canonical_arch(arch)
 
 
 def verify(root: Path, *, sha: str | None = None) -> int:
@@ -129,11 +139,13 @@ def verify(root: Path, *, sha: str | None = None) -> int:
     support_evidence.validate_matrix(matrix, contract)
 
     payloads = load_payloads(root)
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str]] = set()
     for path, payload in payloads:
         key = check_payload(path, payload, matrix, sha)
         if key in seen:
-            raise GateError(f"{path}: duplicate evidence for lane {key[0]} on {key[1]}")
+            raise GateError(
+                f"{path}: duplicate evidence for lane {key[0]} on {key[1]}/{key[2]}"
+            )
         seen.add(key)
 
     declared_total = matrix["expected_hosted_artifact_instances"]
@@ -150,8 +162,8 @@ def verify(root: Path, *, sha: str | None = None) -> int:
         )
 
     print(f"evidence-artifacts-ok: {len(payloads)} lanes")
-    for lane_name, arch in sorted(seen):
-        print(f"  {lane_name} [{arch}]")
+    for lane_name, release, arch in sorted(seen):
+        print(f"  {lane_name} [{release} {arch}]")
     return 0
 
 

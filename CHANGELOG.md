@@ -14,6 +14,24 @@ remains available in immutable Git tags.
 
 ### Fixed
 
+- Narrowed the macOS validation-path provenance to what a resolver can actually
+  establish, per ADR 0010. The schema declared a coherent
+  formula/bottle/executable five-tuple per anchor while the resolver flattened
+  every variant to a set of `executable_sha256` values and tested membership —
+  `formula_revision`, `bottle_tag`, `bottle_rebuild` and `bottle_sha256` were
+  never read, so a keg recording one rebuild could be authorized by a hash
+  belonging to another. Under a rolling formula the leaf digest is not a pin
+  either: homebrew-core moves it on every rebuild, which is what made macOS
+  clean validation red and made "append another accepted hash" look like a fix.
+  Homebrew anchors now declare their determinism class and carry no build
+  digests at all, and the resolver **refuses** those fields rather than ignoring
+  them, so they cannot return as decoration. What is enforced is the chain that
+  is locally checkable: expected prefix rather than a lookalike, keg ownership
+  and mode, a regular executable inside that keg no symlink escapes, the install
+  receipt's tap and stable version, and the reported version. A rebuilt bottle
+  with identical version now resolves; a wrong reported version or a receipt
+  naming a different stable version still does not.
+
 - Replaced `timeout --foreground` around the PolicyKit path, which bounded
   nothing. GNU coreutils documents that mode as not timing out children, and the
   signal it sends goes to a setuid-root `pkexec` an unprivileged launcher may not

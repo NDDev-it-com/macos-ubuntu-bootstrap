@@ -723,24 +723,10 @@
         "version": "0.11.0",
         "prefix": "/opt/homebrew",
         "executable": "bin/shellcheck",
-        "provenance_variants": [
-          {
-            "formula_revision": "4a47db2a60995b1e7a5a0024b7406de197647c15",
-            "bottle_tag": "arm64_tahoe",
-            "bottle_rebuild": 0,
-            "bottle_sha256": "a8c12e69512ed369ded8a58cfb81c8d42eea53d8ac51119fe3f83e050e6a6f4d",
-            "executable_sha256": "29dca91c54b8bb41ad841bff1c941a9d5dec714242c3ab69ca05594bd69a9020"
-          },
-          {
-            "formula_revision": "11b85b79adabddf823a733445e86b9ad2e9b0141",
-            "bottle_tag": "arm64_tahoe",
-            "bottle_rebuild": 1,
-            "bottle_sha256": "102f7f385855df8eabf5c9017b8d729a02a5ccca810aa23e3ae700a46226ab70",
-            "executable_sha256": "68b842bed0fa9af12b3c63d0d99b5bbbfe33cb13f911179913020da2041ce1f5"
-          }
-        ],
         "version_argument": "--version",
-        "version_pattern": "version: 0.11.0"
+        "version_pattern": "version: 0.11.0",
+        "determinism_class": "rolling-homebrew-formula",
+        "provenance_note": "ADR 0010: this formula is intentionally rolling. Provenance is the locally verifiable chain -- expected prefix, keg ownership and mode, a regular executable inside that keg, the install receipt's tap and stable version, and the reported version -- never a frozen bottle or executable digest, which homebrew-core moves on every rebuild."
       },
       {
         "command": "rg",
@@ -751,17 +737,10 @@
         "version": "15.2.0",
         "prefix": "/opt/homebrew",
         "executable": "bin/rg",
-        "provenance_variants": [
-          {
-            "formula_revision": "666e305a8f602401e66a29c2198a4139b52629ee",
-            "bottle_tag": "arm64_tahoe",
-            "bottle_rebuild": 0,
-            "bottle_sha256": "70d2dd4c77e3095797b768a1b6c1d092a1ef6db5ba81b38b422920b7b87c9886",
-            "executable_sha256": "a7b47abdfd0f38777d09521f4fd1043d0c499bd1bc4ffd62da4cece661d2ef46"
-          }
-        ],
         "version_argument": "--version",
-        "version_pattern": "ripgrep 15.2.0"
+        "version_pattern": "ripgrep 15.2.0",
+        "determinism_class": "rolling-homebrew-formula",
+        "provenance_note": "ADR 0010: this formula is intentionally rolling. Provenance is the locally verifiable chain -- expected prefix, keg ownership and mode, a regular executable inside that keg, the install receipt's tap and stable version, and the reported version -- never a frozen bottle or executable digest, which homebrew-core moves on every rebuild."
       },
       {
         "command": "rg",

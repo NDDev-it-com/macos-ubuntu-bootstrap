@@ -242,12 +242,15 @@ def test_validation_path_manifest_declares_provider_neutral_managed_anchors() ->
         assert anchor["version_pattern"] and anchor["version_argument"] == "--version"
         if anchor["provider"] == "homebrew":
             assert anchor["prefix"] == "/opt/homebrew"
-            assert anchor["provenance_variants"]
-            for variant in anchor["provenance_variants"]:
-                assert len(variant["formula_revision"]) == 40
-                assert variant["bottle_tag"] and variant["bottle_rebuild"] >= 0
-                assert len(variant["bottle_sha256"]) == 64
-                assert len(variant["executable_sha256"]) == 64
+            # ADR 0010: a rolling formula declares its class, not a build digest.
+            assert anchor["determinism_class"] == "rolling-homebrew-formula"
+            assert len(anchor["provenance_note"]) > 60
+            for field in ("provenance_variants", "formula_revision", "bottle_tag",
+                          "bottle_rebuild", "bottle_sha256", "executable_sha256"):
+                assert field not in anchor, (
+                    f"{anchor['command']} regained {field}, which homebrew-core moves "
+                    "on every rebuild"
+                )
         else:
             assert anchor["root"].startswith("$HOME/")
             assert len(anchor["receipt_sha256"]) == 64
@@ -268,18 +271,32 @@ def test_managed_anchor_inventory_rejects_duplicate_and_unknown_provider() -> No
     with pytest.raises(resolver.ResolutionError, match="malformed"):
         resolver._managed_anchors(unknown, "darwin", "arm64")
 
-    bad_variant = json.loads(json.dumps(contract))
-    bad_variant["ci_validation"]["managed_package_anchors"][0]["provenance_variants"][0][
-        "bottle_sha256"
-    ] = "not-a-digest"
-    with pytest.raises(resolver.ResolutionError, match="bottle_sha256"):
-        resolver._managed_anchors(bad_variant, "darwin", "arm64")
+    # Build provenance a resolver cannot verify must be refused, not ignored.
+    # Leaving it accepted-but-unread is what let the schema read as a guarantee
+    # while the resolver only tested a flat set of digests (ADR 0010).
+    for field, value in (
+        ("executable_sha256", "a" * 64),
+        ("bottle_sha256", "a" * 64),
+        ("formula_revision", "a" * 40),
+        ("provenance_variants", [{"executable_sha256": "a" * 64}]),
+    ):
+        regressed = json.loads(json.dumps(contract))
+        anchor = next(
+            item for item in regressed["ci_validation"]["managed_package_anchors"]
+            if item["provider"] == "homebrew"
+        )
+        anchor[field] = value
+        with pytest.raises(resolver.ResolutionError, match="malformed|cannot verify"):
+            resolver._managed_anchors(regressed, "darwin", "arm64")
 
-    conflicting = json.loads(json.dumps(contract))
-    variants = conflicting["ci_validation"]["managed_package_anchors"][0]["provenance_variants"]
-    variants.append({**variants[0], "executable_sha256": "f" * 64})
-    with pytest.raises(resolver.ResolutionError, match="variant is duplicated"):
-        resolver._managed_anchors(conflicting, "darwin", "arm64")
+    unclassified = json.loads(json.dumps(contract))
+    anchor = next(
+        item for item in unclassified["ci_validation"]["managed_package_anchors"]
+        if item["provider"] == "homebrew"
+    )
+    del anchor["determinism_class"]
+    with pytest.raises(resolver.ResolutionError, match="malformed"):
+        resolver._managed_anchors(unclassified, "darwin", "arm64")
 
 
 def test_candidate_requires_declared_provider_and_rejects_higher_shadow(
@@ -400,25 +417,38 @@ def test_homebrew_anchor_binds_formula_receipt_alias_and_bottle(
     anchor = {
         "prefix": str(prefix), "command": "tool", "package": "tool", "version": "1.2.3",
         "architecture": "arm64",
-        "executable": "bin/tool", "provenance_variants": [{
-            "formula_revision": "a" * 40, "bottle_tag": "arm64_test", "bottle_rebuild": 0,
-            "bottle_sha256": "a" * 64,
-            "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
-        }],
+        "executable": "bin/tool",
+        "determinism_class": "rolling-homebrew-formula",
         "version_argument": "--version", "version_pattern": "tool 1.2.3",
     }
     assert resolver._homebrew_trusted(alias, anchor) == executable
     assert observed_argv == [[str(executable), "--version"]]
-    bad = {**anchor, "provenance_variants": [
-        {**anchor["provenance_variants"][0], "executable_sha256": "b" * 64}
-    ]}
-    with pytest.raises(resolver.ResolutionError, match="hash mismatch"):
-        resolver._homebrew_trusted(alias, bad)
-    second = {**anchor["provenance_variants"][0], "formula_revision": "b" * 40,
-              "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest()}
-    assert resolver._homebrew_trusted(
-        alias, {**anchor, "provenance_variants": [bad["provenance_variants"][0], second]},
-    ) == executable
+
+    # A rebuilt bottle -- same formula, same version, different bytes -- must
+    # still resolve. Under the previous frozen-digest model this was the failure
+    # that turned an ordinary homebrew-core rebuild into a red required check,
+    # and the reflex fix was to append another accepted hash (ADR 0010).
+    executable.write_text("#!/bin/sh\necho 'tool 1.2.3'\n# rebuilt\n", encoding="utf-8")
+    executable.chmod(0o755)
+    observed_argv.clear()
+    assert resolver._homebrew_trusted(alias, anchor) == executable
+
+    # The locally verifiable chain still has to hold. A version the executable
+    # does not report is refused.
+    with pytest.raises(resolver.ResolutionError):
+        resolver._homebrew_trusted(alias, {**anchor, "version_pattern": "tool 9.9.9"})
+
+    # And a keg whose install receipt names a different stable version is refused,
+    # which is what actually binds the executable to the declared version now.
+    (keg / "INSTALL_RECEIPT.json").write_text(
+        json.dumps({**receipt, "source": {"tap": "homebrew/core",
+                                          "versions": {"stable": "9.9.9"}}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(resolver.ResolutionError):
+        resolver._homebrew_trusted(alias, anchor)
+    (keg / "INSTALL_RECEIPT.json").write_text(json.dumps(receipt), encoding="utf-8")
+
     outside, outside_identity = _owned_external_executable(tmp_path)
     alias.unlink()
     alias.symlink_to(outside)

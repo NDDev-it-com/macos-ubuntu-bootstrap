@@ -106,10 +106,21 @@ def _homebrew_trusted(path: Path, anchor: dict[str, object]) -> Path:
     if (resolved != expected or not stat.S_ISREG(expected.lstat().st_mode)
             or not os.access(resolved, os.X_OK)):
         raise ResolutionError("Homebrew alias escaped or executable is invalid")
-    variants = anchor["provenance_variants"]
-    accepted_hashes = {item["executable_sha256"] for item in variants}  # type: ignore[union-attr,index]
-    if _sha256(expected) not in accepted_hashes:
-        raise ResolutionError("Homebrew executable hash mismatch")
+    # No executable digest is compared here, deliberately (ADR 0010).
+    #
+    # This formula is intentionally rolling: `ensure_formula` installs whatever
+    # homebrew-core currently serves and preserves an already installed keg. A
+    # frozen `executable_sha256` is therefore not a pin -- it moves on every
+    # upstream rebuild, and freezing it converted an ordinary upstream event
+    # into a red required check. The schema also declared a formula/bottle
+    # five-tuple that nothing read, so a keg whose receipt recorded one rebuild
+    # could be authorized by a hash belonging to another.
+    #
+    # What remains below is the chain this process can actually establish on
+    # the machine it is running on: the expected prefix rather than a lookalike,
+    # keg ownership and mode, a regular executable inside that keg that no
+    # symlink escapes, the install receipt's tap and stable version, and the
+    # version the executable reports.
     # The global namespace may be package-manager writable. Inside the selected
     # keg, mixed ownership and group/world-writable content are forbidden.
     owner = keg.stat().st_uid
@@ -268,7 +279,10 @@ def _managed_anchors(data: dict[str, object], host_platform: str, host_arch: str
     common = {"command", "provider", "platform", "architecture", "package", "version",
               "executable", "version_argument", "version_pattern"}
     provider_fields = {
-        "homebrew": {"prefix", "provenance_variants"},
+        # A rolling formula declares its class and the note explaining it, and
+        # no build provenance (ADR 0010). The codex bundle keeps its digests:
+        # it is an immutable upstream artifact, which is a different class.
+        "homebrew": {"prefix", "determinism_class", "provenance_note"},
         "codex-bundle": {"root", "receipt", "receipt_sha256", "executable_sha256"},
     }
     seen: set[tuple[object, ...]] = set()
@@ -292,31 +306,23 @@ def _managed_anchors(data: dict[str, object], host_platform: str, host_arch: str
                                   or any(char not in "0123456789abcdef" for char in item[field])):
                 raise ResolutionError(f"managed-package {field} is invalid")
         if item["provider"] == "homebrew":
-            variants = item["provenance_variants"]
-            required = {"formula_revision", "bottle_tag", "bottle_rebuild", "bottle_sha256", "executable_sha256"}
-            if not isinstance(variants, list) or not variants:
-                raise ResolutionError("managed-package provenance variants are invalid")
-            variant_ids: set[tuple[object, ...]] = set()
-            for variant in variants:
-                if not isinstance(variant, dict) or set(variant) != required:
-                    raise ResolutionError("managed-package provenance variant is malformed")
-                if (not isinstance(variant["formula_revision"], str)
-                        or len(variant["formula_revision"]) != 40
-                        or any(char not in "0123456789abcdef" for char in variant["formula_revision"])):
-                    raise ResolutionError("managed-package formula revision is invalid")
-                if (not isinstance(variant["bottle_tag"], str) or not variant["bottle_tag"]
-                        or not isinstance(variant["bottle_rebuild"], int)
-                        or variant["bottle_rebuild"] < 0):
-                    raise ResolutionError("managed-package bottle identity is invalid")
-                for field in ("bottle_sha256", "executable_sha256"):
-                    value = variant[field]
-                    if (not isinstance(value, str) or len(value) != 64
-                            or any(char not in "0123456789abcdef" for char in value)):
-                        raise ResolutionError(f"managed-package {field} is invalid")
-                variant_id = (variant["formula_revision"], variant["bottle_tag"], variant["bottle_rebuild"])
-                if variant_id in variant_ids:
-                    raise ResolutionError("managed-package provenance variant is duplicated")
-                variant_ids.add(variant_id)
+            # A rolling formula may not carry build provenance it cannot honour
+            # (ADR 0010). These fields are refused rather than ignored: leaving
+            # them accepted-but-unread is what let the schema read as a
+            # guarantee while the resolver checked a flat set of digests.
+            forbidden = {
+                "provenance_variants", "formula_revision", "bottle_tag",
+                "bottle_rebuild", "bottle_sha256", "executable_sha256",
+            } & set(item)
+            if forbidden:
+                raise ResolutionError(
+                    "managed-package homebrew anchor declares build provenance no "
+                    f"resolver can verify: {sorted(forbidden)}"
+                )
+            if item.get("determinism_class") != "rolling-homebrew-formula":
+                raise ResolutionError(
+                    "managed-package homebrew anchor must declare its determinism class"
+                )
         _bounded_relative(item["executable"], "executable")
         if item["provider"] == "codex-bundle":
             _bounded_relative(item["receipt"], "receipt")

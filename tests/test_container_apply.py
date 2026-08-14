@@ -294,3 +294,89 @@ def test_the_supervisor_never_signals_every_process_when_it_is_pid_one() -> None
     assert "own_group=no" in completed.stdout, (
         "own_process_group accepted PID 1; a group signal there means every process"
     )
+
+
+# --------------------------------------------------------------------------
+# Firefox removal, against a real deb (#64)
+#
+# `apt_install --purge firefox` was rejected by the helper's own allowlist --
+# neither `--purge` nor `firefox` is a member -- so a GUI apply aborted under
+# `set -euo pipefail` after locale, keymap, RustDesk and Chrome had been
+# applied. The call was also inverted: `apt-get install … --purge firefox`
+# installs Firefox.
+#
+# Ubuntu's archive carries a real `firefox` deb (the transitional package), so
+# the present / absent / repeat conditions are provable here rather than only on
+# a desktop.
+# --------------------------------------------------------------------------
+
+FIREFOX_HARNESS = r"""
+set -uo pipefail
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq >/dev/null 2>&1
+# Not -qq: apt exits 100 on this transitional package under it, while the
+# same install succeeds without it.
+apt-get install -y --no-install-recommends firefox >/dev/null 2>&1
+
+installed() { dpkg-query -W -f='${Status}' firefox 2>/dev/null | grep -q 'install ok installed'; }
+
+installed && echo "state=present" || echo "state=absent-before-test"
+
+# Source the shipped helper for its real functions, without running main().
+# It sets `-euo pipefail` at top level, which lands in this shell too, so `-e`
+# is cleared again afterwards -- every call below is expected to fail at least
+# once and its exit status is the thing being measured.
+set +e
+source /repo/scripts/ubuntu/privileged-helper.sh 2>/dev/null
+set +e
+
+# 1. The old call must still be refused, so the defect cannot come back quietly.
+apt_install --purge firefox >/dev/null 2>&1
+echo "old_call_rc=$?"
+
+# 2. The exact operation removes it.
+apt_remove firefox >/dev/null 2>&1
+echo "remove_rc=$?"
+installed && echo "after_remove=present" || echo "after_remove=absent"
+
+# 3. Repeating it is not an error.
+apt_remove firefox >/dev/null 2>&1
+echo "repeat_rc=$?"
+installed && echo "after_repeat=present" || echo "after_repeat=absent"
+
+# 4. A package outside the removal allowlist is refused.
+apt_remove ca-certificates >/dev/null 2>&1
+echo "unlisted_rc=$?"
+dpkg-query -W -f='${Status}' ca-certificates 2>/dev/null | grep -q 'install ok installed' \
+  && echo "unlisted_survived=yes" || echo "unlisted_survived=no"
+"""
+
+
+@requires_container
+def test_firefox_removal_is_exact_and_idempotent_against_a_real_deb() -> None:
+    completed = subprocess.run(
+        [_DOCKER, "run", "--rm", "-v", f"{ROOT}:/repo:ro", "-w", "/repo", "ubuntu:24.04",
+         "bash", "-c", FIREFOX_HARNESS],
+        capture_output=True, text=True, check=False, timeout=900,
+    )
+    output = completed.stdout + completed.stderr
+    values = dict(
+        line.split("=", 1) for line in completed.stdout.splitlines() if "=" in line
+    )
+
+    assert values.get("state") == "present", f"the archive deb did not install:\n{output}"
+
+    # The rejected call: neither `--purge` nor `firefox` is on the install
+    # allowlist, and INTERNAL_ALLOWLIST_REJECTED is exit 2.
+    assert values["old_call_rc"] == "2", output
+
+    assert values["remove_rc"] == "0", output
+    assert values["after_remove"] == "absent", output
+
+    # Idempotent: apt-get purge on an already-absent package succeeds.
+    assert values["repeat_rc"] == "0", output
+    assert values["after_repeat"] == "absent", output
+
+    # The removal allowlist is its own list, not the install one.
+    assert values["unlisted_rc"] == "2", output
+    assert values["unlisted_survived"] == "yes", output

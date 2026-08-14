@@ -55,9 +55,68 @@ rldyour::privilege::trusted_root_path() {
   done
 }
 
+# Validate a distribution-managed tool, following an alternatives chain.
+#
+# `trusted_root_path` refuses symlinks outright, which is right for artifacts
+# this repository publishes: ours are real files and a symlink there would be
+# an indirection nobody asked for. It is wrong for a tool the distribution owns.
+#
+# Ubuntu 26.04 ships sudo through the alternatives system, because it carries
+# both the classic implementation and sudo-rs:
+#
+#     /usr/bin/sudo -> /etc/alternatives/sudo -> /usr/bin/sudo.ws  (4755 root root)
+#
+# On 24.04 `/usr/bin/sudo` is that setuid file directly. So the strict check
+# refused sudo on 26.04, the sudo-noninteractive branch was skipped, and a
+# non-TTY 26.04 host fell through to NONINTERACTIVE_AUTH_UNAVAILABLE -- the
+# privilege state machine could not use sudo at all on a release the contract
+# claims to support. Every 26.04 sandbox lane failed on exactly that.
+#
+# The property worth keeping is not "no symlinks"; it is "nobody but root can
+# change where this path leads". A symlink owned by root, in a directory only
+# root can write, satisfies it: repointing it needs root, and root does not
+# need to attack sudo. Symlink *modes* are not consulted because Linux does not
+# enforce them -- they are always 0777 -- so ownership and the writability of
+# each containing directory are what carry the guarantee.
+readonly RLDYOUR_PRIVILEGE_MAX_LINK_DEPTH=8
+
 rldyour::privilege::absolute_tool() {
-  local path=$1
-  rldyour::privilege::trusted_root_path "$path" && [ -f "$path" ] && [ -x "$path" ]
+  local path=$1 depth=0 target parent
+
+  while :; do
+    case $path in
+      /*) ;;
+      *) return 1 ;;
+    esac
+    [ -e "$path" ] || return 1
+    # Every directory above it must be root-owned and closed to others,
+    # whatever the leaf turns out to be.
+    parent=${path%/*}
+    [ -n "$parent" ] || parent=/
+    rldyour::privilege::trusted_root_path "$parent" || return 1
+    # The leaf itself must be root-owned; a link nobody but root can repoint
+    # is as trustworthy as the file it names.
+    [ "$(/usr/bin/stat -c '%u' -- "$path" 2>/dev/null)" = 0 ] || return 1
+
+    [ -L "$path" ] || break
+    depth=$((depth + 1))
+    [ "$depth" -le "$RLDYOUR_PRIVILEGE_MAX_LINK_DEPTH" ] || return 1
+    target=$(/usr/bin/readlink -- "$path") || return 1
+    case $target in
+      /*) path=$target ;;
+      *) path=${path%/*}/$target ;;
+    esac
+  done
+
+  # The resolved file, with the same mode contract the strict check applies.
+  if [ ! -f "$path" ] || [ ! -x "$path" ]; then
+    return 1
+  fi
+  local metadata mode
+  metadata=$(/usr/bin/stat -c '%u %a' -- "$path" 2>/dev/null) || return 1
+  [ "${metadata%% *}" = 0 ] || return 1
+  mode=$((8#${metadata##* }))
+  [ $((mode & 0022)) -eq 0 ]
 }
 
 rldyour::privilege::source_contract_valid() {

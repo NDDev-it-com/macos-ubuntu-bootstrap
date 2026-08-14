@@ -1446,3 +1446,49 @@ def test_helper_cleanup_aggregates_primary_signal_and_cleanup_results() -> None:
     assert "CLEANUP_FAILED" in text
     for signal_status in (129, 130, 143):
         assert f"on_signal {signal_status}" in text
+
+
+def test_absolute_tool_follows_a_root_owned_alternatives_chain() -> None:
+    """Ubuntu 26.04 ships sudo through the alternatives system (#57).
+
+        /usr/bin/sudo -> /etc/alternatives/sudo -> /usr/bin/sudo.ws  (4755 root root)
+
+    On 24.04 `/usr/bin/sudo` is that setuid file directly. `trusted_root_path`
+    refuses symlinks outright, so on 26.04 the sudo-noninteractive branch was
+    skipped and a non-TTY host fell through to NONINTERACTIVE_AUTH_UNAVAILABLE:
+    the privilege state machine could not use sudo at all on a release the
+    contract claims to support. Every 26.04 sandbox lane failed on it.
+
+    The property is not "no symlinks" -- it is "nobody but root can change where
+    this path leads". Ownership and the writability of each containing directory
+    carry that; symlink modes do not, because Linux does not enforce them.
+    """
+    source = PRIVILEGE.read_text(encoding="utf-8")
+    block = source.split("rldyour::privilege::absolute_tool() {", 1)[1].split("\n}", 1)[0]
+
+    # Each hop's owner is checked, and the chain is bounded.
+    assert "RLDYOUR_PRIVILEGE_MAX_LINK_DEPTH" in source
+    assert "readlink" in block
+    assert "'%u'" in block, "the link owner is no longer checked"
+    # Directories above every hop keep the strict contract.
+    assert "trusted_root_path \"$parent\"" in block
+    # The resolved file keeps the mode contract.
+    assert "0022" in block
+
+    # Artifacts this repository publishes keep the strict, symlink-free check.
+    strict = source.split("rldyour::privilege::trusted_root_path() {", 1)[1].split("\n}", 1)[0]
+    assert '[ -L "$path" ]' in strict, (
+        "the strict path check stopped refusing symlinks; only distribution "
+        "tools may be reached through an alternatives chain"
+    )
+
+
+def test_only_distribution_tools_use_the_link_following_check() -> None:
+    """Our own artifacts must still be real files at a fixed path."""
+    source = PRIVILEGE.read_text(encoding="utf-8")
+    callers = re.findall(r"absolute_tool (\S+)", source)
+    assert callers, "absolute_tool has no callers"
+    for target in callers:
+        assert target.startswith("/usr/bin/"), (
+            f"absolute_tool used for {target}, which is not a distribution tool"
+        )
